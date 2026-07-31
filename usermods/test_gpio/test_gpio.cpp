@@ -399,7 +399,6 @@ class TestGpioUsermod : public Usermod {
 
    //More methods can be added in the future, this example will then be extended.
    //Your usermod will remain compatible as it does not need to implement all methods from the Usermod base class!
-};
 
 
 // add more strings here to reduce flash memory usage
