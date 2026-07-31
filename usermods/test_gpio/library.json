@@ -1,5 +1,6 @@
 {
   "name": "test_gpio",
-  "build": { "libArchive": false },
-  "dependencies": {}
+  "version": "1.0.0",
+  "description": "Usermod tes GPIO untuk validasi Fase 1 Mizuma SmartSystem",
+  "libArchive": false
 }
