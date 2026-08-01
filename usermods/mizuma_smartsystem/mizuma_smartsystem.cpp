@@ -1,5 +1,7 @@
 #include "wled.h"
-#include <NimBLEDevice.h>
+#include <BLEDevice.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
 
 // Nama BLE rahasia yang harus dibroadcast dari HP untuk trigger AP
 // GANTI ini jadi unik per unit sebelum produksi massal
@@ -13,14 +15,14 @@ class MizumaSmartSystem : public Usermod {
     uint16_t vehicleYear = 0;
     String vehiclePlate = "";
 
-    // ===== Reminder servis: waktu terakhir ganti (epoch detik) + interval (hari) =====
+    // ===== Reminder servis =====
     struct ReminderItem {
       unsigned long lastServiceEpoch = 0;
       uint16_t intervalDays = 0;
     };
     ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
 
-    // ===== Mapping preset LED (10 slot: mode x sisi) =====
+    // ===== Mapping preset LED =====
     uint8_t presetWelcomingKanan = 1, presetWelcomingKiri = 2;
     uint8_t presetRidingKanan    = 3, presetRidingKiri    = 4;
     uint8_t presetSeinKanan      = 5, presetSeinKiri      = 6;
@@ -33,29 +35,31 @@ class MizumaSmartSystem : public Usermod {
     bool didInitialScan = false;
     const unsigned long INITIAL_SCAN_DELAY_MS = 10000;   // 10 detik setelah boot
     const unsigned long SCAN_INTERVAL_MS      = 300000;  // scan ulang tiap 5 menit
-    const unsigned long SCAN_DURATION_MS      = 2000;    // durasi tiap scan
+    const uint32_t SCAN_DURATION_SEC          = 2;        // durasi tiap scan (detik)
 
   public:
     void setup() override {
       bootTime = millis();
-      NimBLEDevice::init("Mizuma");
+      BLEDevice::init("Mizuma");
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap, BLE menunggu jendela scan pertama"));
     }
 
     void checkUnlockBeacon() {
       DEBUG_PRINTLN(F("[Mizuma] Mulai scan BLE..."));
-      NimBLEScan* pScan = NimBLEDevice::getScan();
+      BLEScan* pScan = BLEDevice::getScan();
       pScan->setActiveScan(true);
-      NimBLEScanResults results = pScan->getResults(SCAN_DURATION_MS, false);
+      BLEScanResults results = pScan->start(SCAN_DURATION_SEC, false);
 
       for (int i = 0; i < results.getCount(); i++) {
-        const NimBLEAdvertisedDevice* dev = results.getDevice(i);
-        if (dev->haveName() && dev->getName() == MIZUMA_UNLOCK_NAME) {
+        BLEAdvertisedDevice dev = results.getDevice(i);
+        if (dev.haveName() && dev.getName() == MIZUMA_UNLOCK_NAME) {
           DEBUG_PRINTLN(F("[Mizuma] Beacon unlock terdeteksi -> paksa mode AP"));
+          pScan->clearResults();
           WLED::instance().initAP(true);
           return;
         }
       }
+      pScan->clearResults();
       DEBUG_PRINTLN(F("[Mizuma] Tidak ada beacon unlock terdeteksi"));
     }
 
