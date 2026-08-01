@@ -1,0 +1,5 @@
+{
+  "name": "mizuma_smartsystem",
+  "build": { "libArchive": false },
+  "dependencies": {}
+}
