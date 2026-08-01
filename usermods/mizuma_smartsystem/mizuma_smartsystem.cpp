@@ -1,11 +1,5 @@
 #include "wled.h"
-#include <BLEDevice.h>
-#include <BLEScan.h>
-#include <BLEAdvertisedDevice.h>
-
-// Nama BLE rahasia yang harus dibroadcast dari HP untuk trigger AP
-// GANTI ini jadi unik per unit sebelum produksi massal
-#define MIZUMA_UNLOCK_NAME "MZM-UNLOCK-7F3A9C"
+#include <Preferences.h>
 
 class MizumaSmartSystem : public Usermod {
   private:
@@ -29,50 +23,38 @@ class MizumaSmartSystem : public Usermod {
     uint8_t presetRemKanan       = 7, presetRemKiri       = 8;
     uint8_t presetHazardKanan    = 9, presetHazardKiri    = 10;
 
-    // ===== BLE trigger untuk paksa mode AP =====
-    unsigned long lastScanAt = 0;
-    unsigned long bootTime = 0;
-    bool didInitialScan = false;
-    const unsigned long INITIAL_SCAN_DELAY_MS = 10000;   // 10 detik setelah boot
-    const unsigned long SCAN_INTERVAL_MS      = 300000;  // scan ulang tiap 5 menit
-    const uint32_t SCAN_DURATION_SEC          = 2;        // durasi tiap scan (detik)
+    // ===== Trigger paksa AP: triple power-cycle =====
+    Preferences preferences;
+    unsigned long resetCounterAt = 0;
+    const unsigned long SESSION_WINDOW_MS = 10000; // 10 detik nyala normal = counter reset
 
   public:
     void setup() override {
-      bootTime = millis();
-      BLEDevice::init("Mizuma");
-      DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap, BLE menunggu jendela scan pertama"));
-    }
+      preferences.begin("mizuma", false);
+      uint8_t bootCount = preferences.getUChar("bootCount", 0) + 1;
+      preferences.putUChar("bootCount", bootCount);
+      preferences.end();
 
-    void checkUnlockBeacon() {
-      DEBUG_PRINTLN(F("[Mizuma] Mulai scan BLE..."));
-      BLEScan* pScan = BLEDevice::getScan();
-      pScan->setActiveScan(true);
-      BLEScanResults results = pScan->start(SCAN_DURATION_SEC, false);
+      DEBUG_PRINTF("[Mizuma] Boot ke-%d dalam sesi\n", bootCount);
 
-      for (int i = 0; i < results.getCount(); i++) {
-        BLEAdvertisedDevice dev = results.getDevice(i);
-        if (dev.haveName() && dev.getName() == MIZUMA_UNLOCK_NAME) {
-          DEBUG_PRINTLN(F("[Mizuma] Beacon unlock terdeteksi -> paksa mode AP"));
-          pScan->clearResults();
-          WLED::instance().initAP(true);
-          return;
-        }
+      if (bootCount >= 3) {
+        DEBUG_PRINTLN(F("[Mizuma] Triple power-cycle terdeteksi -> paksa mode AP"));
+        WLED::instance().initAP(true);
+        preferences.begin("mizuma", false);
+        preferences.putUChar("bootCount", 0);
+        preferences.end();
+      } else {
+        resetCounterAt = millis() + SESSION_WINDOW_MS;
       }
-      pScan->clearResults();
-      DEBUG_PRINTLN(F("[Mizuma] Tidak ada beacon unlock terdeteksi"));
     }
 
     void loop() override {
-      unsigned long now = millis();
-
-      if (!didInitialScan && (now - bootTime >= INITIAL_SCAN_DELAY_MS)) {
-        didInitialScan = true;
-        lastScanAt = now;
-        checkUnlockBeacon();
-      } else if (didInitialScan && (now - lastScanAt >= SCAN_INTERVAL_MS)) {
-        lastScanAt = now;
-        checkUnlockBeacon();
+      if (resetCounterAt != 0 && millis() >= resetCounterAt) {
+        preferences.begin("mizuma", false);
+        preferences.putUChar("bootCount", 0);
+        preferences.end();
+        resetCounterAt = 0;
+        DEBUG_PRINTLN(F("[Mizuma] Boot counter direset (nyala normal >10 detik)"));
       }
     }
 
