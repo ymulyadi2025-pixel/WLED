@@ -1,5 +1,37 @@
 #include "wled.h"
-#include <Preferences.h>
+
+// ===== Shell UI utama (Fase 4) — halaman menu custom, bukan wizard bawaan WLED =====
+const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mizuma SmartSystem</title>
+<style>
+  body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; }
+  header { padding:20px; text-align:center; background:#1a1a1a; }
+  header h1 { margin:0; font-size:20px; }
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; padding:16px; }
+  .card { background:#1e1e1e; border-radius:12px; padding:20px 12px; text-align:center; text-decoration:none; color:#eee; display:block; }
+  .card .icon { font-size:28px; margin-bottom:8px; }
+  .card .label { font-size:14px; }
+</style>
+</head>
+<body>
+<header><h1>Mizuma SmartSystem</h1></header>
+<div class="grid">
+  <a class="card" href="#"><div class="icon">&#128161;</div><div class="label">LED Alis</div></a>
+  <a class="card" href="#"><div class="icon">&#128267;</div><div class="label">Kondisi Aki</div></a>
+  <a class="card" href="#"><div class="icon">&#128736;</div><div class="label">Reminder Servis</div></a>
+  <a class="card" href="#"><div class="icon">&#128274;</div><div class="label">Anti-Theft</div></a>
+  <a class="card" href="#"><div class="icon">&#128205;</div><div class="label">Lokasi GPS</div></a>
+  <a class="card" href="/settings/um"><div class="icon">&#127961;</div><div class="label">Data Motor</div></a>
+  <a class="card" href="/settings/wifi"><div class="icon">&#128246;</div><div class="label">Jaringan</div></a>
+</div>
+</body>
+</html>
+)rawliteral";
 
 class MizumaSmartSystem : public Usermod {
   private:
@@ -23,39 +55,17 @@ class MizumaSmartSystem : public Usermod {
     uint8_t presetRemKanan       = 7, presetRemKiri       = 8;
     uint8_t presetHazardKanan    = 9, presetHazardKiri    = 10;
 
-    // ===== Trigger paksa AP: triple power-cycle =====
-    Preferences preferences;
-    unsigned long resetCounterAt = 0;
-    const unsigned long SESSION_WINDOW_MS = 10000; // 10 detik nyala normal = counter reset
-
   public:
     void setup() override {
-      preferences.begin("mizuma", false);
-      uint8_t bootCount = preferences.getUChar("bootCount", 0) + 1;
-      preferences.putUChar("bootCount", bootCount);
-      preferences.end();
+      DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
-      DEBUG_PRINTF("[Mizuma] Boot ke-%d dalam sesi\n", bootCount);
-
-      if (bootCount >= 3) {
-        DEBUG_PRINTLN(F("[Mizuma] Triple power-cycle terdeteksi -> paksa mode AP"));
-        WLED::instance().initAP(true);
-        preferences.begin("mizuma", false);
-        preferences.putUChar("bootCount", 0);
-        preferences.end();
-      } else {
-        resetCounterAt = millis() + SESSION_WINDOW_MS;
-      }
+      server.on("/app", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send_P(200, "text/html", MIZUMA_SHELL_HTML);
+      });
     }
 
     void loop() override {
-      if (resetCounterAt != 0 && millis() >= resetCounterAt) {
-        preferences.begin("mizuma", false);
-        preferences.putUChar("bootCount", 0);
-        preferences.end();
-        resetCounterAt = 0;
-        DEBUG_PRINTLN(F("[Mizuma] Boot counter direset (nyala normal >10 detik)"));
-      }
+      // logic reminder/status ditambah di fase-fase berikutnya
     }
 
     void addToConfig(JsonObject& root) override {
