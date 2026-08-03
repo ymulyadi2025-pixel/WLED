@@ -205,10 +205,12 @@ class MizumaSmartSystem : public Usermod {
 
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
+      // Endpoint Halaman Utama Aplikasi
       server.on("/app", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send_P(200, "text/html", MIZUMA_SHELL_HTML);
       });
 
+      // Endpoint Status Koneksi AP & STA
       server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
         bool apOn  = (WiFi.softAPgetStationNum() > 0);
         bool staOn = (WiFi.status() == WL_CONNECTED);
@@ -223,6 +225,19 @@ class MizumaSmartSystem : public Usermod {
         json += "\"}";
 
         request->send(200, "application/json", json);
+      });
+
+      // Endpoint Smart Redirect (Pengalih Otomatis)
+      server.on("/masuk", HTTP_GET, [](AsyncWebServerRequest *request){
+        bool staOn = (WiFi.status() == WL_CONNECTED);
+        if (staOn) {
+          // Jika terhubung ke Hotspot, redirect ke IP Hotspot HP
+          String staIP = WiFi.localIP().toString();
+          request->redirect("http://" + staIP + "/app");
+        } else {
+          // Jika tidak terhubung Hotspot, redirect ke IP AP (Offline)
+          request->redirect("http://4.3.2.1/app");
+        }
       });
     }
 
