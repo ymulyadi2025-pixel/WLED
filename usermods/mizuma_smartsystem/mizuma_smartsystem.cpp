@@ -26,7 +26,7 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 <header><h1>Mizuma SmartSystem</h1></header>
 
 <div class="status" id="statusBox">
-  <div class="status-row"><span class="dot" id="dotAP"></span><span>Hotspot Mizuma (AP)</span></div>
+  <div class="status-row"><span class="dot" id="dotAP"></span><span>WiFi Mizuma Smart System</span></div>
   <div class="status-row"><span class="dot" id="dotSTA"></span><span id="staLabel">Mode Internet (Hotspot HP)</span></div>
   <a class="link-btn" id="staLink" style="display:none;" href="#">Buka di Mode Internet &rarr;</a>
 </div>
@@ -96,8 +96,7 @@ class MizumaSmartSystem : public Usermod {
       });
 
       server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
-        wifi_mode_t mode = WiFi.getMode();
-        bool apOn  = (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA);
+        bool apOn  = (WiFi.softAPgetStationNum() > 0);
         bool staOn = (WiFi.status() == WL_CONNECTED);
         String staIP = staOn ? WiFi.localIP().toString() : "";
 
