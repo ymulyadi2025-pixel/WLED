@@ -67,7 +67,7 @@ async function refreshStatus() {
 
     if (!isAPMode) {
       document.getElementById('dotAP').className = 'dot' + (data.ap ? ' on' : '');
-      document.getElementById('apLink').style.display = 'inline-block';
+      document.getElementById('apLink').style.display = data.ap ? 'inline-block' : 'none';
     }
 
     if (isAPMode) {
