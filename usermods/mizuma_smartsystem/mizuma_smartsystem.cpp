@@ -34,10 +34,10 @@ a:active,button:active{transform:scale(.96);}
 /* ==== Motion: entrance (jangan animasi body — akan merusak position:fixed) ==== */
 @keyframes mzRise{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
 @keyframes mzNav{from{transform:translateY(100%);} to{transform:none;}}
-.mzheader{animation:mzRise .28s var(--ease) backwards;}
-.container,.body-layout,.freeze{animation:mzRise .32s var(--ease) backwards .03s;}
-.bottomnav{animation:mzNav .34s var(--ease) backwards .05s;}
-.card,.tile,.stat-box{animation:mzRise .4s var(--ease) backwards;}
+.mzheader{animation:mzRise .22s var(--ease) backwards;}
+.container,.body-layout,.freeze{animation:mzRise .26s var(--ease) backwards .02s;}
+.bottomnav{animation:mzNav .26s var(--ease) backwards .04s;}
+.card,.tile,.stat-box{animation:mzRise .3s var(--ease) backwards;}
 /* ==== Header ==== */
 .mzheader{display:flex; align-items:center; justify-content:space-between; padding:12px 16px;
   padding-top:calc(12px + env(safe-area-inset-top));
@@ -128,20 +128,18 @@ if (data.volt) { document.getElementById('hdrVolt').textContent = data.volt + ' 
 mzRefreshHeader();
 setInterval(mzRefreshHeader, 5000);
 /* Stagger entrance kartu */
-document.querySelectorAll('.card,.tile,.stat-box').forEach(function(el,i){ el.style.animationDelay = (60 + i*50) + 'ms'; });
+document.querySelectorAll('.card,.tile,.stat-box').forEach(function(el,i){ el.style.animationDelay = (30 + i*30) + 'ms'; });
 /* Animasi progress bar */
 setTimeout(function(){ document.querySelectorAll('.progress .fill[data-w]').forEach(function(f){ f.style.width = f.getAttribute('data-w') + '%'; }); }, 200);
-/* Feedback getar halus (Android) */
-document.addEventListener('pointerdown', function(e){ if(e.target.closest('a,button,.slot,.palette-card,.fx-item,.switch,.chip')){ try{ navigator.vibrate && navigator.vibrate(6); }catch(_){} } }, {passive:true});
 /* Transisi antar layar: fade overlay (bukan opacity body, agar position:fixed tidak rusak) */
 function mzFadeTo(url){
 if(window.__mzFading) return; window.__mzFading = true;
 var f=document.getElementById('mzFade');
 if(!f){ f=document.createElement('div'); f.id='mzFade';
-f.style.cssText='position:fixed;inset:0;background:#0a0a0a;opacity:0;pointer-events:none;transition:opacity .16s ease;z-index:999;';
+f.style.cssText='position:fixed;inset:0;background:#0a0a0a;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:999;';
 document.body.appendChild(f); }
 requestAnimationFrame(function(){ f.style.opacity='1'; });
-setTimeout(function(){ window.location.href=url; }, 170);
+setTimeout(function(){ window.location.href=url; }, 110);
 }
 document.addEventListener('click', function(e){
 var a=e.target.closest('a'); if(!a) return;
@@ -246,7 +244,7 @@ document.getElementById('greetText').textContent = greet + ', %VEHICLE_NAME%';
 )rawliteral";
 
 // --------------------------------------------------------------------------------------------------------------------------------------
-// Blok 3 — Halaman Pengaturan
+// Blok 3 v2 — Halaman Pengaturan (sub-tab Koneksi/Jaringan + panel Ubah Mode Koneksi)
 // --------------------------------------------------------------------------------------------------------------------------------------
 const char MIZUMA_SETTINGS_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -256,66 +254,127 @@ const char MIZUMA_SETTINGS_HTML[] PROGMEM = R"rawliteral(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pengaturan - Mizuma</title>
 <style>
-  %SHARED_CSS%
-  .container { padding:16px; max-width:520px; margin:0 auto; }
-  .info-row { display:flex; justify-content:space-between; padding:7px 0; font-size:13px; border-bottom:1px solid #202020; }
-  .info-row:last-child { border-bottom:none; }
-  .info-row .k { color:#999; }
-  .info-row .v { color:#eee; font-weight:600; }
-  .btn { display:block; width:100%; text-align:center; padding:10px; background:#232323; color:#eee; border-radius:8px;
-    text-decoration:none; font-size:13px; font-weight:700; margin-top:10px; border:1px solid #333; }
-  .danger { border:1px solid #4a1f1f; background:#1a1010; }
-  .danger .card-title { color:#e05555; }
-  .danger .btn { background:#3d1414; color:#ff8080; border-color:#5a1c1c; }
+%SHARED_CSS%
+.container { padding:16px; max-width:520px; margin:0 auto; }
+.info-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; font-size:13px; border-bottom:1px solid var(--bd); }
+.info-row:last-child { border-bottom:none; }
+.info-row .k { color:var(--tx2); }
+.info-row .v { color:var(--tx); font-weight:600; text-align:right; }
+.chip-row { display:flex; gap:8px; margin-bottom:12px; }
+.switch-panel { margin-top:12px; padding-top:12px; border-top:1px solid var(--bd); animation:mzRise .25s var(--ease) backwards; }
+.target-title { font-size:13px; font-weight:700; color:var(--tx); margin-bottom:8px; }
+.guide-box { font-size:12px; color:var(--tx2); background:var(--s2); padding:10px 12px; border-radius:var(--r-sm); margin-bottom:12px; line-height:1.55; border-left:3px solid var(--ac); }
+.guide-box b { color:var(--tx); }
+.status-row { display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:4px; color:var(--tx2); }
+.dot { width:9px; height:9px; border-radius:50%; background:#555; display:inline-block; flex-shrink:0; transition:background .3s, box-shadow .3s; }
+.dot.on { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+.danger { border-color:#4a1f1f; background:#1a1010; }
+.danger .card-title { color:var(--bad); }
 </style>
 </head>
 <body>
 %HEADER%
 <div class="container">
-
-  <div class="card">
-    <div class="card-title">Informasi Motor</div>
-    <div class="info-row"><span class="k">Nama Motor</span><span class="v">%VEHICLE_NAME%</span></div>
-    <div class="info-row"><span class="k">Brand</span><span class="v">%VEHICLE_BRAND%</span></div>
-    <div class="info-row"><span class="k">Tahun</span><span class="v">%VEHICLE_YEAR%</span></div>
-    <div class="info-row"><span class="k">No. Polisi</span><span class="v">%VEHICLE_PLATE%</span></div>
-    <a class="btn" href="/settings/um">Ubah Data Motor</a>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Koneksi</div>
-    <div class="info-row"><span class="k">Mode</span><span class="v" id="connMode">Memuat...</span></div>
-    <div class="info-row"><span class="k">Nama WiFi</span><span class="v" id="connSSID">--</span></div>
-    <div class="info-row"><span class="k">Alamat IP</span><span class="v" id="connIP">--</span></div>
-    <a class="btn" href="/settings/wifi">Ubah Pengaturan Jaringan</a>
-  </div>
-
-  <div class="card">
-    <div class="card-title">Perangkat & Firmware</div>
-    <div class="info-row"><span class="k">Firmware</span><span class="v">MIZUMA WLED 16.0.1</span></div>
-    <div class="info-row"><span class="k">Jumlah LED</span><span class="v">96 LED</span></div>
-  </div>
-
-  <div class="card danger">
-    <div class="card-title">Reset Pabrik</div>
-    <div class="placeholder-text" style="color:#c99;">Menghapus semua konfigurasi dan mengembalikan ke pengaturan awal</div>
-    <a class="btn" href="/settings/sec">Buka Halaman Reset</a>
-  </div>
-
+<div class="card">
+<div class="card-title">Informasi Motor</div>
+<div class="info-row"><span class="k">Nama Motor</span><span class="v">%VEHICLE_NAME%</span></div>
+<div class="info-row"><span class="k">Brand</span><span class="v">%VEHICLE_BRAND%</span></div>
+<div class="info-row"><span class="k">Tahun</span><span class="v">%VEHICLE_YEAR%</span></div>
+<div class="info-row"><span class="k">No. Polisi</span><span class="v">%VEHICLE_PLATE%</span></div>
+<a class="btn" href="/settings/um">Ubah Data Motor</a>
+</div>
+<div class="card">
+<div class="card-title">Koneksi &amp; Jaringan</div>
+<div class="chip-row">
+<button class="chip active" data-pane="koneksi">Koneksi</button>
+<button class="chip" data-pane="jaringan">Jaringan</button>
+</div>
+<div id="paneKoneksi">
+<div class="info-row"><span class="k">Jenis Mode</span><span class="v" id="connMode">Memuat...</span></div>
+<div class="info-row"><span class="k">Nama WiFi</span><span class="v" id="connSSID">--</span></div>
+<button class="btn" id="btnModePanel">Ubah Mode Koneksi</button>
+<div class="switch-panel" id="switchPanel" style="display:none;">
+<div class="target-title" id="targetTitle">Beralih Mode</div>
+<div class="guide-box" id="guideBox">Memuat panduan...</div>
+<div class="status-row"><span class="dot" id="statusDot"></span><span id="statusText">Memeriksa koneksi...</span></div>
+<a class="btn primary" id="btnSwitchAction" style="display:none;" href="#">Beralih Mode Sekarang</a>
+</div>
+</div>
+<div id="paneJaringan" style="display:none;">
+<div class="info-row"><span class="k">Jaringan Aktif</span><span class="v" id="netSSID">--</span></div>
+<div class="info-row"><span class="k">Alamat IP</span><span class="v" id="netIP">--</span></div>
+<a class="btn" href="/settings/wifi">Buka Pengaturan WiFi &amp; Network</a>
+</div>
+</div>
+<div class="card">
+<div class="card-title">Perangkat &amp; Firmware</div>
+<div class="info-row"><span class="k">Firmware</span><span class="v">MIZUMA WLED 16.0.1</span></div>
+<div class="info-row"><span class="k">Jumlah LED</span><span class="v">96 LED</span></div>
+</div>
+<div class="card danger">
+<div class="card-title">Reset Pabrik</div>
+<div class="placeholder-text" style="color:#c99;">Menghapus semua konfigurasi dan mengembalikan ke pengaturan awal</div>
+<a class="btn danger" href="/settings/sec">Buka Halaman Reset</a>
+</div>
 </div>
 %BOTTOMNAV%
 <script>
 %HEADER_SCRIPT%
-async function loadConn() {
-  try {
-    const res = await fetch('/mizuma/status');
-    const data = await res.json();
-    document.getElementById('connMode').textContent = data.sta ? 'Mode Internet (Hotspot HP)' : 'Mode Kontrol (WiFi Mizuma)';
-    document.getElementById('connIP').textContent = data.sta ? data.staIP : '4.3.2.1';
-    document.getElementById('connSSID').textContent = data.sta ? '(Hotspot HP)' : 'Mizuma Smart System';
-  } catch (e) {}
+var isAPMode = (window.location.hostname === '4.3.2.1');
+/* Sub-tab Koneksi / Jaringan */
+document.querySelectorAll('.chip-row .chip').forEach(function(ch){
+ch.addEventListener('click', function(){
+document.querySelectorAll('.chip-row .chip').forEach(function(x){ x.classList.remove('active'); });
+ch.classList.add('active');
+var k = ch.getAttribute('data-pane');
+document.getElementById('paneKoneksi').style.display  = (k === 'koneksi')  ? 'block' : 'none';
+document.getElementById('paneJaringan').style.display = (k === 'jaringan') ? 'block' : 'none';
+});
+});
+/* Buka/tutup panel Ubah Mode Koneksi */
+document.getElementById('btnModePanel').addEventListener('click', function(){
+var p = document.getElementById('switchPanel');
+p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+});
+/* Panduan statis sesuai mode halaman saat ini (logika port dari fase 4) */
+if (isAPMode) {
+document.getElementById('targetTitle').textContent = 'Pilihan: Mode Kontrol + Internet (Hotspot)';
+document.getElementById('guideBox').innerHTML = '<b>Panduan:</b><br>1. Aktifkan Hotspot / Tethering di HP Anda.<br>2. Tunggu hingga sistem terhubung ke Hotspot HP.<br>3. Tombol beralih muncul otomatis saat terhubung.';
+} else {
+document.getElementById('targetTitle').textContent = 'Pilihan: Mode Kontrol Only (Offline)';
+document.getElementById('guideBox').innerHTML = '<b>Panduan:</b><br>1. Aktifkan Wi-Fi di HP Anda.<br>2. Sambungkan ke Wi-Fi <b>Mizuma Smart System</b>.<br>3. Tombol beralih muncul otomatis saat terhubung.';
 }
-loadConn();
+/* Status koneksi live (butuh field ap/sta/staIP/ssid dari Blok 6 revisi) */
+async function refreshConn() {
+try {
+const res = await fetch('/mizuma/status');
+const data = await res.json();
+document.getElementById('connMode').textContent = data.sta ? 'Mode Internet (Hotspot HP)' : 'Mode Kontrol (WiFi Mizuma)';
+document.getElementById('connSSID').textContent = data.ssid || '--';
+document.getElementById('netSSID').textContent  = data.ssid || '--';
+document.getElementById('netIP').textContent    = data.sta ? data.staIP : '4.3.2.1';
+var dot = document.getElementById('statusDot');
+var st  = document.getElementById('statusText');
+var btn = document.getElementById('btnSwitchAction');
+if (isAPMode) {
+if (data.sta && data.staIP) {
+dot.className = 'dot on'; st.textContent = 'Sistem terhubung ke Hotspot HP!'; st.style.color = 'var(--ok)';
+btn.href = 'http://' + data.staIP + '/app'; btn.textContent = 'Beralih ke Mode Kontrol + Internet'; btn.style.display = 'flex';
+} else {
+dot.className = 'dot'; st.textContent = 'Menunggu ESP32 terhubung ke Hotspot HP...'; st.style.color = 'var(--tx2)'; btn.style.display = 'none';
+}
+} else {
+if (data.ap) {
+dot.className = 'dot on'; st.textContent = 'HP Anda terhubung ke Wi-Fi Mizuma!'; st.style.color = 'var(--ok)';
+btn.href = 'http://4.3.2.1/app'; btn.textContent = 'Beralih ke Mode Kontrol Only'; btn.style.display = 'flex';
+} else {
+dot.className = 'dot'; st.textContent = 'Menunggu HP terhubung ke Wi-Fi Mizuma...'; st.style.color = 'var(--tx2)'; btn.style.display = 'none';
+}
+}
+} catch (e) {}
+}
+refreshConn();
+setInterval(refreshConn, 3000);
 </script>
 </body>
 </html>
@@ -699,164 +758,137 @@ window.addEventListener('resize', fitContentHeight);
 )rawliteral";
 
 // --------------------------------------------------------------------------------------------------------------------------------------
-// Blok 6 — MizumaSmartSystem Class (Routing + renderPage Helper + WLED Usermod Integration)
-// REVISI:
-//  1) setupServerEndpoints(AsyncWebServer* server) override DIHAPUS — method ini TIDAK ADA
-//     di base class Usermod WLED 16.0.1. Semua route dipindah ke dalam void setup() override,
-//     didaftarkan lewat objek global `server` (bukan parameter pointer), sesuai API resmi WLED.
-//  2) Menambahkan `static MizumaSmartSystem mizuma_smartsystem; REGISTER_USERMOD(mizuma_smartsystem);`
-//     di akhir file — TANPA baris ini, class tidak pernah diinstansiasi/didaftarkan ke WLED,
-//     sehingga seluruh route, config, dsb tidak akan pernah aktif walau kompil berhasil.
+// Blok 6 — class MizumaSmartSystem (REVISI 2: hapus route reserved + restorasi regresi Fase 2-4)
 // --------------------------------------------------------------------------------------------------------------------------------------
-
 #ifndef USERMOD_ID_MIZUMA_SYSTEM
-#define USERMOD_ID_MIZUMA_SYSTEM 0x9001 // Unique Usermod ID untuk Mizuma
+#define USERMOD_ID_MIZUMA_SYSTEM 0x9001
 #endif
-
 class MizumaSmartSystem : public Usermod {
 private:
-  // Data Kendaraan (Dapat disesuaikan via config / web)
-  String vehicleName  = "";
-  String vehicleBrand = "";
-  String vehicleYear  = "";
-  String vehiclePlate = "";
+String vehicleName  = "";
+String vehicleBrand = "";
+String vehicleYear  = "";
+String vehiclePlate = "";
+struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
+ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
+uint8_t presetWelcomingKanan = 1, presetWelcomingKiri  = 2;
+uint8_t presetRidingKanan    = 3, presetRidingKiri     = 4;
+uint8_t presetSeinKanan      = 5, presetSeinKiri       = 6;
+uint8_t presetRemKanan       = 7, presetRemKiri        = 8;
+uint8_t presetHazardKanan    = 9, presetHazardKiri     = 10;
 
-  /**
-   * Helper untuk menggabungkan Blok 1-5 dan mengganti placeholder (%...%)
-   * dengan data aktual serta status menu aktif.
-   */
-  String renderPage(const char* pageHtmlProgmem, const String& activePage, const String& pageTitle = "", const String& pageIcon = "") {
-    String html = FPSTR(pageHtmlProgmem);
-
-    // 1. Inject CSS Utama (Blok 1)
-    html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
-
-    // 2. Inject Header HTML (Blok 1)
-    html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
-
-    // 3. Inject Header Script JS (Blok 1)
-    html.replace("%HEADER_SCRIPT%", FPSTR(MIZUMA_HEADER_SCRIPT));
-
-    // 4. Inject Bottom Navigation & Set Class Active (Blok 1)
-    String bottomNav = FPSTR(MIZUMA_BOTTOMNAV_HTML);
-    bottomNav.replace("__ACTIVE_BERANDA__",    (activePage == "app")        ? "active" : "");
-    bottomNav.replace("__ACTIVE_LAMPU__",      (activePage == "led")        ? "active" : "");
-    bottomNav.replace("__ACTIVE_SERVIS__",     (activePage == "servis")     ? "active" : "");
-    bottomNav.replace("__ACTIVE_KEAMANAN__",   (activePage == "keamanan")   ? "active" : "");
-    bottomNav.replace("__ACTIVE_PENGATURAN__", (activePage == "pengaturan") ? "active" : "");
-    html.replace("%BOTTOMNAV%", bottomNav);
-
-    // 5. Inject Data Motor (Digunakan di Blok 2 & 3)
-    html.replace("%VEHICLE_NAME%",  vehicleName);
-    html.replace("%VEHICLE_BRAND%", vehicleBrand);
-    html.replace("%VEHICLE_YEAR%",  vehicleYear);
-    html.replace("%VEHICLE_PLATE%", vehiclePlate);
-
-    // 6. Inject Metadata Halaman (Digunakan di Blok 4 Placeholder)
-    html.replace("%PAGE_TITLE%", pageTitle);
-    html.replace("%PAGE_ICON%",  pageIcon);
-
-    return html;
-  }
-
+void loadReminder(JsonObject rem) {
+  if (rem.isNull()) return;
+  oliMesin.lastServiceEpoch  = rem["oliMesin_last"]  | 0;  oliMesin.intervalDays  = rem["oliMesin_int"]  | 0;
+  oliRem.lastServiceEpoch    = rem["oliRem_last"]    | 0;  oliRem.intervalDays    = rem["oliRem_int"]    | 0;
+  oliGardan.lastServiceEpoch = rem["oliGardan_last"] | 0;  oliGardan.intervalDays = rem["oliGardan_int"] | 0;
+  cvt.lastServiceEpoch       = rem["cvt_last"]       | 0;  cvt.intervalDays       = rem["cvt_int"]       | 0;
+  filter.lastServiceEpoch    = rem["filter_last"]    | 0;  filter.intervalDays    = rem["filter_int"]    | 0;
+}
+void loadPresets(JsonObject pm) {
+  if (pm.isNull()) return;
+  presetWelcomingKanan = pm["welcomingKanan"] | 1;  presetWelcomingKiri = pm["welcomingKiri"] | 2;
+  presetRidingKanan    = pm["ridingKanan"]    | 3;  presetRidingKiri    = pm["ridingKiri"]    | 4;
+  presetSeinKanan      = pm["seinKanan"]      | 5;  presetSeinKiri      = pm["seinKiri"]      | 6;
+  presetRemKanan       = pm["remKanan"]       | 7;  presetRemKiri       = pm["remKiri"]       | 8;
+  presetHazardKanan    = pm["hazardKanan"]    | 9;  presetHazardKiri    = pm["hazardKiri"]    | 10;
+}
+String renderPage(const char* pageHtmlProgmem, const String& activePage, const String& pageTitle = "", const String& pageIcon = "") {
+  String html = FPSTR(pageHtmlProgmem);
+  html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
+  html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
+  html.replace("%HEADER_SCRIPT%", FPSTR(MIZUMA_HEADER_SCRIPT));
+  String bottomNav = FPSTR(MIZUMA_BOTTOMNAV_HTML);
+  bottomNav.replace("__ACTIVE_BERANDA__",    (activePage == "app")        ? "active" : "");
+  bottomNav.replace("__ACTIVE_LAMPU__",      (activePage == "led")        ? "active" : "");
+  bottomNav.replace("__ACTIVE_SERVIS__",     (activePage == "servis")     ? "active" : "");
+  bottomNav.replace("__ACTIVE_KEAMANAN__",   (activePage == "keamanan")   ? "active" : "");
+  bottomNav.replace("__ACTIVE_PENGATURAN__", (activePage == "pengaturan") ? "active" : "");
+  html.replace("%BOTTOMNAV%", bottomNav);
+  html.replace("%VEHICLE_NAME%",  vehicleName);
+  html.replace("%VEHICLE_BRAND%", vehicleBrand);
+  html.replace("%VEHICLE_YEAR%",  vehicleYear);
+  html.replace("%VEHICLE_PLATE%", vehiclePlate);
+  html.replace("%PAGE_TITLE%", pageTitle);
+  html.replace("%PAGE_ICON%",  pageIcon);
+  return html;
+}
 public:
-  /**
-   * setup() adalah satu-satunya tempat resmi untuk mendaftarkan route,
-   * dipanggil sekali saat boot sebelum WiFi connect (lihat dok WLED "Custom Features").
-   * Objek `server` (AsyncWebServer) sudah tersedia secara global lewat #include "wled.h".
-   */
-  void setup() override {
-
-    // -------------------------------------------------------------------------
-    // API Endpoint JSON (Dipanggil oleh mzRefreshHeader() & loadConn() di JS)
-    // -------------------------------------------------------------------------
-    server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request) {
-      String json = "{";
-      json += "\"sta\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
-      json += "\"staIP\":\"" + WiFi.localIP().toString() + "\"";
-      json += "}";
-      request->send(200, "application/json", json);
-    });
-
-    // -------------------------------------------------------------------------
-    // Halaman Utama & Tab Menu
-    // -------------------------------------------------------------------------
-
-    // 1. Beranda (Blok 2)
-    server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_HOME_HTML, "app"));
-    });
-
-    // Root Redirect ke /app
-    server.on("/mizuma", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->redirect("/app");
-    });
-
-    // 2. Lampu / LED Control (Blok 5)
-    server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_LED_HTML, "led"));
-    });
-
-    // 3. Servis (Blok 4 Placeholder)
-    server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "servis", "Servis Motor", "&#128736;"));
-    });
-
-    // 4. Keamanan (Blok 4 Placeholder)
-    server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "keamanan", "Keamanan & GPS", "&#128274;"));
-    });
-
-    // 5. Pengaturan (Blok 3)
-    server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_SETTINGS_HTML, "pengaturan"));
-    });
-
-    // -------------------------------------------------------------------------
-    // Sub-Halaman Pengaturan (Sub-routes Blok 3)
-    // -------------------------------------------------------------------------
-    server.on("/settings/um", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "pengaturan", "Ubah Data Motor", "&#127949;"));
-    });
-
-    server.on("/settings/wifi", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "pengaturan", "Pengaturan Jaringan", "&#128246;"));
-    });
-
-    server.on("/settings/sec", HTTP_GET, [this](AsyncWebServerRequest *request) {
-      request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "pengaturan", "Reset Pabrik", "&#9888;"));
-    });
+void setup() override {
+// RESTORASI Fase 3.5/3.7: AP tetap hidup walau STA terhubung → logika ganti mode AP<->STA berfungsi
+apBehavior = AP_BEHAVIOR_ALWAYS;
+// RESTORASI: field "ap" (dipakai JS mode-switch) + tambah "ssid" untuk sub-tab Koneksi/Jaringan
+server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request) {
+  bool apOn  = (WiFi.softAPgetStationNum() > 0);
+  bool staOn = (WiFi.status() == WL_CONNECTED);
+  String json = "{";
+  json += "\"ap\":"  + String(apOn ? "true" : "false") + ",";
+  json += "\"sta\":" + String(staOn ? "true" : "false") + ",";
+  json += "\"staIP\":\"" + (staOn ? WiFi.localIP().toString() : String("")) + "\",";
+  json += "\"ssid\":\"" + (staOn ? WiFi.SSID() : String("Mizuma Smart System")) + "\"";
+  json += "}";
+  request->send(200, "application/json", json);
+});
+server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request) {
+  request->send(200, "text/html", this->renderPage(MIZUMA_HOME_HTML, "app"));
+});
+server.on("/mizuma", HTTP_GET, [](AsyncWebServerRequest *request) { request->redirect("/app"); });
+server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request) {
+  request->send(200, "text/html", this->renderPage(MIZUMA_LED_HTML, "led"));
+});
+server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request) {
+  request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "servis", "Servis Motor", "&#128736;"));
+});
+server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request) {
+  request->send(200, "text/html", this->renderPage(MIZUMA_PLACEHOLDER_HTML, "keamanan", "Keamanan & GPS", "&#128274;"));
+});
+server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request) {
+  request->send(200, "text/html", this->renderPage(MIZUMA_SETTINGS_HTML, "pengaturan"));
+});
+// CATATAN: /settings/*, /update, /json/* = route RESERVED WLED. JANGAN daftarkan di sini.
+// Tombol di Blok 3 sengaja menuju halaman native (OTA & edit Data Motor hidup kembali).
+}
+void loop() override {}
+void addToConfig(JsonObject& root) override {
+JsonObject top = root.createNestedObject("MizumaSmartSystem");
+top["vehicleName"]  = vehicleName;  top["vehicleBrand"] = vehicleBrand;
+top["vehicleYear"]  = vehicleYear;  top["vehiclePlate"] = vehiclePlate;
+JsonObject rem = top.createNestedObject("reminder");
+rem["oliMesin_last"] = oliMesin.lastServiceEpoch;  rem["oliMesin_int"]  = oliMesin.intervalDays;
+rem["oliRem_last"]   = oliRem.lastServiceEpoch;    rem["oliRem_int"]    = oliRem.intervalDays;
+rem["oliGardan_last"]= oliGardan.lastServiceEpoch; rem["oliGardan_int"] = oliGardan.intervalDays;
+rem["cvt_last"]      = cvt.lastServiceEpoch;       rem["cvt_int"]       = cvt.intervalDays;
+rem["filter_last"]   = filter.lastServiceEpoch;    rem["filter_int"]    = filter.intervalDays;
+JsonObject pm = top.createNestedObject("presetMap");
+pm["welcomingKanan"] = presetWelcomingKanan; pm["welcomingKiri"] = presetWelcomingKiri;
+pm["ridingKanan"]    = presetRidingKanan;    pm["ridingKiri"]    = presetRidingKiri;
+pm["seinKanan"]      = presetSeinKanan;      pm["seinKiri"]      = presetSeinKiri;
+pm["remKanan"]       = presetRemKanan;       pm["remKiri"]       = presetRemKiri;
+pm["hazardKanan"]    = presetHazardKanan;    pm["hazardKiri"]    = presetHazardKiri;
+}
+bool readFromConfig(JsonObject& root) override {
+JsonObject top = root["MizumaSmartSystem"];
+JsonObject src = top.isNull() ? root["Mizuma"] : top;   // fallback: migrasi skema lama Fase 4
+if (src.isNull()) return false;
+if (!top.isNull()) {
+  vehicleName  = top["vehicleName"]  | vehicleName;  vehicleBrand = top["vehicleBrand"] | vehicleBrand;
+  vehicleYear  = top["vehicleYear"]  | vehicleYear;  vehiclePlate = top["vehiclePlate"] | vehiclePlate;
+} else {
+  JsonObject v = src["vehicle"];
+  if (!v.isNull()) {
+    vehicleName = v["name"] | vehicleName;  vehicleBrand = v["brand"] | vehicleBrand;
+    uint16_t y  = v["year"] | 0; if (y > 0) vehicleYear = String(y);
+    vehiclePlate = v["plate"] | vehiclePlate;
   }
-
-  void loop() override {
-    // Logic background usermod (belum dipakai di Fase 5)
-  }
-
-  // Integrasi Simpan Config ke WLED cfg.json
-  void addToConfig(JsonObject& root) override {
-    JsonObject top = root.createNestedObject("MizumaSmartSystem");
-    top["vehicleName"]  = vehicleName;
-    top["vehicleBrand"] = vehicleBrand;
-    top["vehicleYear"]  = vehicleYear;
-    top["vehiclePlate"] = vehiclePlate;
-  }
-
-  // Integrasi Baca Config dari WLED cfg.json
-  bool readFromConfig(JsonObject& root) override {
-    JsonObject top = root["MizumaSmartSystem"];
-    if (top.isNull()) return false;
-
-    vehicleName  = top["vehicleName"]  | vehicleName;
-    vehicleBrand = top["vehicleBrand"] | vehicleBrand;
-    vehicleYear  = top["vehicleYear"]  | vehicleYear;
-    vehiclePlate = top["vehiclePlate"] | vehiclePlate;
-    return true;
-  }
-
-  uint16_t getId() override {
-    return USERMOD_ID_MIZUMA_SYSTEM;
-  }
+}
+loadReminder(src["reminder"]);   // bentuk reminder & presetMap sama di skema lama/baru
+loadPresets(src["presetMap"]);
+return true;
+}
+uint16_t getId() override { return USERMOD_ID_MIZUMA_SYSTEM; }
 };
+static MizumaSmartSystem mizuma_smartsystem;
+REGISTER_USERMOD(mizuma_smartsystem);
 
 // WAJIB — tanpa 2 baris ini, usermod tidak pernah aktif meski kompilasi sukses.
 static MizumaSmartSystem mizuma_smartsystem;
