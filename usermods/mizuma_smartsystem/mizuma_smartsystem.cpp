@@ -1,73 +1,164 @@
 // --------------------------------------------------------------------------------------------------------------------------------------
-// Blok 1 — Komponen Bersama (Header & Bottom Nav)
+// Blok 1 — Komponen Bersama (Header & Bottom Nav) — REVISI NATIVE FEEL
 // --------------------------------------------------------------------------------------------------------------------------------------
 #include "wled.h"
 
 const char MIZUMA_SHARED_CSS[] PROGMEM = R"rawliteral(
-* { box-sizing: border-box; }
-body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; padding-bottom:62px; }
-
-.mzheader { display:flex; align-items:center; justify-content:space-between; padding:12px 16px;
-  background:#151515; border-bottom:1px solid #262626; position:sticky; top:0; z-index:30; }
-.mzheader .brand { display:flex; align-items:center; gap:10px; }
-.mzheader .logo { width:34px; height:34px; border-radius:8px; background:linear-gradient(135deg,#3ddc84,#1a8a4a);
-  display:flex; align-items:center; justify-content:center; font-weight:800; color:#0a0a0a; font-size:16px; }
-.mzheader .brandtext { line-height:1.1; }
-.mzheader .b1 { font-size:13px; font-weight:800; color:#fff; letter-spacing:0.5px; }
-.mzheader .b2 { font-size:9px; color:#3ddc84; letter-spacing:1.5px; }
-.mzheader .status { display:flex; align-items:center; gap:8px; }
-.mzheader .volt { font-size:12px; font-weight:700; color:#eee; background:#1e1e1e; padding:4px 9px; border-radius:20px; border:1px solid #2a2a2a; }
-.mzheader .conn { font-size:15px; }
-
-.bottomnav { position:fixed; bottom:0; left:0; right:0; display:flex;
-  background:#181818; border-top:1px solid #2a2a2a; z-index:40; padding-bottom:env(safe-area-inset-bottom); }
-.bottomnav a { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
-  padding:8px 4px; text-decoration:none; color:#777; font-size:10px; gap:3px; }
-.bottomnav a.active { color:#3ddc84; }
-.bottomnav a.disabled { color:#444; }
-.bottomnav .bn-icon { font-size:19px; }
-
-.card { background:#1a1a1a; border-radius:12px; padding:14px; border:1px solid #242424; margin-bottom:12px; }
-.card-title { font-size:12px; color:#999; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:10px; font-weight:700; }
-.placeholder-text { color:#666; font-size:12px; text-align:center; padding:10px 0; }
-.badge { font-size:10px; padding:3px 8px; border-radius:20px; font-weight:700; }
-.badge.gray { background:#2a2a2a; color:#999; }
-.badge.green { background:#183d24; color:#3ddc84; }
-.badge.orange { background:#3d2e18; color:#e8a33d; }
+:root{
+  --bg:#0a0a0a; --s1:#151515; --s2:#1c1c1c; --s3:#242424;
+  --bd:#262626; --bd2:#333;
+  --tx:#f2f2f2; --tx2:#9a9a9a; --tx3:#666;
+  --ac:#f5a524; --ac-dim:rgba(245,165,36,.14);
+  --ok:#3ddc84; --ok-dim:rgba(61,220,132,.14);
+  --warn:#e8a33d; --warn-dim:rgba(232,163,61,.14);
+  --bad:#e05555; --bad-dim:rgba(224,85,85,.14);
+  --r-lg:16px; --r-md:12px; --r-sm:9px;
+  --nav-h:62px;
+  --ease:cubic-bezier(.22,1,.36,1);
+  color-scheme:dark;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; scrollbar-width:none;}
+*::-webkit-scrollbar{display:none;}
+html{overscroll-behavior-y:none;}
+body{margin:0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  background:var(--bg); color:var(--tx);
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));
+  overscroll-behavior-y:none; -webkit-font-smoothing:antialiased; -webkit-text-size-adjust:100%;}
+button{font:inherit; color:inherit; background:none; border:none; cursor:pointer; touch-action:manipulation;}
+a{touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;}
+button{user-select:none; -webkit-user-select:none;}
+svg{display:block;}
+:focus-visible{outline:2px solid var(--ac); outline-offset:2px;}
+a,button{transition:transform .12s var(--ease), background .2s, border-color .2s, color .2s, opacity .2s;}
+a:active,button:active{transform:scale(.96);}
+/* ==== Motion: entrance (jangan animasi body — akan merusak position:fixed) ==== */
+@keyframes mzRise{from{opacity:0; transform:translateY(12px);} to{opacity:1; transform:none;}}
+@keyframes mzNav{from{transform:translateY(100%);} to{transform:none;}}
+.mzheader{animation:mzRise .28s var(--ease) backwards;}
+.container,.body-layout,.freeze{animation:mzRise .32s var(--ease) backwards .03s;}
+.bottomnav{animation:mzNav .34s var(--ease) backwards .05s;}
+.card,.tile,.stat-box{animation:mzRise .4s var(--ease) backwards;}
+/* ==== Header ==== */
+.mzheader{display:flex; align-items:center; justify-content:space-between; padding:12px 16px;
+  padding-top:calc(12px + env(safe-area-inset-top));
+  background:rgba(10,10,10,.85); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--bd); position:sticky; top:0; z-index:30;}
+.mzheader .brand{display:flex; align-items:center; gap:10px;}
+.mzheader .logo{width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--ac),#c46a10);
+  display:flex; align-items:center; justify-content:center; font-weight:800; color:#0a0a0a; font-size:16px;
+  box-shadow:0 2px 12px rgba(245,165,36,.35);}
+.mzheader .brandtext{line-height:1.1;}
+.mzheader .b1{font-size:13px; font-weight:800; color:#fff; letter-spacing:.5px;}
+.mzheader .b2{font-size:9px; color:var(--ac); letter-spacing:1.5px;}
+.mzheader .status{display:flex; align-items:center; gap:8px;}
+.mzheader .volt{display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--tx);
+  background:var(--s2); padding:5px 10px; border-radius:20px; border:1px solid var(--bd);}
+.mzheader .vdot{width:6px; height:6px; border-radius:50%; background:#555;}
+.mzheader .vdot.ok{background:var(--ok); box-shadow:0 0 6px var(--ok);}
+.mzheader .conn svg{width:16px; height:16px; stroke:var(--tx2); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+/* ==== Bottom Nav (Material-3 style: pill di ikon aktif) ==== */
+.bottomnav{position:fixed; bottom:0; left:0; right:0; display:flex;
+  background:rgba(18,18,18,.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--bd); z-index:40; padding-bottom:env(safe-area-inset-bottom);}
+.bottomnav a{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:3px; padding:7px 2px 8px; text-decoration:none; color:var(--tx3); font-size:10px; font-weight:600;}
+.bottomnav a:active{transform:none;}
+.bottomnav .bn-pill{display:flex; align-items:center; justify-content:center; padding:3px 16px; border-radius:16px;
+  transition:background .25s var(--ease), transform .12s var(--ease);}
+.bottomnav a:active .bn-pill{transform:scale(.88);}
+.bottomnav .bn-pill svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.bottomnav a.active{color:var(--ac);}
+.bottomnav a.active .bn-pill{background:var(--ac-dim);}
+.bottomnav a.disabled{opacity:.4; pointer-events:none;}
+/* ==== Komponen umum (pakai ini di semua halaman berikutnya) ==== */
+.card{background:var(--s1); border-radius:var(--r-lg); padding:14px; border:1px solid var(--bd); margin-bottom:12px;}
+.card-title{font-size:12px; color:var(--tx2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; font-weight:700;}
+.placeholder-text{color:var(--tx3); font-size:12px; text-align:center; padding:10px 0;}
+.badge{font-size:10px; padding:4px 9px; border-radius:20px; font-weight:700;}
+.badge.gray{background:var(--s3); color:var(--tx2);}
+.badge.green{background:var(--ok-dim); color:var(--ok);}
+.badge.orange{background:var(--warn-dim); color:var(--warn);}
+.badge.red{background:var(--bad-dim); color:var(--bad);}
+.chip{padding:8px 14px; border-radius:20px; background:var(--s2); border:1px solid var(--bd); color:var(--tx2);
+  font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:6px;}
+.chip.active{background:var(--ac-dim); border-color:var(--ac); color:var(--ac);}
+.progress{height:6px; border-radius:3px; background:var(--s3); overflow:hidden;}
+.progress .fill{height:100%; border-radius:3px; background:var(--ok); width:0; transition:width .9s var(--ease);}
+.progress .fill.warn{background:var(--warn);} .progress .fill.bad{background:var(--bad);}
+.icobox{width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+.icobox svg{width:19px; height:19px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
+.icobox.ac{background:var(--ac-dim); color:var(--ac);} .icobox.ok{background:var(--ok-dim); color:var(--ok);}
+.icobox.warn{background:var(--warn-dim); color:var(--warn);}
+.btn{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:11px;
+  border-radius:var(--r-md); background:var(--s2); border:1px solid var(--bd2); color:var(--tx);
+  font-size:13px; font-weight:700; text-decoration:none; margin-top:10px;}
+.btn.primary{background:var(--ac); border-color:var(--ac); color:#0a0a0a;}
+.btn.danger{background:#3d1414; border-color:#5a1c1c; color:#ff8080;}
 )rawliteral";
 
 const char MIZUMA_HEADER_HTML[] PROGMEM = R"rawliteral(
 <div class="mzheader">
-  <div class="brand">
-    <div class="logo">M</div>
-    <div class="brandtext"><div class="b1">MIZUMA</div><div class="b2">PERFORMANCE</div></div>
-  </div>
-  <div class="status">
-    <span class="volt" id="hdrVolt">-- V</span>
-    <span class="conn" id="hdrConn">&#128246;</span>
-  </div>
+<div class="brand">
+<div class="logo">M</div>
+<div class="brandtext"><div class="b1">MIZUMA</div><div class="b2">PERFORMANCE</div></div>
+</div>
+<div class="status">
+<span class="volt"><span class="vdot" id="hdrVoltDot"></span><span id="hdrVolt">-- V</span></span>
+<span class="conn" id="hdrConn"></span>
+</div>
 </div>
 )rawliteral";
 
 const char MIZUMA_HEADER_SCRIPT[] PROGMEM = R"rawliteral(
+(function(){
+var m=document.querySelector('meta[name="viewport"]');
+if(m && m.content.indexOf('viewport-fit')<0) m.content+=', viewport-fit=cover';
+if(!document.querySelector('meta[name="theme-color"]')){var t=document.createElement('meta');t.name='theme-color';t.content='#0a0a0a';document.head.appendChild(t);}
+})();
+var MZ_WIFI='<svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0"/><path d="M5 12.5a11 11 0 0 1 14 0"/><path d="M8.5 15.8a7 7 0 0 1 7 0"/><circle cx="12" cy="19" r="1.6"/></svg>';
+var MZ_GLOBE='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg>';
 async function mzRefreshHeader() {
-  try {
-    const res = await fetch('/mizuma/status');
-    const data = await res.json();
-    document.getElementById('hdrConn').textContent = data.sta ? '\uD83C\uDF10' : '\uD83D\uDCF6';
-  } catch (e) {}
+try {
+const res = await fetch('/mizuma/status');
+const data = await res.json();
+document.getElementById('hdrConn').innerHTML = data.sta ? MZ_GLOBE : MZ_WIFI;
+if (data.volt) { document.getElementById('hdrVolt').textContent = data.volt + ' V'; document.getElementById('hdrVoltDot').className = 'vdot ok'; }
+} catch (e) {}
 }
 mzRefreshHeader();
 setInterval(mzRefreshHeader, 5000);
+/* Stagger entrance kartu */
+document.querySelectorAll('.card,.tile,.stat-box').forEach(function(el,i){ el.style.animationDelay = (60 + i*50) + 'ms'; });
+/* Animasi progress bar */
+setTimeout(function(){ document.querySelectorAll('.progress .fill[data-w]').forEach(function(f){ f.style.width = f.getAttribute('data-w') + '%'; }); }, 200);
+/* Feedback getar halus (Android) */
+document.addEventListener('pointerdown', function(e){ if(e.target.closest('a,button,.slot,.palette-card,.fx-item,.switch,.chip')){ try{ navigator.vibrate && navigator.vibrate(6); }catch(_){} } }, {passive:true});
+/* Transisi antar layar: fade overlay (bukan opacity body, agar position:fixed tidak rusak) */
+function mzFadeTo(url){
+if(window.__mzFading) return; window.__mzFading = true;
+var f=document.getElementById('mzFade');
+if(!f){ f=document.createElement('div'); f.id='mzFade';
+f.style.cssText='position:fixed;inset:0;background:#0a0a0a;opacity:0;pointer-events:none;transition:opacity .16s ease;z-index:999;';
+document.body.appendChild(f); }
+requestAnimationFrame(function(){ f.style.opacity='1'; });
+setTimeout(function(){ window.location.href=url; }, 170);
+}
+document.addEventListener('click', function(e){
+var a=e.target.closest('a'); if(!a) return;
+var href=a.getAttribute('href');
+if(!href || href.charAt(0)==='#' || href.indexOf('http')===0 || a.hasAttribute('data-noanim')) return;
+if(e.metaKey||e.ctrlKey) return;
+e.preventDefault(); mzFadeTo(href);
+});
 )rawliteral";
 
 const char MIZUMA_BOTTOMNAV_HTML[] PROGMEM = R"rawliteral(
 <div class="bottomnav">
-  <a href="/app" class="__ACTIVE_BERANDA__"><span class="bn-icon">&#127968;</span>Beranda</a>
-  <a href="/led" class="__ACTIVE_LAMPU__"><span class="bn-icon">&#128161;</span>Lampu</a>
-  <a href="/servis" class="__ACTIVE_SERVIS__"><span class="bn-icon">&#128736;</span>Servis</a>
-  <a href="/keamanan" class="__ACTIVE_KEAMANAN__"><span class="bn-icon">&#128274;</span>Keamanan</a>
-  <a href="/pengaturan" class="__ACTIVE_PENGATURAN__"><span class="bn-icon">&#9881;&#65039;</span>Pengaturan</a>
+<a href="/app" class="__ACTIVE_BERANDA__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></span>Beranda</a>
+<a href="/led" class="__ACTIVE_LAMPU__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.3 2.2h4.6c.2-.8.6-1.6 1.3-2.2A6 6 0 0 0 12 3z"/></svg></span>Lampu</a>
+<a href="/servis" class="__ACTIVE_SERVIS__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Servis</a>
+<a href="/keamanan" class="__ACTIVE_KEAMANAN__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/></svg></span>Keamanan</a>
+<a href="/pengaturan" class="__ACTIVE_PENGATURAN__"><span class="bn-pill"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Pengaturan</a>
 </div>
 )rawliteral";
 
@@ -276,11 +367,11 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <style>
   %SHARED_CSS%
 
-  .freeze { position:sticky; top:0; z-index:20; background:#111; }
+  .freeze { position:sticky; top:0; z-index:20; background:rgba(10,10,10,.9); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
 
   .tabbar { display:flex; overflow-x:auto; background:#151515; border-bottom:1px solid #232323; }
   .tabbar button { flex:1 0 auto; padding:11px 10px; background:none; border:none; color:#999; font-size:12.5px; font-weight:600; white-space:nowrap; border-bottom:3px solid transparent; }
-  .tabbar button.active { color:#fff; border-bottom-color:#3ddc84; }
+  .tabbar button.active { color:#fff; border-bottom-color:var(--ac); }
 
   .preview-grid { display:grid; grid-template-columns:1fr 62px 78px; grid-template-rows:34px 34px; gap:5px; padding:10px 12px; background:#111; }
   .pv-bar { border-radius:6px; background:#000; display:flex; align-items:center; padding:0 3px; gap:1px; overflow:hidden; }
@@ -289,14 +380,14 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   .pv-bar.kiri  { grid-column:1; grid-row:2; }
   .side-btn { grid-column:2; background:#1e1e1e; border:1px solid #333; color:#999; border-radius:6px; font-size:11px; font-weight:600; }
   .side-btn.kanan-btn { grid-row:1; } .side-btn.kiri-btn { grid-row:2; }
-  .side-btn.active { background:#2a5; color:#fff; border-color:#2a5; }
+  .side-btn.active { background:var(--ac); color:#fff; border-color:var(--ac); }
   .side-btn-both { grid-column:3; grid-row:1 / span 2; background:#1e1e1e; border:1px solid #333; color:#999; border-radius:6px; font-size:11px; font-weight:600; }
-  .side-btn-both.active { background:#2a5; color:#fff; border-color:#2a5; }
+  .side-btn-both.active { background:var(--ac); color:#fff; border-color:var(--ac); }
 
   .body-layout { display:flex; }
   .subnav { width:74px; flex-shrink:0; background:#161616; border-right:1px solid #232323; overflow-y:hidden; }
   .subnav button { display:block; width:100%; padding:16px 4px; background:none; border:none; color:#888; font-size:10.5px; text-align:center; border-left:3px solid transparent; }
-  .subnav button.active { color:#fff; border-left-color:#3ddc84; background:#1e1e1e; }
+  .subnav button.active { color:#fff; border-left-color:var(--ac); background:#1e1e1e; }
   .subnav .icon { display:block; font-size:19px; margin-bottom:4px; }
 
   .content-wrap { flex:1; min-width:0; overflow-y:auto; }
@@ -304,7 +395,7 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 
   .toggle-pair { display:flex; gap:6px; }
   .toggle-pair button { flex:1; padding:9px; background:#1a1a1a; border:1px solid #2a2a2a; color:#999; border-radius:8px; font-size:12px; font-weight:700; }
-  .toggle-pair button.active { background:#3ddc84; color:#0a0a0a; border-color:#3ddc84; }
+  .toggle-pair button.active { background:var(--ac); color:#0a0a0a; border-color:var(--ac); }
 
   .brightness-row { display:flex; align-items:center; gap:10px; }
   .brightness-row .bi { font-size:16px; }
@@ -316,19 +407,19 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   #colorWheel { border-radius:50%; touch-action:none; }
   .slots-row { display:flex; gap:10px; margin-top:12px; }
   .slot { width:38px; height:38px; border-radius:8px; border:2px solid #333; cursor:pointer; }
-  .slot.active { border-color:#3ddc84; }
+  .slot.active { border-color:var(--ac); }
 
   .search-box { width:100%; padding:9px 12px; background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; color:#eee; font-size:13px; margin-bottom:12px; }
   .palette-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
   .palette-card { border-radius:8px; overflow:hidden; border:2px solid #262626; cursor:pointer; }
-  .palette-card.active { border-color:#3ddc84; }
+  .palette-card.active { border-color:var(--ac); }
   .palette-card .swatch { height:34px; }
   .palette-card .pname { font-size:9px; text-align:center; padding:3px; background:#161616; color:#999; }
-  .download-link { display:block; text-align:center; margin-top:14px; padding:10px; background:#1a1a1a; border-radius:8px; color:#3ddc84; text-decoration:none; font-size:12px; border:1px dashed #2a2a2a; }
+  .download-link { display:block; text-align:center; margin-top:14px; padding:10px; background:#1a1a1a; border-radius:8px; color:var(--ac); text-decoration:none; font-size:12px; border:1px dashed #2a2a2a; }
 
   .fx-list { display:flex; flex-direction:column; gap:6px; margin-bottom:14px; }
   .fx-item { padding:11px 12px; background:#1a1a1a; border-radius:8px; border:1px solid #242424; font-size:13px; color:#ddd; }
-  .fx-item.active { border-color:#3ddc84; background:#132a1e; color:#fff; }
+  .fx-item.active { border-color:var(--ac); background:#132a1e; color:#fff; }
 
   .fx-params { background:#161616; border-radius:10px; padding:14px; border:1px solid #242424; }
   .fx-params.hidden { display:none; }
@@ -337,11 +428,11 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   .param-row input[type=range] { width:100%; }
   .toggle-row { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:#ccc; padding:8px 0; border-bottom:1px solid #222; }
   .switch { position:relative; width:38px; height:22px; background:#333; border-radius:20px; cursor:pointer; }
-  .switch.on { background:#3ddc84; }
+  .switch.on { background:var(--ac); }
   .switch .knob { position:absolute; width:18px; height:18px; background:#fff; border-radius:50%; top:2px; left:2px; transition:0.2s; }
   .switch.on .knob { left:18px; }
 
-  .save-btn { display:block; width:100%; text-align:center; padding:12px; background:#3ddc84; color:#0a0a0a; border-radius:10px; font-weight:800; font-size:14px; border:none; margin-top:10px; }
+  .save-btn { display:block; width:100%; text-align:center; padding:12px; background:var(--ac); color:#0a0a0a; border-radius:10px; font-weight:800; font-size:14px; border:none; margin-top:10px; }
   .save-hint { font-size:11px; color:#888; text-align:center; margin-top:8px; }
 </style>
 </head>
@@ -388,7 +479,7 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
             <canvas id="colorWheel" width="220" height="220"></canvas>
             <div class="slots-row">
               <div class="slot active" style="background:#ff3b3b;" data-slot="0"></div>
-              <div class="slot" style="background:#3ddc84;" data-slot="1"></div>
+              <div class="slot" style="background:var(--ac);" data-slot="1"></div>
               <div class="slot" style="background:#3b8cff;" data-slot="2"></div>
             </div>
           </div>
@@ -559,7 +650,7 @@ wheel.addEventListener('click', e => pickWheelColor(e.clientX, e.clientY));
 
 // Dummy palette grid (Fase 6-8 nanti diisi data asli dari WLED)
 const paletteGrid = document.getElementById('paletteGrid');
-const dummyGradients = ['linear-gradient(90deg,#ff3b3b,#ffd23b)','linear-gradient(90deg,#3ddc84,#3b8cff)',
+const dummyGradients = ['linear-gradient(90deg,#ff3b3b,#ffd23b)','linear-gradient(90deg,var(--ac),#3b8cff)',
   'linear-gradient(90deg,#a83bff,#ff3bd6)','linear-gradient(90deg,#3bfff0,#3b5cff)',
   'linear-gradient(90deg,#ffae3b,#ff3b3b)','linear-gradient(90deg,#3bff5c,#d6ff3b)'];
 dummyGradients.forEach((g, i) => {
