@@ -10,12 +10,13 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 <style>
   body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; }
   header { padding:20px; text-align:center; background:#1a1a1a; }
-  header h1 { margin:0; font-size:20px; }
+  header h1 { margin:0; font-size:18px; }
   .status { margin:16px; padding:14px; background:#1e1e1e; border-radius:12px; font-size:14px; }
-  .status-row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .status-row { display:flex; justify-content:space-between; align-items:center; gap:10px; margin:6px 0; }
+  .status-row .label { display:flex; align-items:center; gap:8px; }
   .dot { width:10px; height:10px; border-radius:50%; background:#555; flex-shrink:0; }
   .dot.on { background:#3ddc84; }
-  .link-btn { display:block; margin-top:10px; padding:10px; background:#2a5; color:#fff; text-align:center; border-radius:8px; text-decoration:none; font-size:14px; }
+  .link-inline { padding:7px 12px; background:#2a5; color:#fff; border-radius:8px; text-decoration:none; font-size:13px; white-space:nowrap; flex-shrink:0; }
   .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; padding:16px; }
   .card { background:#1e1e1e; border-radius:12px; padding:20px 12px; text-align:center; text-decoration:none; color:#eee; display:block; }
   .card .icon { font-size:28px; margin-bottom:8px; }
@@ -23,12 +24,17 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 </style>
 </head>
 <body>
-<header><h1>Mizuma SmartSystem</h1></header>
+<header><h1 id="pageTitle">Mizuma SmartSystem</h1></header>
 
 <div class="status" id="statusBox">
-  <div class="status-row"><span class="dot" id="dotAP"></span><span>WiFi Mizuma Smart System</span></div>
-  <div class="status-row"><span class="dot" id="dotSTA"></span><span id="staLabel">Mode Internet (Hotspot HP)</span></div>
-  <a class="link-btn" id="staLink" style="display:none;" href="#">Buka di Mode Internet &rarr;</a>
+  <div class="status-row" id="rowAP">
+    <span class="label"><span class="dot" id="dotAP"></span>WiFi Mizuma Smart System</span>
+    <a class="link-inline" id="apLink" style="display:none;" href="http://4.3.2.1/app">Buka di Mode WiFi</a>
+  </div>
+  <div class="status-row" id="rowSTA">
+    <span class="label"><span class="dot" id="dotSTA"></span>Mode Internet (Hotspot HP)</span>
+    <a class="link-inline" id="staLink" style="display:none;" href="#">Buka di Mode Internet</a>
+  </div>
 </div>
 
 <div class="grid">
@@ -42,19 +48,37 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 </div>
 
 <script>
+const isAPMode = (window.location.hostname === '4.3.2.1');
+
+document.getElementById('pageTitle').textContent = isAPMode
+  ? 'Mizuma Smart System (Mode WiFi)'
+  : 'Mizuma Smart System (Mode Internet/Hotspot HP)';
+
+if (isAPMode) {
+  document.getElementById('rowAP').style.display = 'none';
+} else {
+  document.getElementById('rowSTA').style.display = 'none';
+}
+
 async function refreshStatus() {
   try {
     const res = await fetch('/mizuma/status');
     const data = await res.json();
-    document.getElementById('dotAP').className = 'dot' + (data.ap ? ' on' : '');
-    document.getElementById('dotSTA').className = 'dot' + (data.sta ? ' on' : '');
-    const link = document.getElementById('staLink');
-    if (data.sta && data.staIP) {
-      link.style.display = 'block';
-      link.href = 'http://' + data.staIP + '/app';
-      link.textContent = 'Buka di Mode Internet (' + data.staIP + ')';
-    } else {
-      link.style.display = 'none';
+
+    if (!isAPMode) {
+      document.getElementById('dotAP').className = 'dot' + (data.ap ? ' on' : '');
+      document.getElementById('apLink').style.display = 'inline-block';
+    }
+
+    if (isAPMode) {
+      document.getElementById('dotSTA').className = 'dot' + (data.sta ? ' on' : '');
+      const link = document.getElementById('staLink');
+      if (data.sta && data.staIP) {
+        link.href = 'http://' + data.staIP + '/app';
+        link.style.display = 'inline-block';
+      } else {
+        link.style.display = 'none';
+      }
     }
   } catch (e) {}
 }
@@ -89,8 +113,8 @@ class MizumaSmartSystem : public Usermod {
 
   public:
     void setup() override {
-      apBehavior = AP_BEHAVIOR_ALWAYS;  // <-- baris baru, paksa tiap boot
-      
+      apBehavior = AP_BEHAVIOR_ALWAYS;  // paksa tiap boot, tidak perlu setting manual
+
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
       server.on("/app", HTTP_GET, [](AsyncWebServerRequest *request){
