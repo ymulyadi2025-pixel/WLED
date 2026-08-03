@@ -15,7 +15,6 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
   
   .container { padding: 16px; max-width: 500px; margin: 0 auto; }
   
-  /* Mode Header Box */
   .mode-card { background:#1e1e1e; border-radius:12px; padding:16px; border:1px solid #2a2a2a; margin-bottom:16px; }
   .mode-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
   .mode-info { display:flex; align-items:center; gap:12px; }
@@ -26,7 +25,6 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
   .btn-switch { padding:8px 14px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:0.2s; white-space:nowrap; }
   .btn-switch:hover { background:#333; }
   
-  /* Switch Panel Dynamic */
   .switch-panel { margin-top:14px; padding-top:14px; border-top:1px solid #2a2a2a; }
   .target-title { font-size:13px; font-weight:bold; color:#fff; margin-bottom:8px; }
   .guide-box { font-size:12px; color:#ccc; background:#141414; padding:10px 12px; border-radius:8px; margin-bottom:12px; line-height:1.5; border-left:3px solid #007acc; }
@@ -38,7 +36,6 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
   .btn-action { display:block; width:100%; text-align:center; padding:10px; background:#2a5; color:#fff; border-radius:8px; text-decoration:none; font-size:13px; font-weight:bold; transition:0.2s; }
   .btn-action:hover { background:#3b6; }
   
-  /* Navigation Grid */
   .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
   .card { background:#1e1e1e; border-radius:12px; padding:18px 12px; text-align:center; text-decoration:none; color:#eee; display:block; border:1px solid #252525; transition:0.2s; }
   .card:hover { border-color:#444; background:#222; }
@@ -53,7 +50,6 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 </header>
 
 <div class="container">
-  <!-- Dynamic Mode Header -->
   <div class="mode-card">
     <div class="mode-header">
       <div class="mode-info">
@@ -66,7 +62,6 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
       <button class="btn-switch" onclick="toggleSwitchPanel()">Ganti Mode</button>
     </div>
 
-    <!-- Panel Penggantian Mode (Hidden by Default) -->
     <div class="switch-panel" id="switchPanel" style="display:none;">
       <div class="target-title" id="targetTitle">Beralih Mode</div>
       <div class="guide-box" id="guideBox">Memuat panduan...</div>
@@ -80,9 +75,8 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- Menu Utama -->
   <div class="grid">
-    <a class="card" href="#"><div class="icon">&#128161;</div><div class="label">LED Alis</div></a>
+    <a class="card" href="/led"><div class="icon">&#128161;</div><div class="label">LED Alis</div></a>
     <a class="card" href="#"><div class="icon">&#128267;</div><div class="label">Kondisi Aki</div></a>
     <a class="card" href="#"><div class="icon">&#128736;</div><div class="label">Reminder Servis</div></a>
     <a class="card" href="#"><div class="icon">&#128274;</div><div class="label">Anti-Theft</div></a>
@@ -95,38 +89,28 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 <script>
 const isAPMode = (window.location.hostname === '4.3.2.1');
 
-// Deklarasi Elemen
 const modeIcon = document.getElementById('modeIcon');
 const modeTitle = document.getElementById('modeTitle');
 const targetTitle = document.getElementById('targetTitle');
 const guideBox = document.getElementById('guideBox');
 
-// Atur Tampilan Awal Berdasarkan Mode Aktif Saat Ini
 if (isAPMode) {
-  // Mode Aktif: Offline
   modeIcon.textContent = '📶';
   modeTitle.textContent = 'Mode Kontrol Only (Offline)';
-  
-  // Persiapan Target saat Klik Ganti Mode
   targetTitle.textContent = 'Pilihan: Mode Kontrol + Internet (Hotspot)';
   guideBox.innerHTML = '<b>Panduan:</b><br>1. Aktifkan Hotspot / Tethering di HP Anda.<br>2. Tunggu hingga sistem terhubung ke Hotspot HP.<br>3. Tombol beralih akan muncul otomatis saat terhubung.';
 } else {
-  // Mode Aktif: Online/Internet
   modeIcon.textContent = '🌐';
   modeTitle.textContent = 'Mode Kontrol + Internet (Hotspot)';
-  
-  // Persiapan Target saat Klik Ganti Mode
   targetTitle.textContent = 'Pilihan: Mode Kontrol Only (Offline)';
   guideBox.innerHTML = '<b>Panduan:</b><br>1. Aktifkan Wi-Fi di HP Anda.<br>2. Sambungkan HP Anda ke Wi-Fi <b>Mizuma Smart System</b>.<br>3. Tombol beralih akan muncul otomatis saat terhubung.';
 }
 
-// Toggle buka/tutup panel ganti mode
 function toggleSwitchPanel() {
   const panel = document.getElementById('switchPanel');
   panel.style.display = (panel.style.display === 'none') ? 'block' : 'none';
 }
 
-// Pengecekan Status Realtime via Async Endpoint
 async function refreshStatus() {
   try {
     const res = await fetch('/mizuma/status');
@@ -137,7 +121,6 @@ async function refreshStatus() {
     const btnAction = document.getElementById('btnSwitchAction');
 
     if (isAPMode) {
-      // Jika saat ini Offline, periksa apakah ESP32 sudah terhubung ke Hotspot HP (STA)
       if (data.sta && data.staIP) {
         dot.className = 'dot on';
         statusText.textContent = 'Sistem terhubung ke Hotspot HP!';
@@ -152,7 +135,6 @@ async function refreshStatus() {
         btnAction.style.display = 'none';
       }
     } else {
-      // Jika saat ini Online, periksa apakah HP sudah terhubung ke Wi-Fi SoftAP ESP32
       if (data.ap) {
         dot.className = 'dot on';
         statusText.textContent = 'HP Anda terhubung ke Wi-Fi Mizuma!';
@@ -172,6 +154,146 @@ async function refreshStatus() {
 
 refreshStatus();
 setInterval(refreshStatus, 3000);
+</script>
+</body>
+</html>
+)rawliteral";
+
+const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LED Alis - Mizuma</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; }
+
+  /* ===== FREEZE PANE (sticky) ===== */
+  .freeze { position: sticky; top: 0; z-index: 10; background:#111; border-bottom:1px solid #262626; }
+
+  .backbar { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#1a1a1a; }
+  .backbar a { color:#aaa; text-decoration:none; font-size:14px; }
+
+  .tabbar { display:flex; overflow-x:auto; background:#151515; }
+  .tabbar button { flex:1 0 auto; padding:12px 14px; background:none; border:none; color:#999; font-size:13px; font-weight:600; white-space:nowrap; border-bottom:3px solid transparent; }
+  .tabbar button.active { color:#fff; border-bottom-color:#3ddc84; }
+
+  .preview-row { display:flex; align-items:center; gap:10px; padding:10px 12px; }
+  .preview-canvas { flex:1; min-width:0; height:56px; background:#000; border-radius:8px; display:flex; align-items:center; padding:0 6px; gap:2px; overflow:hidden; }
+  .led-dot { width:6px; height:10px; border-radius:2px; background:#333; flex-shrink:0; }
+  .led-dot.right { background:#3a3a5a; }
+  .led-dot.left  { background:#3a5a3a; }
+
+  .side-select { display:flex; gap:4px; flex-shrink:0; background:#1e1e1e; border-radius:8px; padding:3px; }
+  .side-select button { padding:8px 10px; background:none; border:none; color:#999; font-size:11px; border-radius:6px; font-weight:600; }
+  .side-select button.active { background:#2a5; color:#fff; }
+
+  /* ===== SCROLLABLE BODY ===== */
+  .body-layout { display:flex; min-height: 60vh; }
+
+  .subnav { width:78px; flex-shrink:0; background:#161616; border-right:1px solid #232323; }
+  .subnav button { display:block; width:100%; padding:16px 4px; background:none; border:none; color:#888; font-size:11px; text-align:center; border-left:3px solid transparent; }
+  .subnav button.active { color:#fff; border-left-color:#3ddc84; background:#1e1e1e; }
+  .subnav .icon { display:block; font-size:20px; margin-bottom:4px; }
+
+  .content { flex:1; padding:16px; min-width:0; }
+  .placeholder { color:#777; font-size:13px; line-height:1.6; background:#1a1a1a; border:1px dashed #333; border-radius:10px; padding:20px; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="freeze">
+  <div class="backbar"><a href="/app">&larr; Kembali ke Menu</a></div>
+
+  <div class="tabbar" id="tabbar">
+    <button data-tab="welcoming" class="active">Welcoming</button>
+    <button data-tab="riding">Riding</button>
+    <button data-tab="sein">Sein</button>
+    <button data-tab="rem">Rem</button>
+    <button data-tab="hazard">Hazard</button>
+  </div>
+
+  <div class="preview-row">
+    <div class="preview-canvas" id="previewCanvas"></div>
+    <div class="side-select" id="sideSelect">
+      <button data-side="kanan" class="active">Kanan</button>
+      <button data-side="kiri">Kiri</button>
+      <button data-side="both">Keduanya</button>
+    </div>
+  </div>
+</div>
+
+<div class="body-layout">
+  <div class="subnav" id="subnav">
+    <button data-sub="warna" class="active"><span class="icon">&#127912;</span>Pola Warna</button>
+    <button data-sub="efek"><span class="icon">&#10024;</span>Efek</button>
+    <button data-sub="simpan"><span class="icon">&#128190;</span>Simpan</button>
+  </div>
+
+  <div class="content" id="content">
+    <div class="placeholder" id="placeholderText">
+      Tab: <b>Welcoming</b> — Sisi: <b>Kanan</b> — Sub-tab: <b>Pola Warna</b><br><br>
+      (Kontrol sebenarnya menyusul di fase berikutnya)
+    </div>
+  </div>
+</div>
+
+<script>
+let activeTab = 'welcoming';
+let activeSide = 'kanan';
+let activeSub = 'warna';
+
+function buildPreview() {
+  const canvas = document.getElementById('previewCanvas');
+  canvas.innerHTML = '';
+  for (let i = 0; i < 48; i++) {
+    const d = document.createElement('div');
+    d.className = 'led-dot right';
+    canvas.appendChild(d);
+  }
+  for (let i = 0; i < 48; i++) {
+    const d = document.createElement('div');
+    d.className = 'led-dot left';
+    canvas.appendChild(d);
+  }
+}
+buildPreview();
+
+function updatePlaceholder() {
+  const labels = { warna:'Pola Warna', efek:'Efek', simpan:'Simpan' };
+  const sideLabels = { kanan:'Kanan', kiri:'Kiri', both:'Keduanya' };
+  const tabLabels = { welcoming:'Welcoming', riding:'Riding', sein:'Sein', rem:'Rem', hazard:'Hazard' };
+  document.getElementById('placeholderText').innerHTML =
+    'Tab: <b>' + tabLabels[activeTab] + '</b> — Sisi: <b>' + sideLabels[activeSide] +
+    '</b> — Sub-tab: <b>' + labels[activeSub] + '</b><br><br>(Kontrol sebenarnya menyusul di fase berikutnya)';
+}
+
+document.getElementById('tabbar').addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#tabbar button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  activeTab = e.target.dataset.tab;
+  updatePlaceholder();
+});
+
+document.getElementById('sideSelect').addEventListener('click', (e) => {
+  if (e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#sideSelect button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  activeSide = e.target.dataset.side;
+  updatePlaceholder();
+});
+
+document.getElementById('subnav').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('#subnav button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeSub = btn.dataset.sub;
+  updatePlaceholder();
+});
 </script>
 </body>
 </html>
@@ -201,12 +323,16 @@ class MizumaSmartSystem : public Usermod {
 
   public:
     void setup() override {
-      apBehavior = AP_BEHAVIOR_ALWAYS;  // paksa tiap boot, tidak perlu setting manual
+      apBehavior = AP_BEHAVIOR_ALWAYS;
 
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
       server.on("/app", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send_P(200, "text/html", MIZUMA_SHELL_HTML);
+      });
+
+      server.on("/led", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send_P(200, "text/html", MIZUMA_LED_HTML);
       });
 
       server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
