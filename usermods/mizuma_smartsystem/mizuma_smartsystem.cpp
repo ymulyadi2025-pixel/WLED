@@ -89,6 +89,8 @@ class MizumaSmartSystem : public Usermod {
 
   public:
     void setup() override {
+      apBehavior = AP_BEHAVIOR_ALWAYS;  // <-- baris baru, paksa tiap boot
+      
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
       server.on("/app", HTTP_GET, [](AsyncWebServerRequest *request){
