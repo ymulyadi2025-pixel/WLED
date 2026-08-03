@@ -889,7 +889,3 @@ uint16_t getId() override { return USERMOD_ID_MIZUMA_SYSTEM; }
 };
 static MizumaSmartSystem mizuma_smartsystem;
 REGISTER_USERMOD(mizuma_smartsystem);
-
-// WAJIB — tanpa 2 baris ini, usermod tidak pernah aktif meski kompilasi sukses.
-static MizumaSmartSystem mizuma_smartsystem;
-REGISTER_USERMOD(mizuma_smartsystem);
