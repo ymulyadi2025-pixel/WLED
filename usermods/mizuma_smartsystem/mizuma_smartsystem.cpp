@@ -1,6 +1,8 @@
 #include "wled.h"
 
-// ===== Komponen bottom nav (dipakai di semua halaman) =====
+// =========================================================================
+// 1. KOMPONEN BOTTOM NAVIGATION (DIPAKAI DI SEMUA HALAMAN)
+// =========================================================================
 const char MIZUMA_BOTTOMNAV_CSS[] PROGMEM = R"rawliteral(
 .bottomnav { position:fixed; bottom:0; left:0; right:0; display:flex; overflow-x:auto;
   background:#181818; border-top:1px solid #2a2a2a; z-index:20; padding-bottom:env(safe-area-inset-bottom); }
@@ -25,6 +27,9 @@ const char MIZUMA_BOTTOMNAV_HTML[] PROGMEM = R"rawliteral(
 </div>
 )rawliteral";
 
+// =========================================================================
+// 2. SHELL UI UTAMA / DASHBOARD (/app)
+// =========================================================================
 const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
@@ -67,7 +72,7 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
   <div class="mode-card">
     <div class="mode-header">
       <div class="mode-info">
-        <span class="mode-icon" id="modeIcon">📶</span>
+        <span class="mode-icon" id="modeIcon">&#128246;</span>
         <div>
           <div class="mode-label">Mode Aktif:</div>
           <div class="mode-title" id="modeTitle">Memuat...</div>
@@ -104,12 +109,12 @@ const targetTitle = document.getElementById('targetTitle');
 const guideBox = document.getElementById('guideBox');
 
 if (isAPMode) {
-  modeIcon.textContent = '📶';
+  modeIcon.textContent = '\uD83D\uDCF6';
   modeTitle.textContent = 'Mode Kontrol Only (Offline)';
   targetTitle.textContent = 'Pilihan: Mode Kontrol + Internet (Hotspot)';
   guideBox.innerHTML = '<b>Panduan:</b><br>1. Aktifkan Hotspot / Tethering di HP Anda.<br>2. Tunggu hingga sistem terhubung ke Hotspot HP.<br>3. Tombol beralih akan muncul otomatis saat terhubung.';
 } else {
-  modeIcon.textContent = '🌐';
+  modeIcon.textContent = '\uD83C\uDF10';
   modeTitle.textContent = 'Mode Kontrol + Internet (Hotspot)';
   targetTitle.textContent = 'Pilihan: Mode Kontrol Only (Offline)';
   guideBox.innerHTML = '<b>Panduan:</b><br>1. Aktifkan Wi-Fi di HP Anda.<br>2. Sambungkan HP Anda ke Wi-Fi <b>Mizuma Smart System</b>.<br>3. Tombol beralih akan muncul otomatis saat terhubung.';
@@ -151,6 +156,9 @@ setInterval(refreshStatus, 3000);
 </html>
 )rawliteral";
 
+// =========================================================================
+// 3. UI KONTROL LED WITH FREEZE PANE (/led) - FASE 5
+// =========================================================================
 const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
@@ -162,15 +170,17 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   * { box-sizing: border-box; }
   body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; }
 
+  /* FREEZE PANE STICKY HEADER */
   .freeze { position: sticky; top: 0; z-index: 10; background:#111; border-bottom:1px solid #262626; }
   .backbar { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#1a1a1a; }
   .backbar a { color:#aaa; text-decoration:none; font-size:14px; }
 
+  /* 5.1 TAB MODE NAVIGASI ATAS */
   .tabbar { display:flex; overflow-x:auto; background:#151515; }
   .tabbar button { flex:1 0 auto; padding:11px 10px; background:none; border:none; color:#999; font-size:12.5px; font-weight:600; white-space:nowrap; border-bottom:3px solid transparent; }
   .tabbar button.active { color:#fff; border-bottom-color:#3ddc84; }
 
-  /* ==== Preview grid sesuai sketsa: 2 baris (kanan/kiri) + tombol sejajar + Kanan+Kiri menyamping ==== */
+  /* 5.2 LIVE PREVIEW & 5.3 SELECTOR SISI SIKRON */
   .preview-grid { display:grid; grid-template-columns: 1fr 62px 78px; grid-template-rows: 34px 34px; gap:5px; padding:10px 12px; }
   .pv-bar { border-radius:6px; background:#000; display:flex; align-items:center; padding:0 3px; gap:1px; overflow:hidden; }
   .pv-bar .seg { flex:1; height:20px; background:#2a2a2a; border-radius:1px; }
@@ -183,6 +193,7 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   .side-btn-both { grid-column:3; grid-row:1 / span 2; background:#1e1e1e; border:1px solid #333; color:#999; border-radius:6px; font-size:11px; font-weight:600; }
   .side-btn-both.active { background:#2a5; color:#fff; border-color:#2a5; }
 
+  /* 5.4 LAYOUT SUBNAV KIRI & 5.5 CONTENT SCROLL KANAN */
   .body-layout { display:flex; min-height: 60vh; }
   .subnav { width:78px; flex-shrink:0; background:#161616; border-right:1px solid #232323; }
   .subnav button { display:block; width:100%; padding:16px 4px; background:none; border:none; color:#888; font-size:11px; text-align:center; border-left:3px solid transparent; }
@@ -198,6 +209,7 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 </head>
 <body>
 
+<!-- FIXED FREEZE PANE AREA -->
 <div class="freeze">
   <div class="backbar"><a href="/app">&larr; Kembali ke Menu</a></div>
   <div class="tabbar" id="tabbar">
@@ -216,6 +228,7 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   </div>
 </div>
 
+<!-- BODY LAYOUT WITH SIDEBAR & SCROLL AREA -->
 <div class="body-layout">
   <div class="subnav" id="subnav">
     <button data-sub="warna" class="active"><span class="icon">&#127912;</span>Pola Warna</button>
@@ -225,18 +238,18 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 
   <div class="content" id="content">
     <div class="placeholder" id="placeholderText">
-      Tab: <b>Welcoming</b> — Sisi: <b>Kanan</b> — Sub-tab: <b>Pola Warna</b><br><br>
-      (Kontrol sebenarnya menyusul di Fase 6-8)
+      Tab: <b>Welcoming</b> &mdash; Sisi: <b>Kanan</b> &mdash; Sub-tab: <b>Pola Warna</b><br><br>
+      (Kontrol interaktif menyusul di Fase 6-8)
     </div>
-    <!-- Konten dummy di bawah ini SEMENTARA, cuma untuk uji scroll freeze pane -->
-    <div class="dummy-block">[placeholder isi kontrol — blok 1]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 2]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 3]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 4]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 5]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 6]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 7]</div>
-    <div class="dummy-block">[placeholder isi kontrol — blok 8]</div>
+    <!-- BLOK DUMMY UNTUK UJI BUKTI FREEZE PANE SCROLL -->
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 1]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 2]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 3]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 4]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 5]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 6]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 7]</div>
+    <div class="dummy-block">[placeholder isi kontrol &mdash; blok 8]</div>
   </div>
 </div>
 
@@ -247,6 +260,7 @@ let activeTab = 'welcoming';
 let activeSide = 'kanan';
 let activeSub = 'warna';
 
+// Render 48 Segmen LED Preview untuk Kanan & Kiri
 function buildPreviewBar(elId) {
   const el = document.getElementById(elId);
   el.innerHTML = '';
@@ -264,10 +278,11 @@ function updatePlaceholder() {
   const sideLabels = { kanan:'Kanan', kiri:'Kiri', both:'Kanan + Kiri' };
   const tabLabels = { welcoming:'Welcoming', riding:'Riding', sein:'Sein', rem:'Rem', hazard:'Hazard' };
   document.getElementById('placeholderText').innerHTML =
-    'Tab: <b>' + tabLabels[activeTab] + '</b> — Sisi: <b>' + sideLabels[activeSide] +
-    '</b> — Sub-tab: <b>' + labels[activeSub] + '</b><br><br>(Kontrol sebenarnya menyusul di Fase 6-8)';
+    'Tab: <b>' + tabLabels[activeTab] + '</b> &mdash; Sisi: <b>' + sideLabels[activeSide] +
+    '</b> &mdash; Sub-tab: <b>' + labels[activeSub] + '</b><br><br>(Kontrol interaktif menyusul di Fase 6-8)';
 }
 
+// Event Listener Tab Mode
 document.getElementById('tabbar').addEventListener('click', (e) => {
   if (e.target.tagName !== 'BUTTON') return;
   document.querySelectorAll('#tabbar button').forEach(b => b.classList.remove('active'));
@@ -276,6 +291,7 @@ document.getElementById('tabbar').addEventListener('click', (e) => {
   updatePlaceholder();
 });
 
+// Event Listener Selector Sisi
 document.getElementById('previewGrid').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -285,6 +301,7 @@ document.getElementById('previewGrid').addEventListener('click', (e) => {
   updatePlaceholder();
 });
 
+// Event Listener Sub-nav Panel Kiri
 document.getElementById('subnav').addEventListener('click', (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
@@ -298,6 +315,9 @@ document.getElementById('subnav').addEventListener('click', (e) => {
 </html>
 )rawliteral";
 
+// =========================================================================
+// 4. KELAS USERMOD MIZUMA SMART SYSTEM
+// =========================================================================
 class MizumaSmartSystem : public Usermod {
   private:
     String vehicleName  = "";
@@ -317,7 +337,7 @@ class MizumaSmartSystem : public Usermod {
     uint8_t presetRemKanan       = 7, presetRemKiri       = 8;
     uint8_t presetHazardKanan    = 9, presetHazardKiri    = 10;
 
-    // Helper: sisipkan komponen bottom nav ke template halaman
+    // Helper: Sisipkan Bottom Navigation secara dinamis
     String renderPage(const char* pageTemplate, const char* activeHome, const char* activeLed) {
       String html = FPSTR(pageTemplate);
       String navHtml = FPSTR(MIZUMA_BOTTOMNAV_HTML);
@@ -334,14 +354,17 @@ class MizumaSmartSystem : public Usermod {
 
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
+      // Route Dashboard Utama
       server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request){
         request->send(200, "text/html", renderPage(MIZUMA_SHELL_HTML, "active", ""));
       });
 
+      // Route Kontrol LED Alis (Fase 5)
       server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request){
         request->send(200, "text/html", renderPage(MIZUMA_LED_HTML, "", "active"));
       });
 
+      // Route Status JSON Koneksi
       server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
         bool apOn  = (WiFi.softAPgetStationNum() > 0);
         bool staOn = (WiFi.status() == WL_CONNECTED);
@@ -361,6 +384,7 @@ class MizumaSmartSystem : public Usermod {
 
     void loop() override {}
 
+    // Simpan Config ke LittleFS WLED
     void addToConfig(JsonObject& root) override {
       JsonObject top = root.createNestedObject("Mizuma");
       JsonObject vehicle = top.createNestedObject("vehicle");
@@ -394,6 +418,7 @@ class MizumaSmartSystem : public Usermod {
       pm["hazardKiri"]     = presetHazardKiri;
     }
 
+    // Baca Config dari LittleFS WLED
     bool readFromConfig(JsonObject& root) override {
       JsonObject top = root["Mizuma"];
       if (top.isNull()) return false;
@@ -432,5 +457,6 @@ class MizumaSmartSystem : public Usermod {
     }
 };
 
+// Registrasi usermod secara otomatis ke ekosistem WLED
 static MizumaSmartSystem mizuma_smartsystem;
 REGISTER_USERMOD(mizuma_smartsystem);
