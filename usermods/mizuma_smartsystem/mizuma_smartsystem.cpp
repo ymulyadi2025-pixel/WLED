@@ -1,5 +1,30 @@
 #include "wled.h"
 
+// ===== Komponen bottom nav (dipakai di semua halaman) =====
+const char MIZUMA_BOTTOMNAV_CSS[] PROGMEM = R"rawliteral(
+.bottomnav { position:fixed; bottom:0; left:0; right:0; display:flex; overflow-x:auto;
+  background:#181818; border-top:1px solid #2a2a2a; z-index:20; padding-bottom:env(safe-area-inset-bottom); }
+.bottomnav a { flex:1 0 60px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:8px 4px; text-decoration:none; color:#777; font-size:10px; gap:3px; }
+.bottomnav a.active { color:#3ddc84; }
+.bottomnav a.disabled { color:#444; pointer-events:none; }
+.bottomnav .bn-icon { font-size:18px; }
+body { padding-bottom: 62px; }
+)rawliteral";
+
+const char MIZUMA_BOTTOMNAV_HTML[] PROGMEM = R"rawliteral(
+<div class="bottomnav">
+  <a href="/app" class="__ACTIVE_HOME__"><span class="bn-icon">&#127968;</span>Beranda</a>
+  <a href="/led" class="__ACTIVE_LED__"><span class="bn-icon">&#128161;</span>LED</a>
+  <a href="#" class="disabled"><span class="bn-icon">&#128267;</span>Aki</a>
+  <a href="#" class="disabled"><span class="bn-icon">&#128736;</span>Servis</a>
+  <a href="#" class="disabled"><span class="bn-icon">&#128274;</span>Anti-Theft</a>
+  <a href="#" class="disabled"><span class="bn-icon">&#128205;</span>GPS</a>
+  <a href="/settings/um" class=""><span class="bn-icon">&#127961;</span>Motor</a>
+  <a href="/settings/wifi" class=""><span class="bn-icon">&#128246;</span>Jaringan</a>
+</div>
+)rawliteral";
+
 const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
@@ -12,42 +37,31 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
   body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; }
   header { padding:16px; text-align:center; background:#1a1a1a; border-bottom: 1px solid #222; }
   header h1 { margin:0; font-size:20px; font-weight:600; color:#fff; }
-  
   .container { padding: 16px; max-width: 500px; margin: 0 auto; }
-  
   .mode-card { background:#1e1e1e; border-radius:12px; padding:16px; border:1px solid #2a2a2a; margin-bottom:16px; }
   .mode-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
   .mode-info { display:flex; align-items:center; gap:12px; }
   .mode-icon { font-size:26px; line-height:1; }
   .mode-label { font-size:11px; color:#aaa; text-transform:uppercase; letter-spacing:0.5px; }
   .mode-title { font-size:13px; font-weight:bold; color:#3ddc84; margin-top:2px; }
-  
-  .btn-switch { padding:8px 14px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; transition:0.2s; white-space:nowrap; }
-  .btn-switch:hover { background:#333; }
-  
+  .btn-switch { padding:8px 14px; background:#2a2a2a; color:#fff; border:1px solid #444; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
   .switch-panel { margin-top:14px; padding-top:14px; border-top:1px solid #2a2a2a; }
   .target-title { font-size:13px; font-weight:bold; color:#fff; margin-bottom:8px; }
   .guide-box { font-size:12px; color:#ccc; background:#141414; padding:10px 12px; border-radius:8px; margin-bottom:12px; line-height:1.5; border-left:3px solid #007acc; }
-  
   .status-row { display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:12px; color:#aaa; }
-  .dot { width:10px; height:10px; border-radius:50%; background:#555; display:inline-block; transition: background 0.3s; flex-shrink:0; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#555; display:inline-block; flex-shrink:0; }
   .dot.on { background:#3ddc84; box-shadow: 0 0 8px #3ddc84; }
-  
-  .btn-action { display:block; width:100%; text-align:center; padding:10px; background:#2a5; color:#fff; border-radius:8px; text-decoration:none; font-size:13px; font-weight:bold; transition:0.2s; }
-  .btn-action:hover { background:#3b6; }
-  
+  .btn-action { display:block; width:100%; text-align:center; padding:10px; background:#2a5; color:#fff; border-radius:8px; text-decoration:none; font-size:13px; font-weight:bold; }
   .grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-  .card { background:#1e1e1e; border-radius:12px; padding:18px 12px; text-align:center; text-decoration:none; color:#eee; display:block; border:1px solid #252525; transition:0.2s; }
-  .card:hover { border-color:#444; background:#222; }
+  .card { background:#1e1e1e; border-radius:12px; padding:18px 12px; text-align:center; text-decoration:none; color:#eee; display:block; border:1px solid #252525; }
   .card .icon { font-size:26px; margin-bottom:6px; }
   .card .label { font-size:13px; }
+  %BOTTOMNAV_CSS%
 </style>
 </head>
 <body>
 
-<header>
-  <h1>Mizuma Smart System</h1>
-</header>
+<header><h1>Mizuma Smart System</h1></header>
 
 <div class="container">
   <div class="mode-card">
@@ -61,16 +75,10 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
       </div>
       <button class="btn-switch" onclick="toggleSwitchPanel()">Ganti Mode</button>
     </div>
-
     <div class="switch-panel" id="switchPanel" style="display:none;">
       <div class="target-title" id="targetTitle">Beralih Mode</div>
       <div class="guide-box" id="guideBox">Memuat panduan...</div>
-      
-      <div class="status-row">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">Memeriksa koneksi...</span>
-      </div>
-      
+      <div class="status-row"><span class="dot" id="statusDot"></span><span id="statusText">Memeriksa koneksi...</span></div>
       <a class="btn-action" id="btnSwitchAction" style="display:none;" href="#">Beralih Mode Sekarang</a>
     </div>
   </div>
@@ -86,9 +94,10 @@ const char MIZUMA_SHELL_HTML[] PROGMEM = R"rawliteral(
   </div>
 </div>
 
+%BOTTOMNAV_HTML%
+
 <script>
 const isAPMode = (window.location.hostname === '4.3.2.1');
-
 const modeIcon = document.getElementById('modeIcon');
 const modeTitle = document.getElementById('modeTitle');
 const targetTitle = document.getElementById('targetTitle');
@@ -115,43 +124,26 @@ async function refreshStatus() {
   try {
     const res = await fetch('/mizuma/status');
     const data = await res.json();
-
     const dot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
     const btnAction = document.getElementById('btnSwitchAction');
-
     if (isAPMode) {
       if (data.sta && data.staIP) {
-        dot.className = 'dot on';
-        statusText.textContent = 'Sistem terhubung ke Hotspot HP!';
-        statusText.style.color = '#3ddc84';
-        btnAction.href = 'http://' + data.staIP + '/app';
-        btnAction.textContent = 'Beralih ke Mode Kontrol + Internet (Hotspot)';
-        btnAction.style.display = 'block';
+        dot.className = 'dot on'; statusText.textContent = 'Sistem terhubung ke Hotspot HP!'; statusText.style.color = '#3ddc84';
+        btnAction.href = 'http://' + data.staIP + '/app'; btnAction.textContent = 'Beralih ke Mode Kontrol + Internet (Hotspot)'; btnAction.style.display = 'block';
       } else {
-        dot.className = 'dot';
-        statusText.textContent = 'Menunggu ESP32 terhubung ke Hotspot HP...';
-        statusText.style.color = '#aaa';
-        btnAction.style.display = 'none';
+        dot.className = 'dot'; statusText.textContent = 'Menunggu ESP32 terhubung ke Hotspot HP...'; statusText.style.color = '#aaa'; btnAction.style.display = 'none';
       }
     } else {
       if (data.ap) {
-        dot.className = 'dot on';
-        statusText.textContent = 'HP Anda terhubung ke Wi-Fi Mizuma!';
-        statusText.style.color = '#3ddc84';
-        btnAction.href = 'http://4.3.2.1/app';
-        btnAction.textContent = 'Beralih ke Mode Kontrol Only (Offline)';
-        btnAction.style.display = 'block';
+        dot.className = 'dot on'; statusText.textContent = 'HP Anda terhubung ke Wi-Fi Mizuma!'; statusText.style.color = '#3ddc84';
+        btnAction.href = 'http://4.3.2.1/app'; btnAction.textContent = 'Beralih ke Mode Kontrol Only (Offline)'; btnAction.style.display = 'block';
       } else {
-        dot.className = 'dot';
-        statusText.textContent = 'Menunggu HP terhubung ke Wi-Fi Mizuma...';
-        statusText.style.color = '#aaa';
-        btnAction.style.display = 'none';
+        dot.className = 'dot'; statusText.textContent = 'Menunggu HP terhubung ke Wi-Fi Mizuma...'; statusText.style.color = '#aaa'; btnAction.style.display = 'none';
       }
     }
   } catch (e) {}
 }
-
 refreshStatus();
 setInterval(refreshStatus, 3000);
 </script>
@@ -170,43 +162,44 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   * { box-sizing: border-box; }
   body { margin:0; font-family: -apple-system, Roboto, Arial, sans-serif; background:#111; color:#eee; }
 
-  /* ===== FREEZE PANE (sticky) ===== */
   .freeze { position: sticky; top: 0; z-index: 10; background:#111; border-bottom:1px solid #262626; }
-
   .backbar { display:flex; align-items:center; gap:10px; padding:10px 12px; background:#1a1a1a; }
   .backbar a { color:#aaa; text-decoration:none; font-size:14px; }
 
   .tabbar { display:flex; overflow-x:auto; background:#151515; }
-  .tabbar button { flex:1 0 auto; padding:12px 14px; background:none; border:none; color:#999; font-size:13px; font-weight:600; white-space:nowrap; border-bottom:3px solid transparent; }
+  .tabbar button { flex:1 0 auto; padding:11px 10px; background:none; border:none; color:#999; font-size:12.5px; font-weight:600; white-space:nowrap; border-bottom:3px solid transparent; }
   .tabbar button.active { color:#fff; border-bottom-color:#3ddc84; }
 
-  .preview-row { display:flex; align-items:center; gap:10px; padding:10px 12px; }
-  .preview-canvas { flex:1; min-width:0; height:56px; background:#000; border-radius:8px; display:flex; align-items:center; padding:0 6px; gap:2px; overflow:hidden; }
-  .led-dot { width:6px; height:10px; border-radius:2px; background:#333; flex-shrink:0; }
-  .led-dot.right { background:#3a3a5a; }
-  .led-dot.left  { background:#3a5a3a; }
+  /* ==== Preview grid sesuai sketsa: 2 baris (kanan/kiri) + tombol sejajar + Kanan+Kiri menyamping ==== */
+  .preview-grid { display:grid; grid-template-columns: 1fr 62px 78px; grid-template-rows: 34px 34px; gap:5px; padding:10px 12px; }
+  .pv-bar { border-radius:6px; background:#000; display:flex; align-items:center; padding:0 3px; gap:1px; overflow:hidden; }
+  .pv-bar .seg { flex:1; height:20px; background:#2a2a2a; border-radius:1px; }
+  .pv-bar.kanan { grid-column:1; grid-row:1; }
+  .pv-bar.kiri  { grid-column:1; grid-row:2; }
+  .side-btn { grid-column:2; background:#1e1e1e; border:1px solid #333; color:#999; border-radius:6px; font-size:11px; font-weight:600; }
+  .side-btn.kanan-btn { grid-row:1; }
+  .side-btn.kiri-btn  { grid-row:2; }
+  .side-btn.active { background:#2a5; color:#fff; border-color:#2a5; }
+  .side-btn-both { grid-column:3; grid-row:1 / span 2; background:#1e1e1e; border:1px solid #333; color:#999; border-radius:6px; font-size:11px; font-weight:600; }
+  .side-btn-both.active { background:#2a5; color:#fff; border-color:#2a5; }
 
-  .side-select { display:flex; gap:4px; flex-shrink:0; background:#1e1e1e; border-radius:8px; padding:3px; }
-  .side-select button { padding:8px 10px; background:none; border:none; color:#999; font-size:11px; border-radius:6px; font-weight:600; }
-  .side-select button.active { background:#2a5; color:#fff; }
-
-  /* ===== SCROLLABLE BODY ===== */
   .body-layout { display:flex; min-height: 60vh; }
-
   .subnav { width:78px; flex-shrink:0; background:#161616; border-right:1px solid #232323; }
   .subnav button { display:block; width:100%; padding:16px 4px; background:none; border:none; color:#888; font-size:11px; text-align:center; border-left:3px solid transparent; }
   .subnav button.active { color:#fff; border-left-color:#3ddc84; background:#1e1e1e; }
   .subnav .icon { display:block; font-size:20px; margin-bottom:4px; }
 
   .content { flex:1; padding:16px; min-width:0; }
-  .placeholder { color:#777; font-size:13px; line-height:1.6; background:#1a1a1a; border:1px dashed #333; border-radius:10px; padding:20px; text-align:center; }
+  .placeholder { color:#777; font-size:13px; line-height:1.6; background:#1a1a1a; border:1px dashed #333; border-radius:10px; padding:20px; text-align:center; margin-bottom:14px; }
+  .dummy-block { background:#1a1a1a; border-radius:10px; padding:16px; margin-bottom:12px; color:#555; font-size:12px; text-align:center; }
+
+  %BOTTOMNAV_CSS%
 </style>
 </head>
 <body>
 
 <div class="freeze">
   <div class="backbar"><a href="/app">&larr; Kembali ke Menu</a></div>
-
   <div class="tabbar" id="tabbar">
     <button data-tab="welcoming" class="active">Welcoming</button>
     <button data-tab="riding">Riding</button>
@@ -214,14 +207,12 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
     <button data-tab="rem">Rem</button>
     <button data-tab="hazard">Hazard</button>
   </div>
-
-  <div class="preview-row">
-    <div class="preview-canvas" id="previewCanvas"></div>
-    <div class="side-select" id="sideSelect">
-      <button data-side="kanan" class="active">Kanan</button>
-      <button data-side="kiri">Kiri</button>
-      <button data-side="both">Keduanya</button>
-    </div>
+  <div class="preview-grid" id="previewGrid">
+    <div class="pv-bar kanan" id="pvKanan"></div>
+    <div class="pv-bar kiri" id="pvKiri"></div>
+    <button class="side-btn kanan-btn active" data-side="kanan">Kanan</button>
+    <button class="side-btn kiri-btn" data-side="kiri">Kiri</button>
+    <button class="side-btn-both" data-side="both">Kanan<br>+ Kiri</button>
   </div>
 </div>
 
@@ -235,39 +226,46 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
   <div class="content" id="content">
     <div class="placeholder" id="placeholderText">
       Tab: <b>Welcoming</b> — Sisi: <b>Kanan</b> — Sub-tab: <b>Pola Warna</b><br><br>
-      (Kontrol sebenarnya menyusul di fase berikutnya)
+      (Kontrol sebenarnya menyusul di Fase 6-8)
     </div>
+    <!-- Konten dummy di bawah ini SEMENTARA, cuma untuk uji scroll freeze pane -->
+    <div class="dummy-block">[placeholder isi kontrol — blok 1]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 2]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 3]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 4]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 5]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 6]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 7]</div>
+    <div class="dummy-block">[placeholder isi kontrol — blok 8]</div>
   </div>
 </div>
+
+%BOTTOMNAV_HTML%
 
 <script>
 let activeTab = 'welcoming';
 let activeSide = 'kanan';
 let activeSub = 'warna';
 
-function buildPreview() {
-  const canvas = document.getElementById('previewCanvas');
-  canvas.innerHTML = '';
+function buildPreviewBar(elId) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '';
   for (let i = 0; i < 48; i++) {
-    const d = document.createElement('div');
-    d.className = 'led-dot right';
-    canvas.appendChild(d);
-  }
-  for (let i = 0; i < 48; i++) {
-    const d = document.createElement('div');
-    d.className = 'led-dot left';
-    canvas.appendChild(d);
+    const s = document.createElement('div');
+    s.className = 'seg';
+    el.appendChild(s);
   }
 }
-buildPreview();
+buildPreviewBar('pvKanan');
+buildPreviewBar('pvKiri');
 
 function updatePlaceholder() {
   const labels = { warna:'Pola Warna', efek:'Efek', simpan:'Simpan' };
-  const sideLabels = { kanan:'Kanan', kiri:'Kiri', both:'Keduanya' };
+  const sideLabels = { kanan:'Kanan', kiri:'Kiri', both:'Kanan + Kiri' };
   const tabLabels = { welcoming:'Welcoming', riding:'Riding', sein:'Sein', rem:'Rem', hazard:'Hazard' };
   document.getElementById('placeholderText').innerHTML =
     'Tab: <b>' + tabLabels[activeTab] + '</b> — Sisi: <b>' + sideLabels[activeSide] +
-    '</b> — Sub-tab: <b>' + labels[activeSub] + '</b><br><br>(Kontrol sebenarnya menyusul di fase berikutnya)';
+    '</b> — Sub-tab: <b>' + labels[activeSub] + '</b><br><br>(Kontrol sebenarnya menyusul di Fase 6-8)';
 }
 
 document.getElementById('tabbar').addEventListener('click', (e) => {
@@ -278,11 +276,12 @@ document.getElementById('tabbar').addEventListener('click', (e) => {
   updatePlaceholder();
 });
 
-document.getElementById('sideSelect').addEventListener('click', (e) => {
-  if (e.target.tagName !== 'BUTTON') return;
-  document.querySelectorAll('#sideSelect button').forEach(b => b.classList.remove('active'));
-  e.target.classList.add('active');
-  activeSide = e.target.dataset.side;
+document.getElementById('previewGrid').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  document.querySelectorAll('.side-btn, .side-btn-both').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeSide = btn.dataset.side;
   updatePlaceholder();
 });
 
@@ -301,25 +300,33 @@ document.getElementById('subnav').addEventListener('click', (e) => {
 
 class MizumaSmartSystem : public Usermod {
   private:
-    // ===== Data kendaraan =====
     String vehicleName  = "";
     String vehicleBrand = "";
     uint16_t vehicleYear = 0;
     String vehiclePlate = "";
 
-    // ===== Reminder servis =====
     struct ReminderItem {
       unsigned long lastServiceEpoch = 0;
       uint16_t intervalDays = 0;
     };
     ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
 
-    // ===== Mapping preset LED =====
     uint8_t presetWelcomingKanan = 1, presetWelcomingKiri = 2;
     uint8_t presetRidingKanan    = 3, presetRidingKiri    = 4;
     uint8_t presetSeinKanan      = 5, presetSeinKiri      = 6;
     uint8_t presetRemKanan       = 7, presetRemKiri       = 8;
     uint8_t presetHazardKanan    = 9, presetHazardKiri    = 10;
+
+    // Helper: sisipkan komponen bottom nav ke template halaman
+    String renderPage(const char* pageTemplate, const char* activeHome, const char* activeLed) {
+      String html = FPSTR(pageTemplate);
+      String navHtml = FPSTR(MIZUMA_BOTTOMNAV_HTML);
+      navHtml.replace("__ACTIVE_HOME__", activeHome);
+      navHtml.replace("__ACTIVE_LED__", activeLed);
+      html.replace("%BOTTOMNAV_CSS%", FPSTR(MIZUMA_BOTTOMNAV_CSS));
+      html.replace("%BOTTOMNAV_HTML%", navHtml);
+      return html;
+    }
 
   public:
     void setup() override {
@@ -327,12 +334,12 @@ class MizumaSmartSystem : public Usermod {
 
       DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
-      server.on("/app", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/html", MIZUMA_SHELL_HTML);
+      server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request){
+        request->send(200, "text/html", renderPage(MIZUMA_SHELL_HTML, "active", ""));
       });
 
-      server.on("/led", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/html", MIZUMA_LED_HTML);
+      server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request){
+        request->send(200, "text/html", renderPage(MIZUMA_LED_HTML, "", "active"));
       });
 
       server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -352,13 +359,10 @@ class MizumaSmartSystem : public Usermod {
       });
     }
 
-    void loop() override {
-      // logic reminder/status ditambah di fase berikutnya
-    }
+    void loop() override {}
 
     void addToConfig(JsonObject& root) override {
       JsonObject top = root.createNestedObject("Mizuma");
-
       JsonObject vehicle = top.createNestedObject("vehicle");
       vehicle["name"]  = vehicleName;
       vehicle["brand"] = vehicleBrand;
