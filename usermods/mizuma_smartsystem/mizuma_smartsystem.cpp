@@ -511,6 +511,10 @@ body{display:flex;flex-direction:column;}
 .foot-hint{font-size:11px;color:var(--tx3);text-align:center;padding:4px 0;}
 .save-btn{display:block;width:100%;text-align:center;padding:12px;background:var(--ac);color:#0a0a0a;border-radius:10px;font-weight:800;font-size:14px;border:none;margin-top:10px;}
 .save-hint{font-size:11px;color:var(--tx3);text-align:center;margin-top:8px;}
+.restricted-swatches{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.rswatch{aspect-ratio:1.6;border-radius:10px;border:3px solid transparent;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-size:11px;font-weight:800;}
+.rswatch.active{border-color:#fff;}
+.restricted-note{font-size:11px;color:var(--tx3);text-align:center;padding:10px 0 4px;}
 </style>
 </head>
 <body>
@@ -559,23 +563,27 @@ body{display:flex;flex-direction:column;}
 </div>
 <div class="pane-scroll" id="scrollWarna">
 <div id="ctCustom">
-<div class="wheel-wrap">
-<canvas id="colorWheel" width="220" height="220"></canvas>
-<div class="slots-row">
-<div class="slot active" style="background:#ff3b3b;" data-slot="0"></div>
-<div class="slot" style="background:#3ddc84;" data-slot="1"></div>
-<div class="slot" style="background:#3b8cff;" data-slot="2"></div>
-<div class="slot" style="background:#f5a524;" data-slot="3"></div>
-</div>
-</div>
-<div class="ctl-row"><label>R</label><input type="range" min="0" max="255" value="255" id="rR"><span class="val" id="vR">255</span></div>
-<div class="ctl-row"><label>G</label><input type="range" min="0" max="255" value="59" id="rG"><span class="val" id="vG">59</span></div>
-<div class="ctl-row"><label>B</label><input type="range" min="0" max="255" value="59" id="rB"><span class="val" id="vB">59</span></div>
-<div class="hex-row"><input id="hexIn" maxlength="6" placeholder="FF3B3B"><button class="btn-sm primary" id="hexSet">Set</button><button class="btn-sm" id="rndBtn">Acak</button></div>
+  <div class="wheel-wrap">
+    <canvas id="colorWheel" width="220" height="220"></canvas>
+    <div class="slots-row">
+      <div class="slot active" style="background:#ff3b3b;" data-slot="0"></div>
+      <div class="slot" style="background:#3ddc84;" data-slot="1"></div>
+      <div class="slot" style="background:#3b8cff;" data-slot="2"></div>
+      <div class="slot" style="background:#f5a524;" data-slot="3"></div>
+    </div>
+  </div>
+  <div class="ctl-row"><label>R</label><input type="range" min="0" max="255" value="255" id="rR"><span class="val" id="vR">255</span></div>
+  <div class="ctl-row"><label>G</label><input type="range" min="0" max="255" value="59" id="rG"><span class="val" id="vG">59</span></div>
+  <div class="ctl-row"><label>B</label><input type="range" min="0" max="255" value="59" id="rB"><span class="val" id="vB">59</span></div>
+  <div class="hex-row"><input id="hexIn" maxlength="6" placeholder="FF3B3B"><button class="btn-sm primary" id="hexSet">Set</button><button class="btn-sm" id="rndBtn">Acak</button></div>
 </div>
 <div id="ctTemplate" style="display:none;">
-<div class="palette-grid" id="paletteGrid"></div>
-<a class="download-link" href="#">&#8681; Download Palette Lainnya</a>
+  <div class="palette-grid" id="paletteGrid"></div>
+  <a class="download-link" href="#">&#8681; Download Palette Lainnya</a>
+</div>
+<div id="ctRestricted" style="display:none;">
+  <div class="restricted-swatches" id="restrictedGrid"></div>
+  <div class="restricted-note">Warna dibatasi otomatis sesuai regulasi lampu sinyal</div>
 </div>
 </div>
 <div class="pane-scroll" id="scrollEfek" style="display:none;">
@@ -598,46 +606,120 @@ body{display:flex;flex-direction:column;}
 <script>
 %HEADER_SCRIPT%
 let activeTab='welcoming', activeSide='kanan', activeSub='warna', currentCT='custom';
+
+const SEG_KANAN = 0, SEG_KIRI = 1;
+const RESTRICTED_COLORS = {
+  sein:    [{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],
+  rem:     [{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],
+  hazard:  [{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]
+};
+function isRestrictedTab(){ return activeTab==='sein' || activeTab==='rem' || activeTab==='hazard'; }
+
+function getActiveSegIds(){
+  if(activeSide==='kanan')return[SEG_KANAN];
+  if(activeSide==='kiri')return[SEG_KIRI];
+  return[SEG_KANAN,SEG_KIRI];
+}
+
+function sendColorToSegments(r,g,b){
+  const segs=getActiveSegIds().map(id=>({id:id,col:[[r,g,b]]}));
+  fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seg:segs})}).catch(()=>{});
+  updatePreviewColor(r,g,b);
+}
+function sendPaletteToSegments(idx){
+  const segs=getActiveSegIds().map(id=>({id:id,pal:idx}));
+  fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seg:segs})}).catch(()=>{});
+}
+function updatePreviewColor(r,g,b){
+  const c='rgb('+r+','+g+','+b+')';
+  const ids=getActiveSegIds();
+  if(ids.includes(SEG_KANAN))document.querySelectorAll('#pvKanan .seg').forEach(s=>s.style.background=c);
+  if(ids.includes(SEG_KIRI))document.querySelectorAll('#pvKiri .seg').forEach(s=>s.style.background=c);
+}
+
 function buildPreviewBar(id){const el=document.getElementById(id);el.innerHTML='';for(let i=0;i<48;i++){const s=document.createElement('div');s.className='seg';el.appendChild(s);}}
 buildPreviewBar('pvKanan');buildPreviewBar('pvKiri');
-document.getElementById('tabbar').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;document.querySelectorAll('#tabbar button').forEach(b=>b.classList.remove('active'));e.target.classList.add('active');activeTab=e.target.dataset.tab;updateSaveContext();});
-document.querySelector('.preview-grid').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;document.querySelectorAll('.side-btn,.side-btn-both').forEach(b=>b.classList.remove('active'));btn.classList.add('active');activeSide=btn.dataset.side;updateSaveContext();});
+
+function refreshColorModeVisibility(){
+  const restricted=isRestrictedTab();
+  document.getElementById('colorToggle').style.display=restricted?'none':'flex';
+  document.getElementById('ctCustom').style.display=(!restricted&&currentCT==='custom')?'block':'none';
+  document.getElementById('ctTemplate').style.display=(!restricted&&currentCT==='template')?'block':'none';
+  document.getElementById('ctRestricted').style.display=restricted?'block':'none';
+  document.getElementById('searchBox').style.display=(!restricted&&currentCT==='template')?'block':'none';
+  if(restricted)buildRestrictedGrid();
+}
+
+function buildRestrictedGrid(){
+  const grid=document.getElementById('restrictedGrid');
+  grid.innerHTML='';
+  const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;
+  colors.forEach((c,i)=>{
+    const div=document.createElement('div');
+    div.className='rswatch'+(i===0?' active':'');
+    div.style.background='#'+c.h;
+    div.textContent=c.n;
+    div.addEventListener('click',()=>{
+      document.querySelectorAll('.rswatch').forEach(x=>x.classList.remove('active'));
+      div.classList.add('active');
+      const n=parseInt(c.h,16);
+      sendColorToSegments((n>>16)&255,(n>>8)&255,n&255);
+    });
+    grid.appendChild(div);
+  });
+  const first=colors[0];const n=parseInt(first.h,16);
+  sendColorToSegments((n>>16)&255,(n>>8)&255,n&255);
+}
+
+document.getElementById('tabbar').addEventListener('click',e=>{
+  if(e.target.tagName!=='BUTTON')return;
+  document.querySelectorAll('#tabbar button').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');activeTab=e.target.dataset.tab;
+  updateSaveContext();refreshColorModeVisibility();
+});
+document.querySelector('.preview-grid').addEventListener('click',e=>{
+  const btn=e.target.closest('button');if(!btn)return;
+  document.querySelectorAll('.side-btn,.side-btn-both').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');activeSide=btn.dataset.side;updateSaveContext();
+});
 function setSub(k){activeSub=k;
-document.getElementById('headWarna').style.display=k==='warna'?'flex':'none';
-document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
-document.getElementById('headSimpan').style.display=k==='simpan'?'flex':'none';
-document.getElementById('scrollWarna').style.display=k==='warna'?'block':'none';
-document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';
-document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';
-document.getElementById('footEfek').style.display=k==='efek'?'block':'none';
-updateSaveContext();}
+  document.getElementById('headWarna').style.display=k==='warna'?'flex':'none';
+  document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
+  document.getElementById('headSimpan').style.display=k==='simpan'?'flex':'none';
+  document.getElementById('scrollWarna').style.display=k==='warna'?'block':'none';
+  document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';
+  document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';
+  document.getElementById('footEfek').style.display=k==='efek'?'block':'none';
+  updateSaveContext();}
 document.getElementById('subnav').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;document.querySelectorAll('#subnav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');setSub(btn.dataset.sub);});
 function updateSaveContext(){const t={welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'};const s={kanan:'Kanan',kiri:'Kiri',both:'Kanan + Kiri'};document.getElementById('saveContext').textContent=t[activeTab]+' \u2014 '+s[activeSide];}
-updateSaveContext();
+updateSaveContext();refreshColorModeVisibility();
+
 function updateModeAktif(){
-if(currentCT==='custom'){const i=Array.from(document.querySelectorAll('.slot')).findIndex(s=>s.classList.contains('active'));document.getElementById('modeAktif').textContent='Custom \u2014 Slot '+((i<0?0:i)+1);}
-else{const p=Array.from(document.querySelectorAll('.palette-card')).findIndex(c=>c.classList.contains('active'));document.getElementById('modeAktif').textContent='Template \u2014 Palette '+((p<0?0:p)+1);}
+  if(currentCT==='custom'){const i=Array.from(document.querySelectorAll('.slot')).findIndex(s=>s.classList.contains('active'));document.getElementById('modeAktif').textContent='Custom \u2014 Slot '+((i<0?0:i)+1);}
+  else{const p=Array.from(document.querySelectorAll('.palette-card')).findIndex(c=>c.classList.contains('active'));document.getElementById('modeAktif').textContent='Template \u2014 Palette '+((p<0?0:p)+1);}
 }
 document.getElementById('colorToggle').addEventListener('click',e=>{
-if(e.target.tagName!=='BUTTON')return;
-document.querySelectorAll('#colorToggle button').forEach(b=>b.classList.remove('active'));
-e.target.classList.add('active');
-currentCT=e.target.dataset.ct;
-document.getElementById('ctCustom').style.display=currentCT==='custom'?'block':'none';
-document.getElementById('ctTemplate').style.display=currentCT==='custom'?'none':'block';
-document.getElementById('searchBox').style.display=currentCT==='custom'?'none':'block';
-updateModeAktif();});
+  if(e.target.tagName!=='BUTTON')return;
+  document.querySelectorAll('#colorToggle button').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');currentCT=e.target.dataset.ct;
+  document.getElementById('ctCustom').style.display=currentCT==='custom'?'block':'none';
+  document.getElementById('ctTemplate').style.display=currentCT==='custom'?'none':'block';
+  document.getElementById('searchBox').style.display=currentCT==='custom'?'none':'block';
+  updateModeAktif();});
 function rgb2hex(r,g,b){return('#'+[r,g,b].map(x=>('0'+x.toString(16)).slice(-2)).join('')).toUpperCase();}
 function setSlider(id,vid,v){document.getElementById(id).value=v;document.getElementById(vid).textContent=v;}
 function setColor(r,g,b){
-const act=document.querySelector('.slot.active');if(act)act.style.background='rgb('+r+','+g+','+b+')';
-document.getElementById('hexIn').value=rgb2hex(r,g,b).slice(1);
-setSlider('rR','vR',r);setSlider('rG','vG',g);setSlider('rB','vB',b);}
+  const act=document.querySelector('.slot.active');if(act)act.style.background='rgb('+r+','+g+','+b+')';
+  document.getElementById('hexIn').value=rgb2hex(r,g,b).slice(1);
+  setSlider('rR','vR',r);setSlider('rG','vG',g);setSlider('rB','vB',b);
+  sendColorToSegments(r,g,b);
+}
 ['rR','rG','rB'].forEach(id=>{document.getElementById(id).addEventListener('input',()=>{setColor(+document.getElementById('rR').value,+document.getElementById('rG').value,+document.getElementById('rB').value);});});
 document.getElementById('hexSet').addEventListener('click',()=>{let h=document.getElementById('hexIn').value.replace('#','');if(/^[0-9a-fA-F]{6}$/.test(h)){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255);}});
 document.getElementById('rndBtn').addEventListener('click',()=>{setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0);});
 document.querySelectorAll('.slot').forEach(s=>{s.addEventListener('click',()=>{document.querySelectorAll('.slot').forEach(x=>x.classList.remove('active'));s.classList.add('active');
-const m=getComputedStyle(s).backgroundColor.match(/\d+/g);if(m)setColor(+m[0],+m[1],+m[2]);updateModeAktif();});});
+  const m=getComputedStyle(s).backgroundColor.match(/\d+/g);if(m)setColor(+m[0],+m[1],+m[2]);updateModeAktif();});});
 const wheel=document.getElementById('colorWheel');const wctx=wheel.getContext('2d');const wr=110;
 const img=wctx.createImageData(220,220);
 for(let y=0;y<220;y++){for(let x=0;x<220;x++){const dx=x-wr,dy=y-wr;const dist=Math.sqrt(dx*dx+dy*dy);const idx=(y*220+x)*4;
@@ -649,12 +731,22 @@ return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
 wheel.addEventListener('click',e=>{const rect=wheel.getBoundingClientRect();const x=e.clientX-rect.left,y=e.clientY-rect.top;const dx=x-wr,dy=y-wr;
 if(Math.sqrt(dx*dx+dy*dy)>wr)return;const angle=Math.atan2(dy,dx)*180/Math.PI+180;const sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/wr);
 const[r,g,b]=hsvToRgb(angle,sat,1);setColor(r,g,b);});
+
 const paletteGrid=document.getElementById('paletteGrid');
-const dummyGradients=['linear-gradient(90deg,#ff3b3b,#ffd23b)','linear-gradient(90deg,#3ddc84,#3b8cff)','linear-gradient(90deg,#a83bff,#ff3bd6)','linear-gradient(90deg,#3bfff0,#3b5cff)','linear-gradient(90deg,#ffae3b,#ff3b3b)','linear-gradient(90deg,#3bff5c,#d6ff3b)'];
-dummyGradients.forEach((g,i)=>{const card=document.createElement('div');card.className='palette-card'+(i===0?' active':'');
-card.innerHTML='<div class="swatch" style="background:'+g+';"></div><div class="pname">Palette '+(i+1)+'</div>';
-card.addEventListener('click',()=>{document.querySelectorAll('.palette-card').forEach(c=>c.classList.remove('active'));card.classList.add('active');updateModeAktif();});
-paletteGrid.appendChild(card);});
+const paletteGradientSeed=['linear-gradient(90deg,#ff3b3b,#ffd23b)','linear-gradient(90deg,#3ddc84,#3b8cff)','linear-gradient(90deg,#a83bff,#ff3bd6)','linear-gradient(90deg,#3bfff0,#3b5cff)','linear-gradient(90deg,#ffae3b,#ff3b3b)','linear-gradient(90deg,#3bff5c,#d6ff3b)'];
+fetch('/json/pal').then(r=>r.json()).then(names=>{
+  paletteGrid.innerHTML='';
+  names.forEach((name,i)=>{
+    if(name==='r')return; // WLED internal placeholder untuk "Random Cycle" kadang muncul sebagai singkatan
+    const grad=paletteGradientSeed[i%paletteGradientSeed.length];
+    const card=document.createElement('div');
+    card.className='palette-card'+(i===0?' active':'');
+    card.innerHTML='<div class="swatch" style="background:'+grad+';"></div><div class="pname">'+name+'</div>';
+    card.addEventListener('click',()=>{document.querySelectorAll('.palette-card').forEach(c=>c.classList.remove('active'));card.classList.add('active');sendPaletteToSegments(i);updateModeAktif();});
+    paletteGrid.appendChild(card);
+  });
+}).catch(()=>{});
+
 const FX_PARAMS={'Solid':[],'Blink':[['Speed',128],['Intensity',128]],'Breathe':[['Speed',128]],'Wipe':[['Speed',128],['Intensity',128]],'Chase':[['Speed',128],['Intensity',128],['Size',50]],'Rainbow':[['Speed',128],['Intensity',128]],'Sparkle':[['Speed',128],['Intensity',128]],'Fade':[['Speed',128]]};
 const FX_ANIM={'Solid':'anim-solid','Blink':'anim-blink','Breathe':'anim-breathe','Wipe':'anim-move','Chase':'anim-move-fast','Rainbow':'anim-hue','Sparkle':'anim-sparkle','Fade':'anim-breathe'};
 function renderParams(name){const box=document.getElementById('fxParams');box.innerHTML='';
