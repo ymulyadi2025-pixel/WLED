@@ -923,18 +923,22 @@ json += "\",\"ssid\":\""; json += staOn ? WiFi.SSID() : String("Mizuma Smart Sys
 json += "\"}";
 request->send(200, "application/json", json);
 });
-// FASE 8: simpan 1 slot preset (dipanggil tombol FAB di UI)
-server.on("/mizuma/preset", HTTP_POST, [this](AsyncWebServerRequest *request){
-DynamicJsonDocument doc(512);
-if(deserializeJson(doc, request->body())){ request->send(400, "application/json", "{\"ok\":false}"); return; }
-int i = slotIdx(String(doc["slot"] | ""));
+// FASE 8: simpan 1 slot preset (dipanggil tombol FAB di UI via GET params)
+server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *request){
+String slotName = request->arg("slot");
+int i = slotIdx(slotName);
 if(i < 0){ request->send(400, "application/json", "{\"ok\":false}"); return; }
 PresetSlot &p = pslots[i];
 p.valid = true;
-p.fx  = doc["fx"]  | 0;   p.pal = doc["pal"] | 0;
-JsonArray col = doc["col"]; if(col.size()==3){ p.r=col[0]; p.g=col[1]; p.b=col[2]; }
-p.sx  = doc["sx"]  | 128; p.ix  = doc["ix"]  | 128; p.bri = doc["bri"] | 180;
-saveSettings(); // persist ke cfg.json (tahan power cycle)
+p.fx  = request->arg("fx").toInt();
+p.pal = request->arg("pal").toInt();
+p.r   = request->arg("r").toInt();
+p.g   = request->arg("g").toInt();
+p.b   = request->arg("b").toInt();
+p.sx  = request->arg("sx").toInt();
+p.ix  = request->arg("ix").toInt();
+p.bri = request->arg("bri").toInt();
+saveConfig(); // persist ke cfg.json (tahan power cycle)
 request->send(200, "application/json", "{\"ok\":true}");
 });
 // FASE 8: baca semua slot (dipanggil UI saat pindah tab)
