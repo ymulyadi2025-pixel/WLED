@@ -675,6 +675,16 @@ drawWheel(document.getElementById('colorWheel'),null);
 document.getElementById('colorWheel').addEventListener('click',e=>pickColor(document.getElementById('colorWheel'),e,null));
 /* ===== Kirim state ===== */
 function sendColor(r,g,b){const segs=segIds().map(id=>({id:id,col:[[r,g,b]]}));post({seg:segs});cur.col=[r,g,b];markDirty();}
+function sendColorSilent(r,g,b){const segs=segIds().map(id=>({id:id,col:[[r,g,b]]}));post({seg:segs});cur.col=[r,g,b];}
+function syncUiToState(){fetch('/json/state').then(r=>r.json()).then(j=>{
+if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;cur.bri=j.bri;}
+const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(!s)return;
+if(s.fx!=null)cur.fx=s.fx;
+if(s.pal!=null)cur.pal=s.pal;
+const name=allFx[cur.fx]||'';
+if(name){document.getElementById('fxActiveName').textContent=name;
+document.querySelectorAll('.fx-item').forEach(el=>{el.classList.toggle('active',el.querySelector('.fx-name').textContent===name);});}
+updateCtx();}).catch(()=>{});}
 function sendPalette(i){const segs=segIds().map(id=>({id:id,pal:i}));post({seg:segs});cur.pal=i;markDirty();}
 function sendEffect(i){const segs=segIds().map(id=>{const o={id:id,fx:i};if(isRestrictedTab())o.pal=0;return o;});post({seg:segs});cur.fx=i;if(isRestrictedTab())cur.pal=0;markDirty();}
 const sendParamD=debounce((k,v)=>{const segs=segIds().map(id=>{const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
@@ -700,7 +710,7 @@ restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&2
 grid.appendChild(d);});
 drawWheel(document.getElementById('wheelR'),HUE_RULES[activeTab]);
 restrictedName=colors[0].n;
-const n=parseInt(colors[0].h,16);sendColor((n>>16)&255,(n>>8)&255,n&255);}
+const n=parseInt(colors[0].h,16);sendColorSilent((n>>16)&255,(n>>8)&255,n&255);}
 document.getElementById('wheelR').addEventListener('click',e=>{restrictedName='Wheel (dibatasi)';pickColor(document.getElementById('wheelR'),e,HUE_RULES[activeTab]);updateModeAktif();});
 /* ===== Palettes ===== */
 const paletteGrid=document.getElementById('paletteGrid');
@@ -753,7 +763,7 @@ grid.appendChild(el);});
 if(list.length){document.getElementById('fxActiveName').textContent=list[0].name;renderParams(list[0].idx);
 if(applyFirst)sendEffect(list[0].idx);}
 updateCtx();}
-Promise.all([fetch('/json/eff').then(r=>r.json()),fetch('/json/fxdata').then(r=>r.json())]).then(v=>{allFx=v[0];fxData=v[1];buildEffects(true);}).catch(()=>{});
+Promise.all([fetch('/json/eff').then(r=>r.json()),fetch('/json/fxdata').then(r=>r.json())]).then(v=>{allFx=v[0];fxData=v[1];buildEffects(false);syncUiToState();}).catch(()=>{});
 /* ===== Konteks & label ===== */
 function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Kanan + Kiri'}[activeSide];}
 function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
@@ -798,7 +808,7 @@ if(r)buildRestricted();updateModeAktif();}
 function switchTab(t){activeTab=t;
 document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
 refreshColorModeVisibility();buildEffects(false);
-if(!applySaved(t))buildEffects(true);
+applySaved(t);
 updateCtx();}
 document.getElementById('tabbar').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;
 const t=e.target.dataset.tab;if(t===activeTab)return;
