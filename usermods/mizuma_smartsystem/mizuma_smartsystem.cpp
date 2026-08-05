@@ -526,7 +526,7 @@ body{display:flex;flex-direction:column;}
 </head>
 <body>
 <div class="freeze">
-%HEADER%
+<div id="mzH"></div>
 <div class="tabbar" id="tabbar">
 <button data-tab="welcoming" class="active">Welcoming</button>
 <button data-tab="riding">Riding</button>
@@ -625,9 +625,8 @@ body{display:flex;flex-direction:column;}
 </div>
 </div>
 </div>
-%BOTTOMNAV%
+<div id="mzN"></div>
 <script>
-%HEADER_SCRIPT%
 let activeTab='welcoming',activeSide='kanan',activeSub='warna',currentCT='custom';
 let dirty=false,pendingTab=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
@@ -904,6 +903,14 @@ currentCT=e.target.dataset.ct;refreshColorModeVisibility();});
 document.getElementById('brightSlider').addEventListener('input',e=>{document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 refreshColorModeVisibility();renderSavedList();updateCtx();
 </script>
+<script>
+(function(){
+function inj(url,cb){fetch(url).then(function(r){return r.text();}).then(cb).catch(function(){});}
+inj('/mizuma/frag/header',function(t){var el=document.getElementById('mzH');if(el)el.outerHTML=t;});
+inj('/mizuma/frag/nav',function(t){var el=document.getElementById('mzN');if(el)el.outerHTML=t;var a=document.querySelector('.bottomnav a[href="/led"]');if(a)a.classList.add('active');});
+inj('/mizuma/frag/script',function(t){eval(t);});
+})();
+</script>
 </body>
 </html>
 )rawliteral";
@@ -969,6 +976,15 @@ server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request){ reque
 server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Servis", "&#128736;", "servis")); });
 server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "&#128274;", "keamanan")); });
 server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
+server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *request){
+request->send_P(200, "text/html", MIZUMA_HEADER_HTML);
+});
+server.on("/mizuma/frag/script", HTTP_GET, [](AsyncWebServerRequest *request){
+request->send_P(200, "text/javascript", MIZUMA_HEADER_SCRIPT);
+});
+server.on("/mizuma/frag/nav", HTTP_GET, [](AsyncWebServerRequest *request){
+request->send_P(200, "text/html", MIZUMA_BOTTOMNAV_HTML);
+});
 bool apOn  = (WiFi.softAPgetStationNum() > 0);
 bool staOn = (WiFi.status() == WL_CONNECTED);
 String staIP = staOn ? WiFi.localIP().toString() : "";
