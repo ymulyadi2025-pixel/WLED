@@ -413,12 +413,8 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 </body>
 </html>
 )rawliteral";
-// ================= AKHIR PART 1/2 — balas "lanjut" untuk PART 2/2 (Blok 5 + Blok 6) =================
 
-// --------------------------------------------------------------------------------------------------------------------------------------
-// Blok 5 v4 FINAL — LED (dengan polish: label mode terbatas, simpan pilihan per tab, debounce slider RGB)
-// GANTI HANYA konstanta MIZUMA_LED_HTML di file dengan ini. Blok lain tidak berubah.
-// --------------------------------------------------------------------------------------------------------------------------------------
+// ================= AKHIR PART 1/2 — balas "lanjut" untuk PART 2/2 (Blok 5 + Blok 6) =================
 const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
@@ -462,24 +458,26 @@ body{display:flex;flex-direction:column;}
 .brightness-row input[type=range]{flex:1;}
 #brightVal{font-size:12px;color:var(--tx2);width:30px;}
 .fx-chip{font-size:11px;font-weight:700;color:var(--ac);background:var(--ac-dim);padding:4px 10px;border-radius:14px;white-space:nowrap;}
-.wheel-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:14px;}
+.wheel-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:6px;}
 .wheel-wrap canvas{border-radius:50%;touch-action:none;}
-.slots-row{display:flex;gap:10px;margin-top:12px;}
+.slots-row{display:flex;gap:10px;margin-top:12px;justify-content:center;}
 .slot{width:38px;height:38px;border-radius:10px;border:2px solid var(--bd2);cursor:pointer;}
 .slot.active{border-color:var(--ac);}
 .ctl-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
 .ctl-row label{width:14px;font-size:11px;font-weight:800;color:var(--tx2);}
 .ctl-row input[type=range]{flex:1;}
 .ctl-row .val{width:30px;font-size:11px;color:var(--tx2);text-align:right;}
-.hex-row{display:flex;gap:8px;margin:12px 0 4px;}
+.hex-row{display:flex;gap:8px;margin:4px 0;}
 .hex-row input{flex:1;background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:9px 12px;color:var(--tx);font-size:13px;text-transform:uppercase;}
 .btn-sm{padding:9px 14px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);font-size:12px;font-weight:700;color:var(--tx);}
 .btn-sm.primary{background:var(--ac);color:#0a0a0a;border-color:var(--ac);}
-.palette-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
-.palette-card{border-radius:8px;overflow:hidden;border:2px solid var(--bd);cursor:pointer;}
-.palette-card.active{border-color:var(--ac);}
-.palette-card .swatch{height:34px;}
-.palette-card .pname{font-size:9px;text-align:center;padding:3px;background:var(--s1);color:var(--tx2);}
+.pal-row{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:8px 10px;margin-bottom:8px;cursor:pointer;}
+.pal-row.active{border-color:var(--ac);}
+.psw{width:36px;height:36px;border-radius:10px;flex-shrink:0;}
+.pn{flex:1;font-size:12px;font-weight:600;color:var(--tx);}
+.pnum{color:var(--tx3);font-size:10px;margin-right:2px;}
+.pck{color:var(--ac);font-weight:800;font-size:13px;display:none;}
+.pal-row.active .pck{display:block;}
 .fx-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 @media(min-width:420px){.fx-grid{grid-template-columns:repeat(3,1fr);}}
 .fx-item{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:8px;font-size:11px;color:var(--tx);}
@@ -516,330 +514,11 @@ body{display:flex;flex-direction:column;}
 .fab .dotd{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--bad);display:none;}
 .fab.dirty .dotd{display:block;}
 .toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 78px);transform:translateX(-50%);background:var(--s2);border:1px solid var(--bd2);color:var(--ok);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none;}
-.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:none;align-items:center;justify-content:center;}
-.mbox{background:var(--s1);border:1px solid var(--bd2);border-radius:16px;padding:18px;width:82%;max-width:320px;}
-.mtitle{font-size:14px;font-weight:800;color:var(--tx);margin-bottom:4px;}
-.msub{font-size:12px;color:var(--tx2);margin-bottom:14px;}
-.mbtns{display:flex;gap:8px;}
-.mbtns .btn-sm{flex:1;}
-</style>
-</head>
-<body>
-<div class="freeze">
-%HEADER%
-<div class="tabbar" id="tabbar">
-<button data-tab="welcoming" class="active">Welcoming</button>
-<button data-tab="riding">Riding</button>
-<button data-tab="sein">Sein</button>
-<button data-tab="rem">Rem</button>
-<button data-tab="hazard">Hazard</button>
-</div>
-<div class="preview-grid">
-<canvas class="pv-canvas kanan" id="pvKanan" width="48" height="1"></canvas>
-<canvas class="pv-canvas kiri" id="pvKiri" width="48" height="1"></canvas>
-<button class="side-btn kanan-btn active" data-side="kanan">Kanan</button>
-<button class="side-btn kiri-btn" data-side="kiri">Kiri</button>
-<button class="side-btn-both" data-side="both">Kanan<br>+ Kiri</button>
-</div>
-</div>
-<div class="body-layout">
-<div class="subnav" id="subnav">
-<button data-sub="warna" class="active"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span>Pola Warna</button>
-<button data-sub="efek"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>Efek</button>
-<button data-sub="simpan"><span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg></span>Simpan</button>
-</div>
-<div class="right-col">
-<div class="pane-head" id="headWarna">
-<div class="toggle-pair" id="colorToggle">
-<button data-ct="custom" class="active">Custom</button>
-<button data-ct="template">Template</button>
-</div>
-<div class="mode-row">Mode aktif: <b id="modeAktif">Custom &mdash; Slot 1</b></div>
-<input class="search-box" id="searchBox" placeholder="Cari palette..." style="display:none;">
-</div>
-<div class="pane-head" id="headEfek" style="display:none;">
-<div class="brightness-row">
-<span class="bi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
-<input type="range" min="0" max="255" value="180" id="brightSlider">
-<span id="brightVal">180</span>
-<span class="fx-chip" id="fxActiveName">Solid</span>
-</div>
-<div class="mode-row">Konteks: <b id="fxContext">Welcoming &mdash; Kanan</b></div>
-</div>
-<div class="pane-head" id="headSimpan" style="display:none;">
-<div class="mode-row">Riwayat simpan tersimpan di perangkat ini. Penyimpanan permanen ke ESP32 menyusul di Fase 8.</div>
-</div>
-<div class="pane-scroll" id="scrollWarna">
-<div id="ctCustom">
-<div class="wheel-wrap">
-<canvas id="colorWheel" width="220" height="220"></canvas>
-<div class="slots-row">
-<div class="slot active" style="background:#ff3b3b;" data-slot="0"></div>
-<div class="slot" style="background:#3ddc84;" data-slot="1"></div>
-<div class="slot" style="background:#3b8cff;" data-slot="2"></div>
-<div class="slot" style="background:#f5a524;" data-slot="3"></div>
-</div>
-</div>
-<div class="ctl-row"><label>R</label><input type="range" min="0" max="255" value="255" id="rR"><span class="val" id="vR">255</span></div>
-<div class="ctl-row"><label>G</label><input type="range" min="0" max="255" value="59" id="rG"><span class="val" id="vG">59</span></div>
-<div class="ctl-row"><label>B</label><input type="range" min="0" max="255" value="59" id="rB"><span class="val" id="vB">59</span></div>
-<div class="hex-row"><input id="hexIn" maxlength="6" placeholder="FF3B3B"><button class="btn-sm primary" id="hexSet">Set</button><button class="btn-sm" id="rndBtn">Acak</button></div>
-</div>
-<div id="ctTemplate" style="display:none;">
-<div class="palette-grid" id="paletteGrid"></div>
-</div>
-<div id="ctRestricted" style="display:none;">
-<div class="restricted-swatches" id="restrictedGrid"></div>
-<div class="wheel-wrap"><canvas id="wheelR" width="220" height="220"></canvas></div>
-<div class="restricted-note">Area abu-abu dibatasi otomatis sesuai regulasi lampu sinyal</div>
-</div>
-</div>
-<div class="pane-scroll" id="scrollEfek" style="display:none;">
-<div class="fx-grid" id="fxGrid"></div>
-</div>
-<div class="pane-scroll" id="scrollSimpan" style="display:none;">
-<div class="card"><div class="card-title">Status Simpan</div><div id="savedList"></div></div>
-</div>
-<div class="pane-foot" id="footEfek" style="display:none;">
-<div id="fxParams"></div>
-<div class="foot-hint" id="footHint" style="display:none;">Efek ini tidak memiliki parameter tambahan.</div>
-</div>
-</div>
-</div>
-<button class="fab" id="fabSave" title="Simpan"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span class="dotd"></span></button>
-<div class="toast" id="toast"></div>
-<div class="moverlay" id="saveModal">
-<div class="mbox">
-<div class="mtitle">Simpan perubahan?</div>
-<div class="msub" id="modalCtx"></div>
-<div class="mbtns">
-<button class="btn-sm" id="mDiscard">Buang</button>
-<button class="btn-sm" id="mCancel">Batal</button>
-<button class="btn-sm primary" id="mSave">Simpan</button>
-</div>
-</div>
-</div>
-%BOTTOMNAV%
-<script>
-%HEADER_SCRIPT%
-let activeTab='welcoming', activeSide='kanan', activeSub='warna', currentCT='custom';
-let dirty=false, pendingTab=null, restrictedName='';
-let allFx=[], fxData=[], cur={fx:0,pal:0,col:null,bri:180,params:{}};
-const SEG_K=0, SEG_L=1;
-const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
-const RESTRICTED_COLORS={
-sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],
-rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],
-hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
-const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
-const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
-const PAL_GRADS={'Lava':'linear-gradient(90deg,#000,#800,#f00,#ff0,#fff)','Rainbow':'linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)','Rainbow Runner':'linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f)','Party':'linear-gradient(90deg,#f0f,#0ff,#ff0,#f0f)','Fire':'linear-gradient(90deg,#000,#f00,#f80,#ff0)','Ocean':'linear-gradient(90deg,#001,#036,#06c,#09f)','Sunset':'linear-gradient(90deg,#003,#603,#f60,#ff0)','Spring':'linear-gradient(90deg,#fa0,#0f0,#0c6)','Autumn':'linear-gradient(90deg,#630,#960,#c90)','Ice':'linear-gradient(90deg,#0ff,#fff,#0ff)','Neon':'linear-gradient(90deg,#f0f,#0ff,#ff0)','Hot':'linear-gradient(90deg,#800,#f00,#f80,#fff)','Cool':'linear-gradient(90deg,#0f0,#0ff,#00f)','Rain':'linear-gradient(90deg,#006,#09f,#0f0)','Breeze':'linear-gradient(90deg,#069,#0cf,#9f9)','Sunset 2':'linear-gradient(90deg,#300,#930,#f90)','Colorwaves':'linear-gradient(90deg,#f0f,#00f,#0ff,#0f0)','Bpm':'linear-gradient(90deg,#f00,#0f0,#00f)','Plasma':'linear-gradient(90deg,#f0f,#0ff,#ff0,#f0f)','Aurora':'linear-gradient(90deg,#036,#0f9,#f0f)','Pacifica':'linear-gradient(90deg,#036,#069,#09c)','Ripple':'linear-gradient(90deg,#00f,#0ff,#00f)','Meteor':'linear-gradient(90deg,#333,#f80,#333)','Twinkle':'linear-gradient(90deg,#222,#ff0,#222)','Sparkle':'linear-gradient(90deg,#111,#fff,#111)','Glitter':'linear-gradient(90deg,#222,#ff0,#fff,#222)','Sinelon':'linear-gradient(90deg,#00f,#f00,#00f)','Fade':'linear-gradient(90deg,#f00,#00f)','Breathe':'linear-gradient(90deg,#333,#fff,#333)','Blink':'linear-gradient(90deg,#fff,#000,#fff)','Strobe':'linear-gradient(90deg,#fff,#000,#fff,#000)','Chase':'linear-gradient(90deg,#f00 0 25%,#000 25% 50%,#f00 50% 75%,#000 75%)','Wipe':'linear-gradient(90deg,#000 0 45%,#f00 45% 55%,#000 55%)','Sweep':'linear-gradient(90deg,#000 0 45%,#0ff 45% 55%,#000 55%)','Solid':'linear-gradient(90deg,#f5a524,#f5a524)'};
-function post(o){fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(()=>{});}
-function debounce(fn,ms){let t;return function(){const a=arguments;clearTimeout(t);t=setTimeout(()=>fn.apply(null,a),ms);};}
-function segIds(){if(activeSide==='kanan')return[SEG_K];if(activeSide==='kiri')return[SEG_L];return[SEG_K,SEG_L];}
-function isRestrictedTab(){return activeTab==='sein'||activeTab==='rem'||activeTab==='hazard';}
-function markDirty(){dirty=true;document.getElementById('fabSave').classList.add('dirty');}
-function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(()=>{t.style.opacity='0';},1800);}
-/* ===== LIVE PREVIEW via /json/live (mekanisme peek WLED) ===== */
-function drawBar(cv,arr,off,count){const ctx=cv.getContext('2d');
-for(let i=0;i<count;i++){const k=(off+i)*3;
-if(arr&&arr.length>=k+3){ctx.fillStyle='rgb('+arr[k]+','+arr[k+1]+','+arr[k+2]+')';}else{ctx.fillStyle='#000';}
-ctx.fillRect(i,0,1,1);}}
-function pollLive(){fetch('/json/live').then(r=>r.json()).then(j=>{
-let a=j.leds;if(!a)return;
-if(Array.isArray(a[0])){const f=[];for(let i=0;i<a.length;i++){f.push(a[i][0],a[i][1],a[i][2]);}a=f;}
-drawBar(document.getElementById('pvKanan'),a,0,48);
-drawBar(document.getElementById('pvKiri'),a,48,48);
-}).catch(()=>{});}
-setInterval(pollLive,120);pollLive();
-/* ===== Color wheel (custom bebas / restricted terbatas) ===== */
-function hsvToRgb(h,s,v){const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r,g,b;
-if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}
-return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
-function hueOk(h,r){if(!r)return true;if(r[0]<=r[1])return h>=r[0]&&h<=r[1];return h>=r[0]||h<=r[1];}
-function clampHue(h,r){if(!r)return h;
-if(r[0]<=r[1])return h<r[0]?r[0]:(h>r[1]?r[1]:h);
-if(h>r[1]&&h<r[0]){return (h-r[1])<=(r[0]-h)?r[1]:r[0];}return h;}
-function drawWheel(cv,rule){const ctx=cv.getContext('2d');const wr=110;const img=ctx.createImageData(220,220);
-for(let y=0;y<220;y++){for(let x=0;x<220;x++){const dx=x-wr,dy=y-wr;const d=Math.sqrt(dx*dx+dy*dy);const idx=(y*220+x)*4;
-if(d<=wr){const hue=clampHue(Math.atan2(dy,dx)*180/Math.PI+180,rule);const sat=d/wr;
-if(rule&&!hueOk(Math.atan2(dy,dx)*180/Math.PI+180,rule)){img.data[idx]=40;img.data[idx+1]=40;img.data[idx+2]=40;}
-else{const[r,g,b]=hsvToRgb(hue,sat,1);img.data[idx]=r;img.data[idx+1]=g;img.data[idx+2]=b;}
-img.data[idx+3]=255;}else{img.data[idx+3]=0;}}}
-ctx.putImageData(img,0,0);}
-function pickColor(cv,e,rule){const rect=cv.getBoundingClientRect();const x=e.clientX-rect.left,y=e.clientY-rect.top;const dx=x-110,dy=y-110;
-if(Math.sqrt(dx*dx+dy*dy)>110)return;
-const rawH=Math.atan2(dy,dx)*180/Math.PI+180;const h=clampHue(rawH,rule);const sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/110);
-const[r,g,b]=hsvToRgb(h,sat,1);setColor(r,g,b);}
-drawWheel(document.getElementById('colorWheel'),null);
-document.getElementById('colorWheel').addEventListener('click',e=>pickColor(document.getElementById('colorWheel'),e,null));
-/* ===== Kirim state ===== */
-function sendColor(r,g,b){const segs=segIds().map(id=>({id:id,col:[[r,g,b]]}));post({seg:segs});cur.col=[r,g,b];markDirty();}
-function sendColorSilent(r,g,b){const segs=segIds().map(id=>({id:id,col:[[r,g,b]]}));post({seg:segs});cur.col=[r,g,b];}
-function syncUiToState(){fetch('/json/state').then(r=>r.json()).then(j=>{
-if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;cur.bri=j.bri;}
-const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(!s)return;
-if(s.fx!=null)cur.fx=s.fx;
-if(s.pal!=null)cur.pal=s.pal;
-const name=allFx[cur.fx]||'';
-if(name){document.getElementById('fxActiveName').textContent=name;
-document.querySelectorAll('.fx-item').forEach(el=>{el.classList.toggle('active',el.querySelector('.fx-name').textContent===name);});}
-updateCtx();}).catch(()=>{});}
-function sendPalette(i){const segs=segIds().map(id=>({id:id,pal:i}));post({seg:segs});cur.pal=i;markDirty();}
-function sendEffect(i){const segs=segIds().map(id=>{const o={id:id,fx:i};if(isRestrictedTab())o.pal=0;return o;});post({seg:segs});cur.fx=i;if(isRestrictedTab())cur.pal=0;markDirty();}
-const sendParamD=debounce((k,v)=>{const segs=segIds().map(id=>{const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
-const sendBriD=debounce(v=>{post({bri:v});cur.bri=v;markDirty();},80);
-/* ===== Custom color sync ===== */
-function rgb2hex(r,g,b){return('#'+[r,g,b].map(x=>('0'+x.toString(16)).slice(-2)).join('')).toUpperCase();}
-function setSlider(id,vid,v){document.getElementById(id).value=v;document.getElementById(vid).textContent=v;}
-function setColor(r,g,b){const act=document.querySelector('.slot.active');if(act)act.style.background='rgb('+r+','+g+','+b+')';
-document.getElementById('hexIn').value=rgb2hex(r,g,b).slice(1);
-setSlider('rR','vR',r);setSlider('rG','vG',g);setSlider('rB','vB',b);
-sendColor(r,g,b);updateModeAktif();}
-['rR','rG','rB'].forEach(id=>{document.getElementById(id).addEventListener('input',()=>{setColor(+document.getElementById('rR').value,+document.getElementById('rG').value,+document.getElementById('rB').value);});});
-document.getElementById('hexSet').addEventListener('click',()=>{let h=document.getElementById('hexIn').value.replace('#','');if(/^[0-9a-fA-F]{6}$/.test(h)){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255);}});
-document.getElementById('rndBtn').addEventListener('click',()=>{setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0);});
-document.querySelectorAll('.slot').forEach(s=>{s.addEventListener('click',()=>{document.querySelectorAll('.slot').forEach(x=>x.classList.remove('active'));s.classList.add('active');
-const m=getComputedStyle(s).backgroundColor.match(/\d+/g);if(m)setColor(+m[0],+m[1],+m[2]);});});
-/* ===== Restricted: swatch + wheel terbatas ===== */
-function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';
-const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;
-colors.forEach((c,i)=>{const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;
-d.addEventListener('click',()=>{document.querySelectorAll('.rswatch').forEach(x=>x.classList.remove('active'));d.classList.add('active');
-restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255);updateModeAktif();});
-grid.appendChild(d);});
-drawWheel(document.getElementById('wheelR'),HUE_RULES[activeTab]);
-restrictedName=colors[0].n;
-const n=parseInt(colors[0].h,16);sendColorSilent((n>>16)&255,(n>>8)&255,n&255);}
-document.getElementById('wheelR').addEventListener('click',e=>{restrictedName='Wheel (dibatasi)';pickColor(document.getElementById('wheelR'),e,HUE_RULES[activeTab]);updateModeAktif();});
-/* ===== Palettes ===== */
-const paletteGrid=document.getElementById('paletteGrid');
-fetch('/json/pal').then(r=>r.json()).then(names=>{paletteGrid.innerHTML='';
-names.forEach((name,i)=>{if(name==='r')return;
-const grad=PAL_GRADS[name]||('linear-gradient(90deg,hsl('+(i*37%360)+',80%,50%),hsl('+((i*37+120)%360)+',80%,50%))');
-const card=document.createElement('div');card.className='palette-card';card.dataset.name=name.toLowerCase();
-card.innerHTML='<div class="swatch" style="background:'+grad+';"></div><div class="pname">'+name+'</div>';
-card.addEventListener('click',()=>{document.querySelectorAll('.palette-card').forEach(c=>c.classList.remove('active'));card.classList.add('active');sendPalette(i);updateModeAktif();});
-paletteGrid.appendChild(card);});}).catch(()=>{});
-document.getElementById('searchBox').addEventListener('input',e=>{const q=e.target.value.toLowerCase();
-document.querySelectorAll('.palette-card').forEach(c=>{c.style.display=c.dataset.name.indexOf(q)>=0?'':'none';});});
-/* ===== Efek: asli dari WLED, filter 2D, alfabetis, thumbnail beda ===== */
-function animFor(n){const s=n.toLowerCase();
-if(/chase|runner|comet/.test(s))return'anim-move-fast';
-if(/wipe|sweep|scan|scanner/.test(s))return'anim-move';
-if(/rainbow|colorwaves|waves|blends|plasma|aurora|pacifica|noise/.test(s))return'anim-hue';
-if(/blink|strobe|flash/.test(s))return'anim-blink';
-if(/breathe|fade|pulse|sunrise/.test(s))return'anim-breathe';
-if(/sparkle|glitter|twinkle|fire|ripple|meteor|sinelon|bpm|dissolve/.test(s))return'anim-sparkle';
-return'anim-move';}
-function lookup(n){const t=n.toLowerCase();let i=allFx.findIndex(x=>x.toLowerCase()===t);if(i>=0)return i;return allFx.findIndex(x=>x.toLowerCase().includes(t));}
-function listForTab(){if(activeTab==='riding')return allFx.map((n,i)=>({name:n,idx:i})).filter(e=>e.name.indexOf('2D')!==0);
-if(activeTab==='welcoming')return WELCOMING_NAMES.map(lookup).filter(i=>i>=0).map(i=>({name:allFx[i],idx:i}));
-return(RESTRICTED_FX).map(lookup).filter(i=>i>=0).map(i=>({name:allFx[i],idx:i}));}
-function parseFxData(meta){const parts=(meta||'').split(';');const labels=(parts[0]||'').split(',');
-const def=['Speed','Intensity','Custom 1','Custom 2','Custom 3'];const keys=['sx','ix','c1','c2','c3'];const sl=[];
-for(let i=0;i<5;i++){let l=labels[i];if(l===undefined||l==='')continue;if(l==='!')l=def[i];sl.push({key:keys[i],label:l});}
-const tg=[];for(let i=0;i<3;i++){let l=labels[5+i];if(l===undefined||l==='')continue;if(l==='!')l='Opsi '+(i+1);tg.push({key:['o1','o2','o3'][i],label:l});}
-return{sl:sl,tg:tg};}
-function renderParams(idx){const box=document.getElementById('fxParams');box.innerHTML='';
-const p=parseFxData(fxData[idx]||'');
-p.sl.forEach(s=>{const row=document.createElement('div');row.className='param-row';
-row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>128</span></div><input type="range" min="0" max="255" value="128">';
-row.querySelector('input').addEventListener('input',e=>{row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});
-box.appendChild(row);});
-p.tg.forEach(s=>{const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';
-row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm" data-on="0">Off</button>';
-const b=row.querySelector('button');
-b.addEventListener('click',()=>{const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});
-box.appendChild(row);});
-document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
-function buildEffects(applyFirst){const grid=document.getElementById('fxGrid');grid.innerHTML='';
-const list=listForTab().slice().sort((a,b)=>a.name.localeCompare(b.name));
-list.forEach((e,i)=>{const el=document.createElement('div');el.className='fx-item'+(i===0?' active':'');
-el.innerHTML='<div class="fx-prev '+animFor(e.name)+'"></div><span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';
-el.addEventListener('click',()=>{document.querySelectorAll('.fx-item').forEach(x=>x.classList.remove('active'));el.classList.add('active');
-document.getElementById('fxActiveName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});
-grid.appendChild(el);});
-if(list.length){document.getElementById('fxActiveName').textContent=list[0].name;renderParams(list[0].idx);
-if(applyFirst)sendEffect(list[0].idx);}
-updateCtx();}
-Promise.all([fetch('/json/eff').then(r=>r.json()),fetch('/json/fxdata').then(r=>r.json())]).then(v=>{allFx=v[0];fxData=v[1];buildEffects(false);syncUiToState();}).catch(()=>{});
-/* ===== Konteks & label ===== */
-function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Kanan + Kiri'}[activeSide];}
-function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
-function updateCtx(){document.getElementById('fxContext').textContent=tabLabel()+' \u2014 '+sideLabel()+' \u2014 '+document.getElementById('fxActiveName').textContent;}
-function updateModeAktif(){if(isRestrictedTab()){document.getElementById('modeAktif').textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';return;}
-if(currentCT==='custom'){const i=Array.from(document.querySelectorAll('.slot')).findIndex(s=>s.classList.contains('active'));document.getElementById('modeAktif').textContent='Custom \u2014 Slot '+((i<0?0:i)+1);}
-else{const a=document.querySelector('.palette-card.active');document.getElementById('modeAktif').textContent='Template \u2014 '+(a?a.querySelector('.pname').textContent:'-');}}
-/* ===== Simpan (FAB + localStorage; persist ESP32 di Fase 8) ===== */
-function doSave(){const st=Object.assign({},cur,{ts:Date.now()});
-localStorage.setItem('mzsave_'+activeTab+'_'+activeSide,JSON.stringify(st));
-dirty=false;document.getElementById('fabSave').classList.remove('dirty');
-const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));
-renderSavedList();}
-function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='';
-['welcoming','riding','sein','rem','hazard'].forEach(t=>{['kanan','kiri'].forEach(s=>{
-const raw=localStorage.getItem('mzsave_'+t+'_'+s);const row=document.createElement('div');row.className='saved-row';
-let txt='Belum disimpan',on=false;
-if(raw){try{const d=new Date(JSON.parse(raw).ts);txt='\u2713 '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2);on=true;}catch(e){}}
-row.innerHTML='<span class="sk">'+{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[t]+' \u2014 '+(s==='kanan'?'Kanan':'Kiri')+'</span><span class="st'+(on?' on':'')+'">'+txt+'</span>';
-box.appendChild(row);});});}
-document.getElementById('fabSave').addEventListener('click',doSave);
-/* ===== Modal simpan saat pindah tab ===== */
-function showModal(cb){pendingTab=cb;document.getElementById('modalCtx').textContent=tabLabel()+' \u2014 '+sideLabel();
-document.getElementById('saveModal').style.display='flex';}
-document.getElementById('mSave').addEventListener('click',()=>{doSave();document.getElementById('saveModal').style.display='none';if(pendingTab)switchTab(pendingTab);pendingTab=null;});
-document.getElementById('mDiscard').addEventListener('click',()=>{dirty=false;document.getElementById('fabSave').classList.remove('dirty');document.getElementById('saveModal').style.display='none';if(pendingTab)switchTab(pendingTab);pendingTab=null;});
-document.getElementById('mCancel').addEventListener('click',()=>{document.getElementById('saveModal').style.display='none';pendingTab=null;});
-/* ===== Navigasi tab/sisi/sub + apply state tersimpan ===== */
-function applySaved(tab){let any=false;
-[['kanan',0],['kiri',1]].forEach(pair=>{const raw=localStorage.getItem('mzsave_'+tab+'_'+pair[0]);if(!raw)return;
-try{const st=JSON.parse(raw);const o={id:pair[1]};
-if(st.fx!=null)o.fx=st.fx;if(st.pal!=null)o.pal=st.pal;if(st.col)o.col=[st.col];
-post({seg:[o]});if(st.bri!=null)post({bri:st.bri});any=true;}catch(e){}});
-return any;}
-function refreshColorModeVisibility(){const r=isRestrictedTab();
-document.getElementById('colorToggle').style.display=r?'none':'flex';
-document.getElementById('ctCustom').style.display=(!r&&currentCT==='custom')?'block':'none';
-document.getElementById('ctTemplate').style.display=(!r&&currentCT==='template')?'block':'none';
-document.getElementById('ctRestricted').style.display=r?'block':'none';
-document.getElementById('searchBox').style.display=(!r&&currentCT==='template')?'block':'none';
-if(r)buildRestricted();updateModeAktif();}
-function switchTab(t){activeTab=t;
-document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
-refreshColorModeVisibility();buildEffects(false);
-applySaved(t);
-updateCtx();}
-document.getElementById('tabbar').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;
-const t=e.target.dataset.tab;if(t===activeTab)return;
-if(dirty)showModal(t);else switchTab(t);});
-document.querySelector('.preview-grid').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;
-document.querySelectorAll('.side-btn,.side-btn-both').forEach(b=>b.classList.remove('active'));
-btn.classList.add('active');activeSide=btn.dataset.side;updateCtx();markDirty();});
-function setSub(k){activeSub=k;
-document.getElementById('headWarna').style.display=k==='warna'?'flex':'none';
-document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
-document.getElementById('headSimpan').style.display=k==='simpan'?'flex':'none';
-document.getElementById('scrollWarna').style.display=k==='warna'?'block':'none';
-document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';
-document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';
-document.getElementById('footEfek').style.display=k==='efek'?'block':'none';
-if(k==='simpan')renderSavedList();}
-document.getElementById('subnav').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;
-document.querySelectorAll('#subnav button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');setSub(btn.dataset.sub);});
-document.getElementById('colorToggle').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;
-document.querySelectorAll('#colorToggle button').forEach(b=>b.classList.remove('active'));e.target.classList.add('active');
-currentCT=e.target.dataset.ct;refreshColorModeVisibility();});
-document.getElementById('brightSlider').addEventListener('input',e=>{document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
-refreshColorModeVisibility();renderSavedList();updateCtx();
-</script>
-</body>
-</html>
-)rawliteral";
+.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.6);
 
 
 // --------------------------------------------------------------------------------------------------------------------------------------
-// Blok 6 — class MizumaSmartSystem (FINAL: kunci "Mizuma" + ssid + getId, tanpa route reserved)
+// Blok 6 v2 — Fase 8 (preset permanen 10 slot) + Fase 9 (boot: Welcoming lalu Riding)
 // --------------------------------------------------------------------------------------------------------------------------------------
 #ifndef USERMOD_ID_MIZUMA_SYSTEM
 #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
@@ -850,16 +529,21 @@ String vehicleName  = "";
 String vehicleBrand = "";
 uint16_t vehicleYear = 0;
 String vehiclePlate = "";
-struct ReminderItem {
-unsigned long lastServiceEpoch = 0;
-uint16_t intervalDays = 0;
-};
+struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
 ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
-uint8_t presetWelcomingKanan = 1, presetWelcomingKiri = 2;
-uint8_t presetRidingKanan    = 3, presetRidingKiri    = 4;
-uint8_t presetSeinKanan      = 5, presetSeinKiri      = 6;
-uint8_t presetRemKanan       = 7, presetRemKiri       = 8;
-uint8_t presetHazardKanan    = 9, presetHazardKiri    = 10;
+// ===== FASE 8: 10 slot preset permanen (5 mode x 2 sisi) =====
+struct PresetSlot { bool valid=false; uint8_t fx=0; uint8_t pal=0; uint8_t r=255; uint8_t g=255; uint8_t b=255; uint8_t sx=128; uint8_t ix=128; uint8_t bri=180; };
+PresetSlot pslots[10];
+uint16_t welcomeDur = 7000; // Fase 9: durasi Welcoming sebelum Riding (ms)
+int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
+const char* slotKey(int i){ switch(i){ case 0:return "welcomingKanan"; case 1:return "welcomingKiri"; case 2:return "ridingKanan"; case 3:return "ridingKiri"; case 4:return "seinKanan"; case 5:return "seinKiri"; case 6:return "remKanan"; case 7:return "remKiri"; case 8:return "hazardKanan"; default:return "hazardKiri"; } }
+int slotIdx(const String& k){ for(int i=0;i<10;i++){ if(k==slotKey(i)) return i; } return -1; }
+void applySlotToSeg(int i, int segId){ PresetSlot &p = pslots[i]; if(!p.valid) return;
+StaticJsonDocument<512> doc; JsonObject root = doc.to<JsonObject>();
+JsonArray seg = root.createNestedArray("seg"); JsonObject s = seg.createNestedObject();
+s["id"]=segId; s["fx"]=p.fx; s["pal"]=p.pal; s["sx"]=p.sx; s["ix"]=p.ix;
+JsonArray col = s.createNestedArray("col"); JsonArray c = col.createNestedArray(); c.add(p.r); c.add(p.g); c.add(p.b);
+deserializeState(root); }
 String renderPage(const char* pageTemplate, const char* activeKey) {
 String html = FPSTR(pageTemplate);
 html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
@@ -888,98 +572,89 @@ public:
 void setup() override {
 apBehavior = AP_BEHAVIOR_ALWAYS;
 DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
-server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request){
-request->send(200, "text/html", renderPage(MIZUMA_HOME_HTML, "beranda"));
-});
-server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request){
-request->send(200, "text/html", renderPage(MIZUMA_LED_HTML, "lampu"));
-});
-server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request){
-request->send(200, "text/html", renderPage(MIZUMA_SETTINGS_HTML, "pengaturan"));
-});
-server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request){
-request->send(200, "text/html", renderPlaceholder("Servis", "&#128736;", "servis"));
-});
-server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request){
-request->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "&#128274;", "keamanan"));
-});
+server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_HOME_HTML, "beranda")); });
+server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_LED_HTML, "lampu")); });
+server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_SETTINGS_HTML, "pengaturan")); });
+server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Servis", "&#128736;", "servis")); });
+server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "&#128274;", "keamanan")); });
 server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
 bool apOn  = (WiFi.softAPgetStationNum() > 0);
 bool staOn = (WiFi.status() == WL_CONNECTED);
 String staIP = staOn ? WiFi.localIP().toString() : "";
-String json = "{\"ap\":";
-json += apOn ? "true" : "false";
-json += ",\"sta\":";
-json += staOn ? "true" : "false";
-json += ",\"staIP\":\"";
-json += staIP;
-json += "\",\"ssid\":\"";
-json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
+String json = "{\"ap\":"; json += apOn ? "true" : "false";
+json += ",\"sta\":"; json += staOn ? "true" : "false";
+json += ",\"staIP\":\""; json += staIP;
+json += "\",\"ssid\":\""; json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
 json += "\"}";
 request->send(200, "application/json", json);
 });
+// FASE 8: simpan 1 slot preset (dipanggil tombol FAB di UI)
+server.on("/mizuma/preset", HTTP_POST, [this](AsyncWebServerRequest *request){
+DynamicJsonDocument doc(512);
+if(deserializeJson(doc, request->body())){ request->send(400, "application/json", "{\"ok\":false}"); return; }
+int i = slotIdx(String(doc["slot"] | ""));
+if(i < 0){ request->send(400, "application/json", "{\"ok\":false}"); return; }
+PresetSlot &p = pslots[i];
+p.valid = true;
+p.fx  = doc["fx"]  | 0;   p.pal = doc["pal"] | 0;
+JsonArray col = doc["col"]; if(col.size()==3){ p.r=col[0]; p.g=col[1]; p.b=col[2]; }
+p.sx  = doc["sx"]  | 128; p.ix  = doc["ix"]  | 128; p.bri = doc["bri"] | 180;
+saveSettings(); // persist ke cfg.json (tahan power cycle)
+request->send(200, "application/json", "{\"ok\":true}");
+});
+// FASE 8: baca semua slot (dipanggil UI saat pindah tab)
+server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *request){
+DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
+for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
+s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
+JsonArray c = s.createNestedArray("col"); c.add(pslots[i].r); c.add(pslots[i].g); c.add(pslots[i].b);
+s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
+String out; serializeJson(doc, out);
+request->send(200, "application/json", out);
+});
 }
-void loop() override {}
+void loop() override {
+// FASE 9: boot -> Welcoming (kedua sisi), lalu Riding setelah durasi
+if(bootDone) return;
+unsigned long m = millis();
+if(bootStage==0 && m>2500){ applySlotToSeg(0,0); applySlotToSeg(1,1); bootStage=1; bootT=m; }
+else if(bootStage==1 && m-bootT>=welcomeDur){ applySlotToSeg(2,0); applySlotToSeg(3,1); bootDone=true; }
+}
 void addToConfig(JsonObject& root) override {
 JsonObject top = root.createNestedObject("Mizuma");
 JsonObject vehicle = top.createNestedObject("vehicle");
-vehicle["name"]  = vehicleName;
-vehicle["brand"] = vehicleBrand;
-vehicle["year"]  = vehicleYear;
-vehicle["plate"] = vehiclePlate;
+vehicle["name"] = vehicleName; vehicle["brand"] = vehicleBrand; vehicle["year"] = vehicleYear; vehicle["plate"] = vehiclePlate;
 JsonObject rem = top.createNestedObject("reminder");
-rem["oliMesin_last"]   = oliMesin.lastServiceEpoch;
-rem["oliMesin_int"]    = oliMesin.intervalDays;
-rem["oliRem_last"]     = oliRem.lastServiceEpoch;
-rem["oliRem_int"]      = oliRem.intervalDays;
-rem["oliGardan_last"]  = oliGardan.lastServiceEpoch;
-rem["oliGardan_int"]   = oliGardan.intervalDays;
-rem["cvt_last"]        = cvt.lastServiceEpoch;
-rem["cvt_int"]         = cvt.intervalDays;
-rem["filter_last"]     = filter.lastServiceEpoch;
-rem["filter_int"]      = filter.intervalDays;
-JsonObject pm = top.createNestedObject("presetMap");
-pm["welcomingKanan"] = presetWelcomingKanan;
-pm["welcomingKiri"]  = presetWelcomingKiri;
-pm["ridingKanan"]    = presetRidingKanan;
-pm["ridingKiri"]     = presetRidingKiri;
-pm["seinKanan"]      = presetSeinKanan;
-pm["seinKiri"]       = presetSeinKiri;
-pm["remKanan"]       = presetRemKanan;
-pm["remKiri"]        = presetRemKiri;
-pm["hazardKanan"]    = presetHazardKanan;
-pm["hazardKiri"]     = presetHazardKiri;
+rem["oliMesin_last"]=oliMesin.lastServiceEpoch; rem["oliMesin_int"]=oliMesin.intervalDays;
+rem["oliRem_last"]=oliRem.lastServiceEpoch; rem["oliRem_int"]=oliRem.intervalDays;
+rem["oliGardan_last"]=oliGardan.lastServiceEpoch; rem["oliGardan_int"]=oliGardan.intervalDays;
+rem["cvt_last"]=cvt.lastServiceEpoch; rem["cvt_int"]=cvt.intervalDays;
+rem["filter_last"]=filter.lastServiceEpoch; rem["filter_int"]=filter.intervalDays;
+JsonObject pm = top.createNestedObject("presets");
+for(int i=0;i<10;i++){ JsonObject s = pm.createNestedObject(slotKey(i));
+s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
+s["r"]=pslots[i].r; s["g"]=pslots[i].g; s["b"]=pslots[i].b;
+s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
+top["welcomeDur"] = welcomeDur;
 }
 bool readFromConfig(JsonObject& root) override {
 JsonObject top = root["Mizuma"];
 if (top.isNull()) return false;
 JsonObject vehicle = top["vehicle"];
-vehicleName  = vehicle["name"]  | "";
-vehicleBrand = vehicle["brand"] | "";
-vehicleYear  = vehicle["year"]  | 0;
-vehiclePlate = vehicle["plate"] | "";
+vehicleName = vehicle["name"] | ""; vehicleBrand = vehicle["brand"] | "";
+vehicleYear = vehicle["year"] | 0;  vehiclePlate = vehicle["plate"] | "";
 JsonObject rem = top["reminder"];
-oliMesin.lastServiceEpoch  = rem["oliMesin_last"]  | 0;
-oliMesin.intervalDays      = rem["oliMesin_int"]   | 0;
-oliRem.lastServiceEpoch    = rem["oliRem_last"]    | 0;
-oliRem.intervalDays        = rem["oliRem_int"]     | 0;
-oliGardan.lastServiceEpoch = rem["oliGardan_last"] | 0;
-oliGardan.intervalDays     = rem["oliGardan_int"]  | 0;
-cvt.lastServiceEpoch       = rem["cvt_last"]       | 0;
-cvt.intervalDays           = rem["cvt_int"]        | 0;
-filter.lastServiceEpoch    = rem["filter_last"]    | 0;
-filter.intervalDays        = rem["filter_int"]     | 0;
-JsonObject pm = top["presetMap"];
-presetWelcomingKanan = pm["welcomingKanan"] | 1;
-presetWelcomingKiri  = pm["welcomingKiri"]  | 2;
-presetRidingKanan    = pm["ridingKanan"]    | 3;
-presetRidingKiri     = pm["ridingKiri"]     | 4;
-presetSeinKanan      = pm["seinKanan"]      | 5;
-presetSeinKiri       = pm["seinKiri"]       | 6;
-presetRemKanan       = pm["remKanan"]       | 7;
-presetRemKiri        = pm["remKiri"]        | 8;
-presetHazardKanan    = pm["hazardKanan"]    | 9;
-presetHazardKiri     = pm["hazardKiri"]     | 10;
+oliMesin.lastServiceEpoch=rem["oliMesin_last"]|0; oliMesin.intervalDays=rem["oliMesin_int"]|0;
+oliRem.lastServiceEpoch=rem["oliRem_last"]|0; oliRem.intervalDays=rem["oliRem_int"]|0;
+oliGardan.lastServiceEpoch=rem["oliGardan_last"]|0; oliGardan.intervalDays=rem["oliGardan_int"]|0;
+cvt.lastServiceEpoch=rem["cvt_last"]|0; cvt.intervalDays=rem["cvt_int"]|0;
+filter.lastServiceEpoch=rem["filter_last"]|0; filter.intervalDays=rem["filter_int"]|0;
+JsonObject pm = top["presets"];
+if(!pm.isNull()){ for(int i=0;i<10;i++){ JsonObject s = pm[slotKey(i)]; if(s.isNull()) continue;
+pslots[i].valid=s["valid"]|false; pslots[i].fx=s["fx"]|0; pslots[i].pal=s["pal"]|0;
+pslots[i].r=s["r"]|255; pslots[i].g=s["g"]|255; pslots[i].b=s["b"]|255;
+pslots[i].sx=s["sx"]|128; pslots[i].ix=s["ix"]|128; pslots[i].bri=s["bri"]|180; } }
+welcomeDur = top["welcomeDur"] | 7000;
 return true;
 }
 uint16_t getId() override { return USERMOD_ID_MIZUMA_SYSTEM; }
