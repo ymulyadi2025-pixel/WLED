@@ -671,10 +671,10 @@ sendColorToSegments((n>>16)&255,(n>>8)&255,n&255);
 updateModeAktif();
 }
 document.getElementById('tabbar').addEventListener('click',e=>{
-if(e.target.tagName!=='BUTTON')return;
-document.querySelectorAll('#tabbar button').forEach(b=>b.classList.remove('active'));
-e.target.classList.add('active');activeTab=e.target.dataset.tab;
-updateSaveContext();refreshColorModeVisibility();
+  if(e.target.tagName!=='BUTTON')return;
+  document.querySelectorAll('#tabbar button').forEach(b=>b.classList.remove('active'));
+  e.target.classList.add('active');activeTab=e.target.dataset.tab;
+  updateSaveContext();refreshColorModeVisibility();refreshEffectListForTab(); /* <-- baris baru */
 });
 document.querySelector('.preview-grid').addEventListener('click',e=>{
 const btn=e.target.closest('button');if(!btn)return;
@@ -759,23 +759,155 @@ card.addEventListener('click',()=>{document.querySelectorAll('.palette-card').fo
 paletteGrid.appendChild(card);
 });
 }).catch(()=>{});
-const FX_PARAMS={'Solid':[],'Blink':[['Speed',128],['Intensity',128]],'Breathe':[['Speed',128]],'Wipe':[['Speed',128],['Intensity',128]],'Chase':[['Speed',128],['Intensity',128],['Size',50]],'Rainbow':[['Speed',128],['Intensity',128]],'Sparkle':[['Speed',128],['Intensity',128]],'Fade':[['Speed',128]]};
-const FX_ANIM={'Solid':'anim-solid','Blink':'anim-blink','Breathe':'anim-breathe','Wipe':'anim-move','Chase':'anim-move-fast','Rainbow':'anim-hue','Sparkle':'anim-sparkle','Fade':'anim-breathe'};
-function renderParams(name){const box=document.getElementById('fxParams');box.innerHTML='';
-(FX_PARAMS[name]||[]).forEach(function(p){const row=document.createElement('div');row.className='param-row';
-row.innerHTML='<div class="param-label"><span>'+p[0]+'</span><span>'+p[1]+'</span></div><input type="range" min="0" max="255" value="'+p[1]+'">';
-row.querySelector('input').addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;});
-box.appendChild(row);});
-document.getElementById('footHint').style.display=(FX_PARAMS[name]&&FX_PARAMS[name].length)?'none':'block';}
-const fxGrid=document.getElementById('fxGrid');
-const sortedFx=Object.keys(FX_PARAMS).sort();
-sortedFx.forEach((name,i)=>{const item=document.createElement('div');item.className='fx-item'+(name==='Solid'?' active':'');
-item.innerHTML='<div class="fx-prev '+(FX_ANIM[name]||'')+'"></div><span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+name+'</span>';
-item.addEventListener('click',()=>{document.querySelectorAll('.fx-item').forEach(x=>x.classList.remove('active'));item.classList.add('active');
-document.getElementById('fxActiveName').textContent=name;renderParams(name);});
-fxGrid.appendChild(item);});
-renderParams('Solid');
-document.getElementById('brightSlider').addEventListener('input',e=>{document.getElementById('brightVal').textContent=e.target.value;});
+// ===== Data efek asli WLED =====
+let allEffectNames = [];
+let fxDataArray = [];
+let currentFxIndex = 0;
+
+function lookupEffectIndex(name) {
+  let idx = allEffectNames.findIndex(n => n.toLowerCase() === name.toLowerCase());
+  if (idx >= 0) return idx;
+  idx = allEffectNames.findIndex(n => n.toLowerCase().includes(name.toLowerCase()));
+  return idx;
+}
+
+const WELCOMING_NAMES = [
+  'Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner',
+  'Twinkle','Twinklefox','Sparkle+','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow',
+  'Pacifica','Aurora','Lake','Plasma','Noise Pal','Colortwinkles','Sinelon','Sinelon Rainbow',
+  'Bpm','Percent','Sunrise','Phased','Dissolve'
+];
+const RESTRICTED_FX_NAMES = {
+  sein:   ['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'],
+  rem:    ['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'],
+  hazard: ['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega']
+};
+
+function getEffectListForActiveTab() {
+  if (activeTab === 'riding') {
+    return allEffectNames.map((n,i) => ({name:n, idx:i}));
+  }
+  if (activeTab === 'welcoming') {
+    return WELCOMING_NAMES.map(n => lookupEffectIndex(n)).filter(i=>i>=0).map(i => ({name:allEffectNames[i], idx:i}));
+  }
+  const names = RESTRICTED_FX_NAMES[activeTab] || RESTRICTED_FX_NAMES.sein;
+  return names.map(n => lookupEffectIndex(n)).filter(i=>i>=0).map(i => ({name:allEffectNames[i], idx:i}));
+}
+
+function sendEffectToSegments(fxIndex) {
+  const segs = getActiveSegIds().map(id => {
+    const o = {id:id, fx:fxIndex};
+    if (isRestrictedTab()) o.pal = 0;
+    return o;
+  });
+  fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seg:segs})}).catch(()=>{});
+}
+
+function sendEffectParam(key, val) {
+  const segs = getActiveSegIds().map(id => ({id:id, [key]:val}));
+  fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seg:segs})}).catch(()=>{});
+}
+const sendEffectParamDebounced = debounce(sendEffectParam, 80);
+
+function parseFxData(meta) {
+  const parts = (meta || '').split(';');
+  const labels = (parts[0] || '').split(',');
+  const defaultNames = ['Speed','Intensity','Custom 1','Custom 2','Custom 3'];
+  const keys = ['sx','ix','c1','c2','c3'];
+  const sliders = [];
+  for (let i = 0; i < 5; i++) {
+    let lbl = labels[i];
+    if (lbl === undefined || lbl === '') continue;
+    if (lbl === '!') lbl = defaultNames[i];
+    sliders.push({key:keys[i], label:lbl});
+  }
+  const toggleKeys = ['o1','o2','o3'];
+  const toggles = [];
+  for (let i = 0; i < 3; i++) {
+    let lbl = labels[5+i];
+    if (lbl === undefined || lbl === '') continue;
+    if (lbl === '!') lbl = 'Opsi ' + (i+1);
+    toggles.push({key:toggleKeys[i], label:lbl});
+  }
+  return {sliders, toggles};
+}
+
+function renderParamsForEffect(fxIndex) {
+  currentFxIndex = fxIndex;
+  const meta = fxDataArray[fxIndex] || '';
+  const parsed = parseFxData(meta);
+  const box = document.getElementById('fxParams');
+  box.innerHTML = '';
+
+  parsed.sliders.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'param-row';
+    row.innerHTML = '<div class="param-label"><span>'+p.label+'</span><span>128</span></div><input type="range" min="0" max="255" value="128">';
+    row.querySelector('input').addEventListener('input', e => {
+      row.querySelectorAll('.param-label span')[1].textContent = e.target.value;
+      sendEffectParamDebounced(p.key, +e.target.value);
+    });
+    box.appendChild(row);
+  });
+
+  parsed.toggles.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'toggle-item';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:12px;color:var(--tx2);';
+    row.innerHTML = '<span>'+p.label+'</span><button class="btn-sm" data-on="0">Off</button>';
+    const btn = row.querySelector('button');
+    btn.addEventListener('click', () => {
+      const on = btn.dataset.on === '1';
+      btn.dataset.on = on ? '0' : '1';
+      btn.textContent = on ? 'Off' : 'On';
+      btn.className = on ? 'btn-sm' : 'btn-sm primary';
+      sendEffectParam(p.key, on ? 0 : 1);
+    });
+    box.appendChild(row);
+  });
+
+  document.getElementById('footHint').style.display = (parsed.sliders.length===0 && parsed.toggles.length===0) ? 'block' : 'none';
+}
+
+function refreshEffectListForTab() {
+  const fxGrid = document.getElementById('fxGrid');
+  fxGrid.innerHTML = '';
+  const list = getEffectListForActiveTab();
+  list.forEach((item, i) => {
+    const el = document.createElement('div');
+    el.className = 'fx-item' + (i===0 ? ' active' : '');
+    el.innerHTML = '<div class="fx-prev anim-move"></div><span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+item.name+'</span>';
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.fx-item').forEach(x=>x.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('fxActiveName').textContent = item.name;
+      sendEffectToSegments(item.idx);
+      renderParamsForEffect(item.idx);
+    });
+    fxGrid.appendChild(el);
+  });
+  if (list.length) {
+    document.getElementById('fxActiveName').textContent = list[0].name;
+    renderParamsForEffect(list[0].idx);
+  }
+}
+
+Promise.all([
+  fetch('/json/eff').then(r=>r.json()),
+  fetch('/json/fxdata').then(r=>r.json())
+]).then(([effNames, fxData]) => {
+  allEffectNames = effNames;
+  fxDataArray = fxData;
+  refreshEffectListForTab();
+}).catch(()=>{});
+
+document.getElementById('brightSlider').addEventListener('input', e => {
+  document.getElementById('brightVal').textContent = e.target.value;
+  sendBrightnessDebounced(+e.target.value);
+});
+const sendBrightnessDebounced = debounce(function(v){
+  fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bri:v})}).catch(()=>{});
+}, 80);
 </script>
 </body>
 </html>
