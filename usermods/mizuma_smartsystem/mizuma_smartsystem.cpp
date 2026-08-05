@@ -938,7 +938,7 @@ p.b   = request->arg("b").toInt();
 p.sx  = request->arg("sx").toInt();
 p.ix  = request->arg("ix").toInt();
 p.bri = request->arg("bri").toInt();
-serializeConfig(); // persist ke cfg.json (tahan power cycle)
+doSerializeConfig(); // persist ke cfg.json (tahan power cycle)
 request->send(200, "application/json", "{\"ok\":true}");
 });
 // FASE 8: baca semua slot (dipanggil UI saat pindah tab)
