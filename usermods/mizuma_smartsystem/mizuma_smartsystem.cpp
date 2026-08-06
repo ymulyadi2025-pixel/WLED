@@ -661,14 +661,21 @@ function mzConnectLive(){
     mzWS.send(JSON.stringify({lv:true}));
     if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}
   };
-  mzWS.onmessage=(evt)=>{
+ mzWS.onmessage=(evt)=>{
     let j; try{ j=JSON.parse(evt.data); }catch(e){ return; }
     let a=j.leds; if(!a) return;
-    if(Array.isArray(a[0])){const f=[];for(let i=0;i<a.length;i++){f.push(a[i][0],a[i][1],a[i][2]);}a=f;}
-    else if(typeof a[0]==='string'){const f=[];for(let i=0;i<a.length;i++){const n=parseInt(a[i],16);f.push((n>>16)&255,(n>>8)&255,n&255);}a=f;}
+    if(Array.isArray(a) && a.length>0){
+        if(Array.isArray(a[0])){                     // format lama [r,g,b]
+            const f=[];for(let i=0;i<a.length;i++){f.push(a[i][0],a[i][1],a[i][2]);}a=f;
+        } else if(typeof a[0]==='string'){           // format hex
+            const f=[];for(let i=0;i<a.length;i++){const n=parseInt(a[i],16);f.push((n>>16)&255,(n>>8)&255,n&255);}a=f;
+        } else if(typeof a[0]==='number'){           // sudah flat integer (WLED 0.14+)
+            // tidak perlu konversi, langsung pakai
+        }
+    }
     liveOk=true; liveFails=0;
     drawBar(pvR,a,0,48); drawBar(pvL,a,48,48);
-  };
+};
   mzWS.onclose=()=>{ liveOk=false; mzWSRetry=setTimeout(mzConnectLive,2000); };
   mzWS.onerror=()=>{ try{mzWS.close();}catch(e){} };
 }
