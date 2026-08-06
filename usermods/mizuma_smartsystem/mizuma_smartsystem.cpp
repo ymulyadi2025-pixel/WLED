@@ -431,13 +431,18 @@ body{display:flex;flex-direction:column;}
 .tabbar{display:flex;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--bd);}
 .tabbar button{flex:1 0 auto;padding:11px 10px;background:none;border:none;color:var(--tx2);font-size:12.5px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;}
 .tabbar button.active{color:var(--tx);border-bottom-color:var(--ac);}
-.preview-grid{display:grid;grid-template-columns:1fr 62px 78px;grid-template-rows:26px 26px;gap:5px;padding:10px 12px;background:var(--bg);}
-.pv-canvas{width:100%;height:26px;image-rendering:pixelated;background:#000;border-radius:6px;display:block;}
-.pv-canvas.kanan{grid-column:1;grid-row:1;} .pv-canvas.kiri{grid-column:1;grid-row:2;}
-.side-btn{grid-column:2;background:var(--s2);border:1px solid var(--bd2);color:var(--tx2);border-radius:6px;font-size:11px;font-weight:600;}
-.side-btn.kanan-btn{grid-row:1;} .side-btn.kiri-btn{grid-row:2;}
-.side-btn-both{grid-column:3;grid-row:1 / span 2;background:var(--s2);border:1px solid var(--bd2);color:var(--tx2);border-radius:6px;font-size:11px;font-weight:600;}
-.side-btn.active,.side-btn-both.active{background:var(--ac);color:#0a0a0a;border-color:var(--ac);}
+.side-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:8px 12px 0;background:var(--bg);}
+.side-row .side-btn{padding:8px 0;background:var(--s2);border:1px solid var(--bd);color:var(--tx2);border-radius:8px;font-size:11.5px;font-weight:700;}
+.side-row .side-btn.active{background:var(--ac);color:#0a0a0a;border-color:var(--ac);}
+.preview-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px 12px;background:var(--bg);}
+.preview-row .pv-canvas{width:100%;height:22px;image-rendering:pixelated;background:#000;border-radius:6px;display:block;}
+.info-row3{display:grid;grid-template-columns:1fr minmax(110px,42%) 1fr;gap:10px;align-items:center;padding:6px 12px 10px;background:var(--bg);border-bottom:1px solid var(--bd);}
+.info-row3 .i3{font-size:10px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.i3.left{text-align:left;} .i3.right{text-align:right;}
+.i3.mid{display:flex;align-items:center;gap:6px;}
+.i3.mid svg{width:14px;height:14px;stroke:var(--tx2);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;}
+.i3.mid input[type=range]{flex:1;accent-color:var(--ac);height:4px;}
+.i3.mid #brightVal{font-size:10px;color:var(--tx);width:24px;text-align:right;}
 .body-layout{flex:1;min-height:0;display:flex;}
 .subnav{width:74px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--bd);overflow-y:auto;}
 .subnav button{display:block;width:100%;padding:14px 4px;background:none;border:none;color:var(--tx3);font-size:10.5px;text-align:center;border-left:3px solid transparent;}
@@ -534,12 +539,23 @@ body{display:flex;flex-direction:column;}
 <button data-tab="rem">Rem</button>
 <button data-tab="hazard">Hazard</button>
 </div>
-<div class="preview-grid">
-<canvas class="pv-canvas kanan" id="pvKanan" width="48" height="1"></canvas>
-<canvas class="pv-canvas kiri" id="pvKiri" width="48" height="1"></canvas>
-<button class="side-btn kanan-btn active" data-side="kanan">Kanan</button>
-<button class="side-btn kiri-btn" data-side="kiri">Kiri</button>
-<button class="side-btn-both" data-side="both">Kanan<br>+ Kiri</button>
+<div class="side-row" id="sideRow">
+<button class="side-btn" data-side="kiri">Kiri</button>
+<button class="side-btn" data-side="both">Semua</button>
+<button class="side-btn active" data-side="kanan">Kanan</button>
+</div>
+<div class="preview-row">
+<canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
+<canvas class="pv-canvas" id="pvKanan" width="48" height="1"></canvas>
+</div>
+<div class="info-row3">
+<div class="i3 left" id="ctxInfo">Pola Warna &mdash; Kanan</div>
+<div class="i3 mid">
+<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+<input type="range" min="0" max="255" value="180" id="brightSlider">
+<span id="brightVal">180</span>
+</div>
+<div class="i3 right" id="savedInfo">Memuat...</div>
 </div>
 </div>
 <div class="body-layout">
@@ -558,13 +574,7 @@ body{display:flex;flex-direction:column;}
 <input class="search-box" id="searchBox" placeholder="Cari palette..." style="display:none;">
 </div>
 <div class="pane-head" id="headEfek" style="display:none;">
-<div class="brightness-row">
-<span class="bi"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
-<input type="range" min="0" max="255" value="180" id="brightSlider">
-<span id="brightVal">180</span>
-<span class="fx-chip" id="fxActiveName">Solid</span>
-</div>
-<div class="mode-row">Konteks: <b id="fxContext">Welcoming &mdash; Kanan</b></div>
+<div class="mode-row">Efek aktif: <span class="fx-chip" id="fxActiveName">Solid</span></div>
 </div>
 <div class="pane-head" id="headSimpan" style="display:none;">
 <div class="mode-row">Riwayat simpan tersimpan di perangkat ini. Penyimpanan permanen ke ESP32 menyusul di Fase 8.</div>
@@ -846,11 +856,20 @@ grid.appendChild(el);});
 if(curList.length){document.getElementById('fxActiveName').textContent=curList[0].name;renderParams(curList[0].idx);
 if(applyFirst)sendEffect(curList[0].idx);}
 updateCtx();}
-Promise.all([fetch('/json/eff').then(function(r){return r.json();}),fetch('/json/fxdata').then(function(r){return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];buildEffects(false);syncUiToState();}).catch(function(){});
+Promise.all([fetch('/json/eff').then(function(r){return r.json();}),fetch('/json/fxdata').then(function(r){return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];buildEffects(false);syncUiToState();refreshSavedInfo();}).catch(()=>{});
 /* ===== Label & konteks ===== */
-function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Kanan + Kiri'}[activeSide];}
+function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua'}[activeSide];}
 function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
-function updateCtx(){document.getElementById('fxContext').textContent=tabLabel()+' \u2014 '+sideLabel()+' \u2014 '+document.getElementById('fxActiveName').textContent;}
+function subLabel(){return{warna:'Pola Warna',efek:'Efek',simpan:'Simpan'}[activeSub];}
+function updateCtx(){document.getElementById('ctxInfo').textContent=subLabel()+' \u2014 '+sideLabel();}
+function refreshSavedInfo(){const el=document.getElementById('savedInfo');if(!el||!allFx.length)return;
+fetch('/mizuma/presets').then(r=>r.json()).then(d=>{
+const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
+const names=[];
+sides.forEach(sd=>{const st=d[activeTab+sd];
+names.push(st&&st.valid?((allFx[st.fx]||'Efek')+' \u2022 '+(palNamesRaw[st.pal]||'Palette')):'Belum disimpan');});
+el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+names[1]):names[0];
+}).catch(()=>{});}
 function updateModeAktif(){if(isRestrictedTab()){document.getElementById('modeAktif').textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';return;}
 if(currentCT==='custom'){const i=Array.from(document.querySelectorAll('.slot')).findIndex(function(s){return s.classList.contains('active');});document.getElementById('modeAktif').textContent='Custom \u2014 Slot '+((i<0?0:i)+1);}
 else{document.getElementById('modeAktif').textContent='Template \u2014 '+(cur.palName||'-');}}
@@ -861,7 +880,7 @@ sides.forEach(function(sd){fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.
 localStorage.setItem('mzts_'+activeTab+'_'+sd,String(Date.now()));});
 dirty=false;document.getElementById('fabSave').classList.remove('dirty');
 const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));
-renderSavedList();}
+renderSavedList();refreshSavedInfo();}
 function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='';
 ['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){
 const raw=localStorage.getItem('mzts_'+t+'_'+s);const row=document.createElement('div');row.className='saved-row';
@@ -891,14 +910,13 @@ if(r)buildRestricted();updateModeAktif();}
 function switchTab(t){activeTab=t;
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
 refreshColorModeVisibility();buildEffects(false);
-applySaved(t);
-updateCtx();}
+applySaved(t);updateCtx();refreshSavedInfo();}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;
 const t=e.target.dataset.tab;if(t===activeTab)return;
 if(dirty)showModal(t);else switchTab(t);});
-document.querySelector('.preview-grid').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;
-document.querySelectorAll('.side-btn,.side-btn-both').forEach(function(b){b.classList.remove('active');});
-btn.classList.add('active');activeSide=btn.dataset.side;updateCtx();});
+document.getElementById('sideRow').addEventListener('click',e=>{const btn=e.target.closest('button');if(!btn)return;
+document.querySelectorAll('#sideRow .side-btn').forEach(b=>b.classList.remove('active'));
+btn.classList.add('active');activeSide=btn.dataset.side;updateCtx();refreshSavedInfo();});
 function setSub(k){activeSub=k;
 document.getElementById('headWarna').style.display=k==='warna'?'flex':'none';
 document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
