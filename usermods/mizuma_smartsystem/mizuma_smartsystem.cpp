@@ -654,33 +654,72 @@ for(let i=0;i<count;i++){const k=(off+i)*3;
 if(arr&&arr.length>=k+3){ctx.fillStyle='rgb('+arr[k]+','+arr[k+1]+','+arr[k+2]+')';}else{ctx.fillStyle='#000';}
 ctx.fillRect(i,0,1,1);}}
 let liveOk=false,liveFails=0;
-let mzWS=null,mzWSRetry=null;
-function mzConnectLive(){
-  try{ mzWS=new WebSocket('ws://'+window.location.host+'/ws'); }catch(e){ return; }
-  mzWS.onopen=()=>{
-    mzWS.send(JSON.stringify({lv:true}));
-    if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}
+let mzWS = null, mzWSRetry = null;
+let segOffsets = []; // akan diisi dari /json/state: [{start,stop},...]
+
+// Ambil offset segmen asli dari WLED
+fetch('/json/state').then(r=>r.json()).then(j=>{
+  if (j.seg) {
+    segOffsets = j.seg.map(s => ({start: s.start || 0, stop: s.stop || 0}));
+  }
+});
+
+function mzConnectLive() {
+  try {
+    mzWS = new WebSocket('ws://' + window.location.host + '/ws');
+  } catch (e) { return; }
+
+  mzWS.onopen = () => {
+    mzWS.send(JSON.stringify({ lv: true }));
+    if (mzWSRetry) { clearTimeout(mzWSRetry); mzWSRetry = null; }
   };
- mzWS.onmessage=(evt)=>{
-    let j; try{ j=JSON.parse(evt.data); }catch(e){ return; }
-    let a=j.leds; if(!a) return;
-    if(Array.isArray(a) && a.length>0){
-        if(Array.isArray(a[0])){                     // format lama [r,g,b]
-            const f=[];for(let i=0;i<a.length;i++){f.push(a[i][0],a[i][1],a[i][2]);}a=f;
-        } else if(typeof a[0]==='string'){           // format hex
-            const f=[];for(let i=0;i<a.length;i++){const n=parseInt(a[i],16);f.push((n>>16)&255,(n>>8)&255,n&255);}a=f;
-        } else if(typeof a[0]==='number'){           // sudah flat integer (WLED 0.14+)
-            // tidak perlu konversi, langsung pakai
-        }
+
+  mzWS.onmessage = (evt) => {
+    let j;
+    try { j = JSON.parse(evt.data); } catch (e) { return; }
+    let leds = j.leds;
+    if (!leds || !Array.isArray(leds) || leds.length === 0) return;
+
+    // Normalisasi semua format ke flat array integer [r,g,b,...]
+    let flat = [];
+    if (Array.isArray(leds[0])) {           // [[r,g,b], ...]
+      for (let p of leds) flat.push(p[0], p[1], p[2]);
+    } else if (typeof leds[0] === 'string') { // ["ff0000", ...]
+      for (let h of leds) {
+        const n = parseInt(h, 16);
+        flat.push((n >> 16) & 255, (n >> 8) & 255, n & 255);
+      }
+    } else if (typeof leds[0] === 'number') { // sudah integer
+      flat = leds;
     }
-    liveOk=true; liveFails=0;
-    drawBar(pvR,a,0,48); drawBar(pvL,a,48,48);
-};
-  mzWS.onclose=()=>{ liveOk=false; mzWSRetry=setTimeout(mzConnectLive,2000); };
-  mzWS.onerror=()=>{ try{mzWS.close();}catch(e){} };
+
+    liveOk = true;
+    liveFails = 0;
+
+    // Gambar berdasarkan offset segmen asli
+    if (segOffsets.length > 0) {
+      // Kanan = segmen 0, Kiri = segmen 1 (sesuai setup awal SEG_K=0, SEG_L=1)
+      const segR = segOffsets[0] || { start: 0, stop: 0 };
+      const segL = segOffsets[1] || { start: 0, stop: 0 };
+      drawBar(pvR, flat, segR.start * 3, segR.stop - segR.start);
+      drawBar(pvL, flat, segL.start * 3, segL.stop - segL.start);
+    } else {
+      // fallback asumsi 48+48
+      drawBar(pvR, flat, 0, 48);
+      drawBar(pvL, flat, 48, 48);
+    }
+  };
+
+  mzWS.onclose = () => {
+    liveOk = false;
+    mzWSRetry = setTimeout(mzConnectLive, 2000);
+  };
+  mzWS.onerror = () => { try { mzWS.close(); } catch (e) {} };
 }
+
 mzConnectLive();
-setInterval(()=>{ if(mzWS && mzWS.readyState===1) mzWS.send(JSON.stringify({lv:true})); }, 3000);
+// HAPUS setInterval yang mengirim ulang {"lv":true} tiap 3 detik – tidak diperlukan
+mzConnectLive();
 window.addEventListener('beforeunload',()=>{ if(mzWS) mzWS.close(); });
 /* state segmen utk simulator */
 let simSegs=[{fx:0,pal:0,sx:128,ix:128,col:[[255,165,0]]},{fx:0,pal:0,sx:128,ix:128,col:[[255,165,0]]}];
