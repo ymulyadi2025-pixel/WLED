@@ -796,14 +796,6 @@ const rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';sendColor(rgb[0],r
 /* ===== Palettes: list row tipis ala WLED ===== */
 const paletteGrid=document.getElementById('paletteGrid');
 function seedGrad(i){return 'linear-gradient(90deg,hsl('+((i*37)%360)+',80%,50%),hsl('+(((i*37)+120)%360)+',80%,50%))';}
-function renderPaletteRows(q){paletteGrid.innerHTML='';
-palList.forEach(function(e,seq){if(q&&e.n.toLowerCase().indexOf(q)<0)return;
-const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
-const grad=PAL_GRADS[e.n]||seedGrad(e.i);
-row.innerHTML='<span class="pradio"></span><span class="pnum">'+(seq+1)+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
-row.addEventListener('click',function(){cur.palName=e.n;document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});row.classList.add('active');sendPalette(e.i);updateModeAktif();});
-paletteGrid.appendChild(row);});}
-const paletteGrid=document.getElementById('paletteGrid');
 const customPalGrid=document.getElementById('customPalGrid');
 function makePalRow(e,grid,numbered,seq){
 const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
@@ -912,6 +904,7 @@ function switchTab(t){activeTab=t;
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
 refreshColorModeVisibility();buildEffects();
 applySaved(t);
+syncUiToState()
 updateCtx();refreshSavedInfo();}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;
 const t=e.target.dataset.tab;if(t===activeTab)return;
@@ -1066,7 +1059,8 @@ void setup() override {
     p.sx  = req->arg("sx").toInt();
     p.ix  = req->arg("ix").toInt();
     p.bri = req->arg("bri").toInt();
-    req->send(200,"application/json","{\"ok\":true}");
+saveSettings(); // persist ke cfg.json agar tahan power cycle
+req->send(200, "application/json", "{\"ok\":true}");
   });
 
   // Fase 8.4: baca semua slot (untuk load preset saat tab switch)
