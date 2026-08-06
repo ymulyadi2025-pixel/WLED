@@ -994,7 +994,6 @@ inj('/mizuma/frag/script',function(t){eval(t);});
 // Blok 6 v3 — Fase 8 (preset permanen 10 slot) + Fase 9 (boot Welcoming→Riding)
 //           + endpoint fragment (header/nav/script) + preset API
 // --------------------------------------------------------------------------------------------------------------------------------------
-extern void serializeConfigToFS();
 #ifndef USERMOD_ID_MIZUMA_SYSTEM
 #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
 #endif
