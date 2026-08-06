@@ -4,7 +4,7 @@
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
-extern void SerializeConfig();
+extern void serializeConfig();
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 // Blok 1 — Komponen Bersama (Native-feel FINAL: tanpa getar, transisi 110ms, nav "Dashboard")
@@ -1060,7 +1060,7 @@ void setup() override {
     p.sx  = req->arg("sx").toInt();
     p.ix  = req->arg("ix").toInt();
     p.bri = req->arg("bri").toInt();
-SerializeConfig(); // persist ke cfg.json agar tahan power cycle
+serializeConfig(); // persist ke cfg.json agar tahan power cycle
 req->send(200, "application/json", "{\"ok\":true}");
   });
 
