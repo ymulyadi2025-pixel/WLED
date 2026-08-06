@@ -483,20 +483,24 @@ body{display:flex;flex-direction:column;}
 .slot.active{outline:2px solid #fff;outline-offset:2px;}
 .ring-r{position:relative;width:30px;height:30px;border-radius:50%;background:conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00);cursor:pointer;border:none;}
 .ring-r::after{content:'R';position:absolute;inset:4px;border-radius:50%;background:var(--bg);color:var(--tx);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;}
-.ctl-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.ctl-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
 .ctl-row label{width:64px;font-size:11px;font-weight:700;color:var(--tx2);}
 .ctl-row .val{width:34px;font-size:11px;color:var(--tx2);text-align:right;}
+.kelvin::-webkit-slider-runnable-track{background:linear-gradient(90deg,#ff9329,#ffffff,#bcd4ff)!important;}
+.quick-colors{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:12px;}
+.qc{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.15);cursor:pointer;}
+.crow{display:flex;gap:10px;justify-content:center;margin-top:4px;}
+.crow-btn{width:44px;height:44px;border-radius:50%;background:var(--s2);border:2px solid var(--bd2);color:var(--tx);font-size:13px;font-weight:800;}
+.crow-btn.active{border-color:var(--ac);color:var(--ac);background:var(--ac-dim);}
 .palette-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-.pal-row{padding:8px 8px 12px;}
-.pal-row .pnum{display:none;}
-.sec-title{font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;font-weight:700;}
-.pal-row{position:relative;display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:10px 12px 14px;overflow:hidden;}
+.pal-row{position:relative;display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:10px 8px 14px;overflow:hidden;}
 .pal-row .pradio{width:14px;height:14px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;}
 .pal-row.active{border-color:var(--ac);}
 .pal-row.active .pradio{border-color:var(--ac);background:var(--ac);}
 .pal-row .pnum{font-size:9px;color:var(--tx3);width:18px;}
 .pal-row .pname{flex:1;text-align:center;font-size:12px;font-weight:600;color:var(--tx);}
 .pal-row .pstrip{position:absolute;left:0;right:0;bottom:0;height:4px;}
+.sec-title{font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;font-weight:700;}
 .fx-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 @media(min-width:420px){.fx-grid{grid-template-columns:repeat(3,1fr);}}
 .fx-item{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:10px 8px;font-size:11px;color:var(--tx);}
@@ -524,12 +528,9 @@ body{display:flex;flex-direction:column;}
 .mbtns .btn-sm{flex:1;}
 .btn-sm{padding:9px 14px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);font-size:12px;font-weight:700;color:var(--tx);}
 .btn-sm.primary{background:var(--ac);color:#0a0a0a;border-color:var(--ac);}
-/* ===== Slider custom (track terisi aksen + thumb putih) ===== */
 input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:18px;--p:50%;}
 input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--ac) var(--p),var(--s3) var(--p));}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-5px;box-shadow:0 1px 4px rgba(0,0,0,.6);}
-input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--ac) var(--p),var(--s3) var(--p));}
-input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:none;box-shadow:0 1px 4px rgba(0,0,0,.6);}
 </style>
 </head>
 <body>
@@ -605,10 +606,18 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <button class="ring-r" id="rndRing" title="Acak"></button>
 </div>
 </div>
+</div>
+<div class="card"><div class="card-title">Slider</div>
+<div class="ctl-row"><label>Brightness</label><input type="range" min="1" max="255" value="180" id="briSlider"><span class="val" id="briVal">180</span></div>
 <div class="ctl-row"><label>Saturation</label><input type="range" min="0" max="100" value="100" id="satSlider"><span class="val" id="satVal">100</span></div>
+<div class="ctl-row"><label>Temperatur</label><input type="range" class="kelvin" min="2000" max="10000" step="50" value="6500" id="kelvinSlider"><span class="val" id="kelvinVal">6500</span></div>
+</div>
+<div class="card"><div class="card-title">Warna Cepat</div>
+<div class="quick-colors" id="quickColors"></div>
+<div class="crow" id="colorRow"></div>
+</div>
 <div class="sec-title">Warna Custom</div>
 <div class="palette-list" id="customPalGrid"></div>
-</div>
 </div>
 <div id="ctTemplate" style="display:none;">
 <div class="palette-list" id="paletteGrid"></div>
@@ -650,6 +659,7 @@ let dirty=false,pendingTab=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
 let cur={fx:0,pal:0,col:null,bri:180,params:{},palName:''};
 let wHue=0,wSat=1,liveEnabled=true;
+let segColors=[[255,165,0]],colorTarget=0,slotCount=1;
 const LIVE_CO=[2,0,1];
 const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
@@ -660,6 +670,7 @@ hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FF
 const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
 const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
 const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
+const QUICK_COLORS=['FF0000','FFA500','FFD200','FFDCAF','FFFFFF','000000','FF00FF','0000FF','00FFC8','00FF00'];
 const PAL_GRADS={'Lava':'linear-gradient(90deg,#000000,#880000,#ff0000,#ffff00,#ffffff)','Rainbow':'linear-gradient(90deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff)','Rainbow Runner':'linear-gradient(90deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff)','Party':'linear-gradient(90deg,#ff00ff,#00ffff,#ffff00,#ff00ff)','Fire':'linear-gradient(90deg,#000000,#ff0000,#ff8800,#ffff00)','Ocean':'linear-gradient(90deg,#000011,#003366,#0066cc,#0099ff)','Sunset':'linear-gradient(90deg,#000033,#660033,#ff6600,#ffff00)','Spring':'linear-gradient(90deg,#ffaa00,#00ff00,#00cc66)','Autumn':'linear-gradient(90deg,#663300,#996600,#cc9900)','Ice':'linear-gradient(90deg,#00ffff,#ffffff,#00ffff)','Neon':'linear-gradient(90deg,#ff00ff,#00ffff,#ffff00)','Hot':'linear-gradient(90deg,#880000,#ff0000,#ff8800,#ffffff)','Cool':'linear-gradient(90deg,#00ff00,#00ffff,#0000ff)','Rain':'linear-gradient(90deg,#000066,#0099ff,#00ff00)','Breeze':'linear-gradient(90deg,#006699,#00ccff,#99ff99)','Colorwaves':'linear-gradient(90deg,#ff00ff,#0000ff,#00ffff,#00ff00)','Bpm':'linear-gradient(90deg,#ff0000,#00ff00,#0000ff)','Plasma':'linear-gradient(90deg,#ff00ff,#00ffff,#ffff00,#ff00ff)','Aurora':'linear-gradient(90deg,#003366,#00ff99,#ff00ff)','Pacifica':'linear-gradient(90deg,#003366,#006699,#0099cc)','Ripple':'linear-gradient(90deg,#0000ff,#00ffff,#0000ff)','Meteor':'linear-gradient(90deg,#333333,#ff8800,#333333)','Twinkle':'linear-gradient(90deg,#222222,#ffff00,#222222)','Sparkle':'linear-gradient(90deg,#111111,#ffffff,#111111)','Glitter':'linear-gradient(90deg,#222222,#ffff00,#ffffff,#222222)','Sinelon':'linear-gradient(90deg,#0000ff,#ff0000,#0000ff)','Fade':'linear-gradient(90deg,#ff0000,#0000ff)','Breathe':'linear-gradient(90deg,#333333,#ffffff,#333333)','Blink':'linear-gradient(90deg,#ffffff,#000000,#ffffff)','Strobe':'linear-gradient(90deg,#ffffff,#000000,#ffffff,#000000)','Chase':'linear-gradient(90deg,#ff0000,#000000,#ff0000,#000000)','Wipe':'linear-gradient(90deg,#000000,#ff0000,#000000)','Sweep':'linear-gradient(90deg,#000000,#00ffff,#000000)','Solid':'linear-gradient(90deg,#f5a524,#f5a524)'};
 function post(o){fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(function(){});}
 function debounce(fn,ms){let t;return function(){const a=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,a);},ms);};}
@@ -669,9 +680,8 @@ function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 function markDirty(){dirty=true;document.getElementById('subSave').classList.add('dirty');}
 function clearDirty(){dirty=false;document.getElementById('subSave').classList.remove('dirty');}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(function(){t.style.opacity='0';},1800);}
-/* ===== Slider fill helper ===== */
 function paintRange(el){const min=+el.min||0,max=+el.max||255;el.style.setProperty('--p',(((+el.value-min)/(max-min))*100)+'%');}
-document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]'))paintRange(e.target);});
+document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin'))paintRange(e.target);});
 /* ===== LIVE PREVIEW (WS peek asli + toggle) ===== */
 const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
 function drawLive(flat){
@@ -687,8 +697,7 @@ if(j.seg&&j.seg.length>0){
 segR={start:j.seg[0].start||0,stop:j.seg[0].stop||48};
 if(j.seg.length>1)segL={start:j.seg[1].start||48,stop:j.seg[1].stop||96};
 if(segL.start<segR.stop)segR.stop=segL.start;
-}
-}).catch(function(){});
+}}).catch(function(){});
 let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
 function mzConnectLive(){
 if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}
@@ -754,23 +763,47 @@ wheel.addEventListener('pointermove',function(e){if(dragging)wheelPick(e);});
 wheel.addEventListener('pointerup',function(){dragging=false;});
 document.getElementById('satSlider').addEventListener('input',function(e){wSat=(+e.target.value)/100;document.getElementById('satVal').textContent=e.target.value;
 paintWheel(wheel,wHue,wSat);const rgb=hsvToRgb(wHue,wSat,1);setColor(rgb[0],rgb[1],rgb[2],false);});
+/* ===== Kelvin ===== */
+function kelvinToRgb(k){k/=100;let r,g,b;
+if(k<=66){r=255;g=99.47*Math.log(k)-161.12;}else{r=329.7*Math.pow(k-60,-0.133);g=288.12*Math.pow(k-60,-0.0755);}
+if(k>=66)b=255;else if(k<=19)b=0;else b=138.52*Math.log(k-10)-305.04;
+const cl=function(v){return Math.max(0,Math.min(255,Math.round(v)));};
+return[cl(r),cl(g),cl(b)];}
+document.getElementById('kelvinSlider').addEventListener('input',function(e){
+document.getElementById('kelvinVal').textContent=e.target.value;
+const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 /* ===== Kirim state ===== */
 function sendColor(r,g,b,silent){const segs=segIds().map(function(id){return{id:id,col:[[r,g,b]]};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();}
 function sendColorSilent(r,g,b){const segs=segIds().map(function(id){return{id:id,col:[[r,g,b]]};});post({seg:segs});cur.col=[r,g,b];}
-function sendPalette(i){const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();}
-function sendEffect(i){const segs=segIds().map(function(id){const o={id:id,fx:i};if(isRestrictedTab())o.pal=0;return o;});post({seg:segs});cur.fx=i;if(isRestrictedTab())cur.pal=0;markDirty();}
+function sendPalette(i){const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();renderColorRow();}
+function sendEffect(i){const segs=segIds().map(function(id){const o={id:id,fx:i};if(isRestrictedTab())o.pal=0;return o;});post({seg:segs});cur.fx=i;if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();}
 const sendParamD=debounce(function(k,v){const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
 const sendBriD=debounce(function(v){post({bri:v});cur.bri=v;markDirty();},80);
-function syncUiToState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){
-if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;cur.bri=j.bri;paintRange(document.getElementById('brightSlider'));}
-const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(!s)return;
-if(s.fx!=null)cur.fx=s.fx;
-if(s.pal!=null)cur.pal=s.pal;
-const name=allFx[cur.fx]||'';
-if(name){document.getElementById('fxActiveName').textContent=name;
-document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===name);});}
-updateCtx();}).catch(function(){});}
+/* ===== Baris dinamis Fx / Bg / 3 / + (aturan WLED) ===== */
+function isStarPal(){const n=palNamesRaw[cur.pal]||'';return n.charAt(0)==='*';}
+function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
+function renderColorRow(){
+const box=document.getElementById('colorRow');if(!box)return;box.innerHTML='';
+const star=isStarPal(),ps=isPSFx();
+const mk=function(label,idx){const b=document.createElement('button');b.className='crow-btn'+(colorTarget===idx?' active':'');b.textContent=label;
+b.addEventListener('click',function(){colorTarget=idx;renderColorRow();});box.appendChild(b);};
+if(!(ps&&!star))mk('Fx',0);
+mk('Bg',1);
+if(star&&slotCount>=3)mk('3',2);
+if(star&&slotCount<3){const p=document.createElement('button');p.className='crow-btn';p.textContent='+';
+p.addEventListener('click',function(){slotCount=3;while(segColors.length<3)segColors.push(segColors[segColors.length-1]||[255,255,255]);
+const segs=segIds().map(function(id){return{id:id,col:segColors};});post({seg:segs});markDirty();renderColorRow();});box.appendChild(p);}
+}
+/* ===== Quick colors ===== */
+(function(){const box=document.getElementById('quickColors');
+QUICK_COLORS.forEach(function(h){const d=document.createElement('div');d.className='qc';d.style.background='#'+h;
+d.addEventListener('click',function(){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255,false);});box.appendChild(d);});
+const r=document.createElement('div');r.className='qc';r.style.background='conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';r.style.position='relative';
+r.innerHTML='<span style="position:absolute;inset:6px;border-radius:50%;background:var(--bg);color:var(--tx);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;">R</span>';
+r.addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});box.appendChild(r);})();
 /* ===== Sync custom ===== */
+function rgb2hex(r,g,b){return('#'+[r,g,b].map(function(x){return('0'+x.toString(16)).slice(-2);}).join('')).toUpperCase();}
+function setSlider(id,vid,v){document.getElementById(id).value=v;document.getElementById(vid).textContent=v;}
 function setColor(r,g,b,silent){const act=document.querySelector('.slot.active');if(act)act.style.borderColor='rgb('+r+','+g+','+b+')';
 const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];
 document.getElementById('satSlider').value=Math.round(wSat*100);document.getElementById('satVal').textContent=Math.round(wSat*100);paintRange(document.getElementById('satSlider'));
@@ -779,6 +812,8 @@ sendColor(r,g,b,silent);updateModeAktif();}
 document.getElementById('rndRing').addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});
 document.querySelectorAll('.slot').forEach(function(s){s.addEventListener('click',function(){document.querySelectorAll('.slot').forEach(function(x){x.classList.remove('active');});s.classList.add('active');
 const m=getComputedStyle(s).borderColor.match(/\d+/g);if(m)setColor(+m[0],+m[1],+m[2],false);});});
+/* ===== Brightness slider (custom card) ===== */
+document.getElementById('briSlider').addEventListener('input',function(e){document.getElementById('briVal').textContent=e.target.value;sendBriD(+e.target.value);});
 /* ===== Restricted ===== */
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';
 const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;
@@ -794,14 +829,14 @@ const rect=cv.getBoundingClientRect();const x=(e.clientX-rect.left)*(220/rect.wi
 const dx=x-110,dy=y-110;if(Math.sqrt(dx*dx+dy*dy)>110)return;
 const h=clampHue(Math.atan2(dy,dx)*180/Math.PI+180,HUE_RULES[activeTab]);const sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/110);
 const rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';sendColor(rgb[0],rgb[1],rgb[2],false);updateModeAktif();});
-/* ===== Palettes: list row tipis ala WLED ===== */
+/* ===== Palettes ===== */
 const paletteGrid=document.getElementById('paletteGrid');
-function seedGrad(i){return 'linear-gradient(90deg,hsl('+((i*37)%360)+',80%,50%),hsl('+(((i*37)+120)%360)+',80%,50%))';}
 const customPalGrid=document.getElementById('customPalGrid');
+function seedGrad(i){return 'linear-gradient(90deg,hsl('+((i*37)%360)+',80%,50%),hsl('+(((i*37)+120)%360)+',80%,50%))';}
 function makePalRow(e,grid,numbered,seq){
 const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
 const grad=PAL_GRADS[e.n]||seedGrad(e.i);
-row.innerHTML=(numbered?'<span class="pnum" style="display:block;font-size:9px;color:var(--tx3);">'+(seq+1)+'</span>':'')+'<span class="pradio"></span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
+row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
 row.addEventListener('click',function(){cur.palName=e.n;
 document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});
 row.classList.add('active');sendPalette(e.i);updateModeAktif();});
@@ -814,7 +849,7 @@ if(q&&e.n.toLowerCase().indexOf(q)<0)return;
 makePalRow(e,paletteGrid,true,t);t++;});}
 fetch('/json/pal').then(function(r){return r.json();}).then(function(names){palNamesRaw=names;
 const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});
-arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');}).catch(function(){});
+arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');renderColorRow();}).catch(function(){});
 document.getElementById('searchBox').addEventListener('input',function(e){renderPaletteRows(e.target.value.toLowerCase());});
 /* ===== Efek ===== */
 function lookup(n){const t=n.toLowerCase();let i=allFx.findIndex(function(x){return x.toLowerCase()===t;});if(i>=0)return i;return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
@@ -851,6 +886,18 @@ updateCtx();}
 document.getElementById('fxSearch').addEventListener('input',function(e){const q=e.target.value.toLowerCase();
 document.querySelectorAll('#fxGrid .fx-item').forEach(function(el){el.style.display=el.querySelector('.fx-name').textContent.toLowerCase().indexOf(q)>=0?'':'none';});});
 Promise.all([fetch('/json/eff').then(function(r){return r.json();}),fetch('/json/fxdata').then(function(r){return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];buildEffects();syncUiToState();refreshSavedInfo();}).catch(function(){});
+/* ===== Sync UI ke state ===== */
+function syncUiToState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){
+if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;document.getElementById('briSlider').value=j.bri;document.getElementById('briVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));paintRange(document.getElementById('briSlider'));cur.bri=j.bri;}
+const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(!s)return;
+if(s.fx!=null)cur.fx=s.fx;
+if(s.pal!=null)cur.pal=s.pal;
+if(s.col&&s.col.length){segColors=s.col.map(function(c){return[c[0],c[1],c[2]];});slotCount=segColors.length;}
+renderColorRow();
+const name=allFx[cur.fx]||'';
+if(name){document.getElementById('fxActiveName').textContent=name;
+document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===name);});}
+updateCtx();}).catch(function(){});}
 /* ===== Label & konteks ===== */
 function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua'}[activeSide];}
 function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
@@ -905,7 +952,6 @@ function switchTab(t){activeTab=t;
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
 refreshColorModeVisibility();buildEffects();
 applySaved(t);
-syncUiToState()
 updateCtx();refreshSavedInfo();}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;
 const t=e.target.dataset.tab;if(t===activeTab)return;
@@ -929,8 +975,8 @@ document.querySelectorAll('#colorToggle button').forEach(function(b){b.classList
 currentCT=e.target.dataset.ct;refreshColorModeVisibility();});
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 setSub(activeSub);
-refreshColorModeVisibility();renderSavedList();updateCtx();
-document.querySelectorAll('input[type=range]').forEach(paintRange);
+refreshColorModeVisibility();renderSavedList();updateCtx();renderColorRow();
+document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});
 </script>
 <script>
 (function(){
@@ -948,6 +994,7 @@ inj('/mizuma/frag/script',function(t){eval(t);});
 // Blok 6 v3 — Fase 8 (preset permanen 10 slot) + Fase 9 (boot Welcoming→Riding)
 //           + endpoint fragment (header/nav/script) + preset API
 // --------------------------------------------------------------------------------------------------------------------------------------
+extern void serializeConfigToFS();
 #ifndef USERMOD_ID_MIZUMA_SYSTEM
 #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
 #endif
@@ -959,169 +1006,152 @@ uint16_t vehicleYear = 0;
 String vehiclePlate = "";
 struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
 ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
-
 struct PresetSlot { bool valid=false; uint8_t fx=0; uint8_t pal=0;
-  uint8_t r=255,g=255,b=255; uint8_t sx=128,ix=128,bri=180; };
+uint8_t r=255,g=255,b=255; uint8_t sx=128,ix=128,bri=180; };
 PresetSlot pslots[10];
 uint16_t welcomeDur = 7000;
 int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
-
 const char* slotKey(int i){ switch(i){
-  case 0:return "welcomingKanan"; case 1:return "welcomingKiri";
-  case 2:return "ridingKanan";    case 3:return "ridingKiri";
-  case 4:return "seinKanan";      case 5:return "seinKiri";
-  case 6:return "remKanan";       case 7:return "remKiri";
-  case 8:return "hazardKanan";    default:return "hazardKiri"; }}
+case 0:return "welcomingKanan"; case 1:return "welcomingKiri";
+case 2:return "ridingKanan";    case 3:return "ridingKiri";
+case 4:return "seinKanan";      case 5:return "seinKiri";
+case 6:return "remKanan";       case 7:return "remKiri";
+case 8:return "hazardKanan";    default:return "hazardKiri"; }}
 int slotIdx(const String& k){ for(int i=0;i<10;i++) if(k==slotKey(i)) return i; return -1; }
-
 void applySlotToSeg(int i, int segId){
-  PresetSlot& p = pslots[i]; if(!p.valid) return;
-  StaticJsonDocument<512> doc; JsonObject root = doc.to<JsonObject>();
-  JsonArray seg = root.createNestedArray("seg"); JsonObject s = seg.createNestedObject();
-  s["id"]=segId; s["fx"]=p.fx; s["pal"]=p.pal; s["sx"]=p.sx; s["ix"]=p.ix;
-  JsonArray col = s.createNestedArray("col"); JsonArray c = col.createNestedArray();
-  c.add(p.r); c.add(p.g); c.add(p.b);
-  deserializeState(root);
+PresetSlot& p = pslots[i]; if(!p.valid) return;
+StaticJsonDocument<512> doc; JsonObject root = doc.to<JsonObject>();
+JsonArray seg = root.createNestedArray("seg"); JsonObject s = seg.createNestedObject();
+s["id"]=segId; s["fx"]=p.fx; s["pal"]=p.pal; s["sx"]=p.sx; s["ix"]=p.ix;
+JsonArray col = s.createNestedArray("col"); JsonArray c = col.createNestedArray();
+c.add(p.r); c.add(p.g); c.add(p.b);
+deserializeState(root);
 }
-
 String renderPage(const char* pageTemplate, const char* activeKey) {
-  String html = FPSTR(pageTemplate);
-  html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
-  html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
-  html.replace("%HEADER_SCRIPT%", FPSTR(MIZUMA_HEADER_SCRIPT));
-  String navHtml = FPSTR(MIZUMA_BOTTOMNAV_HTML);
-  navHtml.replace("__ACTIVE_BERANDA__",    strcmp(activeKey,"beranda")    ==0 ? "active" : "");
-  navHtml.replace("__ACTIVE_LAMPU__",      strcmp(activeKey,"lampu")      ==0 ? "active" : "");
-  navHtml.replace("__ACTIVE_SERVIS__",     strcmp(activeKey,"servis")     ==0 ? "active" : "");
-  navHtml.replace("__ACTIVE_KEAMANAN__",   strcmp(activeKey,"keamanan")   ==0 ? "active" : "");
-  navHtml.replace("__ACTIVE_PENGATURAN__", strcmp(activeKey,"pengaturan") ==0 ? "active" : "");
-  html.replace("%BOTTOMNAV%", navHtml);
-  html.replace("%VEHICLE_NAME%",  vehicleName.length()  ? vehicleName  : "Motor Anda");
-  html.replace("%VEHICLE_BRAND%", vehicleBrand.length() ? vehicleBrand : "-");
-  html.replace("%VEHICLE_YEAR%",  vehicleYear ? String(vehicleYear) : "-");
-  html.replace("%VEHICLE_PLATE%", vehiclePlate.length() ? vehiclePlate : "-");
-  return html;
+String html = FPSTR(pageTemplate);
+html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
+html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
+html.replace("%HEADER_SCRIPT%", FPSTR(MIZUMA_HEADER_SCRIPT));
+String navHtml = FPSTR(MIZUMA_BOTTOMNAV_HTML);
+navHtml.replace("__ACTIVE_BERANDA__",    strcmp(activeKey,"beranda")    ==0 ? "active" : "");
+navHtml.replace("__ACTIVE_LAMPU__",      strcmp(activeKey,"lampu")      ==0 ? "active" : "");
+navHtml.replace("__ACTIVE_SERVIS__",     strcmp(activeKey,"servis")     ==0 ? "active" : "");
+navHtml.replace("__ACTIVE_KEAMANAN__",   strcmp(activeKey,"keamanan")   ==0 ? "active" : "");
+navHtml.replace("__ACTIVE_PENGATURAN__", strcmp(activeKey,"pengaturan") ==0 ? "active" : "");
+html.replace("%BOTTOMNAV%", navHtml);
+html.replace("%VEHICLE_NAME%",  vehicleName.length()  ? vehicleName  : "Motor Anda");
+html.replace("%VEHICLE_BRAND%", vehicleBrand.length() ? vehicleBrand : "-");
+html.replace("%VEHICLE_YEAR%",  vehicleYear ? String(vehicleYear) : "-");
+html.replace("%VEHICLE_PLATE%", vehiclePlate.length() ? vehiclePlate : "-");
+return html;
 }
 String renderPlaceholder(const char* title, const char* icon, const char* activeKey) {
-  String html = FPSTR(MIZUMA_PLACEHOLDER_HTML);
-  html.replace("%PAGE_TITLE%", title);
-  html.replace("%PAGE_ICON%", icon);
-  return renderPage(html.c_str(), activeKey);
+String html = FPSTR(MIZUMA_PLACEHOLDER_HTML);
+html.replace("%PAGE_TITLE%", title);
+html.replace("%PAGE_ICON%", icon);
+return renderPage(html.c_str(), activeKey);
 }
-
 public:
 void setup() override {
-  apBehavior = AP_BEHAVIOR_ALWAYS;
-  DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
-
-  server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *req){
-    req->send(200,"text/html",renderPage(MIZUMA_HOME_HTML,"beranda")); });
-  server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *req){
-    req->send(200,"text/html",renderPage(MIZUMA_LED_HTML,"lampu")); });
-  server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *req){
-    req->send(200,"text/html",renderPage(MIZUMA_SETTINGS_HTML,"pengaturan")); });
-  server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *req){
-    req->send(200,"text/html",renderPlaceholder("Servis","&#128736;","servis")); });
-  server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *req){
-    req->send(200,"text/html",renderPlaceholder("Keamanan & GPS","&#128274;","keamanan")); });
-
-  // Fragments (dipakai bootstrap injeksi di /led agar hemat heap)
-  server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *req){
-    req->send_P(200,"text/html", MIZUMA_HEADER_HTML); });
-  server.on("/mizuma/frag/script", HTTP_GET, [](AsyncWebServerRequest *req){
-    req->send_P(200,"text/javascript", MIZUMA_HEADER_SCRIPT); });
-  server.on("/mizuma/frag/nav", HTTP_GET, [](AsyncWebServerRequest *req){
-    req->send_P(200,"text/html", MIZUMA_BOTTOMNAV_HTML); });
-
-  server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *req){
-    bool apOn  = (WiFi.softAPgetStationNum() > 0);
-    bool staOn = (WiFi.status() == WL_CONNECTED);
-    String staIP = staOn ? WiFi.localIP().toString() : "";
-    String json = "{\"ap\":"; json += apOn?"true":"false";
-    json += ",\"sta\":";      json += staOn?"true":"false";
-    json += ",\"staIP\":\"";  json += staIP;
-    json += "\",\"ssid\":\""; json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
-    json += "\"}";
-    req->send(200,"application/json", json);
-  });
-
-  // Fase 8: simpan 1 slot preset via GET params (ringan, tanpa parse JSON body)
-  server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *req){
-    String slotName = req->arg("slot");
-    int i = slotIdx(slotName);
-    if(i < 0){ req->send(400,"application/json","{\"ok\":false}"); return; }
-    PresetSlot& p = pslots[i];
-    p.valid = true;
-    p.fx  = req->arg("fx").toInt();
-    p.pal = req->arg("pal").toInt();
-    p.r   = req->arg("r").toInt();
-    p.g   = req->arg("g").toInt();
-    p.b   = req->arg("b").toInt();
-    p.sx  = req->arg("sx").toInt();
-    p.ix  = req->arg("ix").toInt();
-    p.bri = req->arg("bri").toInt();
-serializeConfigToFS(); // persist ke cfg.json agar tahan power cycle
-req->send(200, "application/json", "{\"ok\":true}");
-  });
-
-  // Fase 8.4: baca semua slot (untuk load preset saat tab switch)
-  server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
-    DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
-    for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
-      s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
-      JsonArray c = s.createNestedArray("col"); c.add(pslots[i].r); c.add(pslots[i].g); c.add(pslots[i].b);
-      s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
-    String out; serializeJson(doc,out);
-    req->send(200,"application/json", out);
-  });
+apBehavior = AP_BEHAVIOR_ALWAYS;
+DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
+server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *req){
+req->send(200,"text/html",renderPage(MIZUMA_HOME_HTML,"beranda")); });
+server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *req){
+req->send(200,"text/html",renderPage(MIZUMA_LED_HTML,"lampu")); });
+server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *req){
+req->send(200,"text/html",renderPage(MIZUMA_SETTINGS_HTML,"pengaturan")); });
+server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *req){
+req->send(200,"text/html",renderPlaceholder("Servis","&#128736;","servis")); });
+server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *req){
+req->send(200,"text/html",renderPlaceholder("Keamanan & GPS","&#128274;","keamanan")); });
+server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *req){
+req->send_P(200,"text/html", MIZUMA_HEADER_HTML); });
+server.on("/mizuma/frag/script", HTTP_GET, [](AsyncWebServerRequest *req){
+req->send_P(200,"text/javascript", MIZUMA_HEADER_SCRIPT); });
+server.on("/mizuma/frag/nav", HTTP_GET, [](AsyncWebServerRequest *req){
+req->send_P(200,"text/html", MIZUMA_BOTTOMNAV_HTML); });
+server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *req){
+bool apOn  = (WiFi.softAPgetStationNum() > 0);
+bool staOn = (WiFi.status() == WL_CONNECTED);
+String staIP = staOn ? WiFi.localIP().toString() : "";
+String json = "{\"ap\":"; json += apOn?"true":"false";
+json += ",\"sta\":";      json += staOn?"true":"false";
+json += ",\"staIP\":\"";  json += staIP;
+json += "\",\"ssid\":\""; json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
+json += "\"}";
+req->send(200, "application/json", json);
+});
+server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *req){
+String slotName = req->arg("slot");
+int i = slotIdx(slotName);
+if(i < 0){ req->send(400,"application/json","{\"ok\":false}"); return; }
+PresetSlot& p = pslots[i];
+p.valid = true;
+p.fx  = req->arg("fx").toInt();
+p.pal = req->arg("pal").toInt();
+p.r   = req->arg("r").toInt();
+p.g   = req->arg("g").toInt();
+p.b   = req->arg("b").toInt();
+p.sx  = req->arg("sx").toInt();
+p.ix  = req->arg("ix").toInt();
+p.bri = req->arg("bri").toInt();
+serializeConfigToFS();
+req->send(200,"application/json","{\"ok\":true}");
+});
+server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
+DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
+for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
+s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
+JsonArray c = s.createNestedArray("col"); c.add(pslots[i].r); c.add(pslots[i].g); c.add(pslots[i].b);
+s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
+String out; serializeJson(doc,out);
+req->send(200,"application/json", out);
+});
 }
-
 void loop() override {
-  if(bootDone) return;
-  unsigned long m = millis();
-  if(bootStage==0 && m>2500){ applySlotToSeg(0,0); applySlotToSeg(1,1); bootStage=1; bootT=m; }
-  else if(bootStage==1 && m-bootT>=welcomeDur){ applySlotToSeg(2,0); applySlotToSeg(3,1); bootDone=true; }
+if(bootDone) return;
+unsigned long m = millis();
+if(bootStage==0 && m>1200){ applySlotToSeg(0,0); applySlotToSeg(1,1); bootStage=1; bootT=m; }
+else if(bootStage==1 && m-bootT>=welcomeDur){ applySlotToSeg(2,0); applySlotToSeg(3,1); bootDone=true; }
 }
-
 void addToConfig(JsonObject& root) override {
-  JsonObject top = root.createNestedObject("Mizuma");
-  JsonObject vehicle = top.createNestedObject("vehicle");
-  vehicle["name"]=vehicleName; vehicle["brand"]=vehicleBrand;
-  vehicle["year"]=vehicleYear; vehicle["plate"]=vehiclePlate;
-  JsonObject rem = top.createNestedObject("reminder");
-  rem["oliMesin_last"]=oliMesin.lastServiceEpoch; rem["oliMesin_int"]=oliMesin.intervalDays;
-  rem["oliRem_last"]=oliRem.lastServiceEpoch;     rem["oliRem_int"]=oliRem.intervalDays;
-  rem["oliGardan_last"]=oliGardan.lastServiceEpoch; rem["oliGardan_int"]=oliGardan.intervalDays;
-  rem["cvt_last"]=cvt.lastServiceEpoch;           rem["cvt_int"]=cvt.intervalDays;
-  rem["filter_last"]=filter.lastServiceEpoch;     rem["filter_int"]=filter.intervalDays;
-  JsonObject pm = top.createNestedObject("presets");
-  for(int i=0;i<10;i++){ JsonObject s = pm.createNestedObject(slotKey(i));
-    s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
-    s["r"]=pslots[i].r; s["g"]=pslots[i].g; s["b"]=pslots[i].b;
-    s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
-  top["welcomeDur"] = welcomeDur;
+JsonObject top = root.createNestedObject("Mizuma");
+JsonObject vehicle = top.createNestedObject("vehicle");
+vehicle["name"]=vehicleName; vehicle["brand"]=vehicleBrand;
+vehicle["year"]=vehicleYear; vehicle["plate"]=vehiclePlate;
+JsonObject rem = top.createNestedObject("reminder");
+rem["oliMesin_last"]=oliMesin.lastServiceEpoch; rem["oliMesin_int"]=oliMesin.intervalDays;
+rem["oliRem_last"]=oliRem.lastServiceEpoch;     rem["oliRem_int"]=oliRem.intervalDays;
+rem["oliGardan_last"]=oliGardan.lastServiceEpoch; rem["oliGardan_int"]=oliGardan.intervalDays;
+rem["cvt_last"]=cvt.lastServiceEpoch;           rem["cvt_int"]=cvt.intervalDays;
+rem["filter_last"]=filter.lastServiceEpoch;     rem["filter_int"]=filter.intervalDays;
+JsonObject pm = top.createNestedObject("presets");
+for(int i=0;i<10;i++){ JsonObject s = pm.createNestedObject(slotKey(i));
+s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
+s["r"]=pslots[i].r; s["g"]=pslots[i].g; s["b"]=pslots[i].b;
+s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
+top["welcomeDur"] = welcomeDur;
 }
-
 bool readFromConfig(JsonObject& root) override {
-  JsonObject top = root["Mizuma"]; if(top.isNull()) return false;
-  JsonObject vehicle = top["vehicle"];
-  vehicleName=vehicle["name"]|""; vehicleBrand=vehicle["brand"]|"";
-  vehicleYear=vehicle["year"]|0;  vehiclePlate=vehicle["plate"]|"";
-  JsonObject rem = top["reminder"];
-  oliMesin.lastServiceEpoch=rem["oliMesin_last"]|0; oliMesin.intervalDays=rem["oliMesin_int"]|0;
-  oliRem.lastServiceEpoch=rem["oliRem_last"]|0;     oliRem.intervalDays=rem["oliRem_int"]|0;
-  oliGardan.lastServiceEpoch=rem["oliGardan_last"]|0; oliGardan.intervalDays=rem["oliGardan_int"]|0;
-  cvt.lastServiceEpoch=rem["cvt_last"]|0; cvt.intervalDays=rem["cvt_int"]|0;
-  filter.lastServiceEpoch=rem["filter_last"]|0; filter.intervalDays=rem["filter_int"]|0;
-  JsonObject pm = top["presets"];
-  if(!pm.isNull()){ for(int i=0;i<10;i++){ JsonObject s = pm[slotKey(i)]; if(s.isNull()) continue;
-    pslots[i].valid=s["valid"]|false; pslots[i].fx=s["fx"]|0; pslots[i].pal=s["pal"]|0;
-    pslots[i].r=s["r"]|255; pslots[i].g=s["g"]|255; pslots[i].b=s["b"]|255;
-    pslots[i].sx=s["sx"]|128; pslots[i].ix=s["ix"]|128; pslots[i].bri=s["bri"]|180; }}
-  welcomeDur = top["welcomeDur"] | 7000;
-  return true;
+JsonObject top = root["Mizuma"]; if(top.isNull()) return false;
+JsonObject vehicle = top["vehicle"];
+vehicleName=vehicle["name"]|""; vehicleBrand=vehicle["brand"]|"";
+vehicleYear=vehicle["year"]|0;  vehiclePlate=vehicle["plate"]|"";
+JsonObject rem = top["reminder"];
+oliMesin.lastServiceEpoch=rem["oliMesin_last"]|0; oliMesin.intervalDays=rem["oliMesin_int"]|0;
+oliRem.lastServiceEpoch=rem["oliRem_last"]|0;     oliRem.intervalDays=rem["oliRem_int"]|0;
+oliGardan.lastServiceEpoch=rem["oliGardan_last"]|0; oliGardan.intervalDays=rem["oliGardan_int"]|0;
+cvt.lastServiceEpoch=rem["cvt_last"]|0; cvt.intervalDays=rem["cvt_int"]|0;
+filter.lastServiceEpoch=rem["filter_last"]|0; filter.intervalDays=rem["filter_int"]|0;
+JsonObject pm = top["presets"];
+if(!pm.isNull()){ for(int i=0;i<10;i++){ JsonObject s = pm[slotKey(i)]; if(s.isNull()) continue;
+pslots[i].valid=s["valid"]|false; pslots[i].fx=s["fx"]|0; pslots[i].pal=s["pal"]|0;
+pslots[i].r=s["r"]|255; pslots[i].g=s["g"]|255; pslots[i].b=s["b"]|255;
+pslots[i].sx=s["sx"]|128; pslots[i].ix=s["ix"]|128; pslots[i].bri=s["bri"]|180; }}
+welcomeDur = top["welcomeDur"] | 7000;
+return true;
 }
-
 uint16_t getId() override { return USERMOD_ID_MIZUMA_SYSTEM; }
 };
 static MizumaSmartSystem mizuma_smartsystem;
