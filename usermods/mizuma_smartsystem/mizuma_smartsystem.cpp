@@ -649,9 +649,10 @@ function markDirty(){dirty=true;document.getElementById('fabSave').classList.add
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(function(){t.style.opacity='0';},1800);}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
+const LIVE_CO=[2,0,1]; // kalibrasi urutan channel live: r=byte+2, g=byte+0, b=byte+1
 function drawBar(cv,arr,off,count){const ctx=cv.getContext('2d');
 for(let i=0;i<count;i++){const k=(off+i)*3;
-if(arr&&arr.length>=k+3){ctx.fillStyle='rgb('+arr[k]+','+arr[k+1]+','+arr[k+2]+')';}else{ctx.fillStyle='#000';}
+if(arr&&arr.length>=k+3){ctx.fillStyle='rgb('+arr[k+LIVE_CO[0]]+','+arr[k+LIVE_CO[1]]+','+arr[k+LIVE_CO[2]]+')';}else{ctx.fillStyle='#000';}
 ctx.fillRect(i,0,1,1);}}
 /* ===== LIVE PEEK via WebSocket: 1 koneksi, tahan binary & JSON, throttle 30fps ===== */
 let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
@@ -814,7 +815,8 @@ if(/breathe|fade|pulse|sunrise/.test(s))return'anim-breathe';
 if(/sparkle|glitter|twinkle|fire|ripple|meteor|sinelon|bpm|dissolve/.test(s))return'anim-sparkle';
 return'anim-move';}
 function lookup(n){const t=n.toLowerCase();let i=allFx.findIndex(function(x){return x.toLowerCase()===t;});if(i>=0)return i;return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
-function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return e.name.indexOf('2D')!==0;});
+const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
+function listForTab(){if(activeTab==='riding')return allFx.map((n,i)=>({name:n,idx:i})).filter(e=>e.name.indexOf('2D')!==0&&FX_BLACKLIST.indexOf(e.name.toLowerCase())<0);
 if(activeTab==='welcoming')return WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});
 return RESTRICTED_FX.map(lookup).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
 function parseFxData(meta){const parts=(meta||'').split(';');const labels=(parts[0]||'').split(',');
