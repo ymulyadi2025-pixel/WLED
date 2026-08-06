@@ -653,14 +653,28 @@ function drawBar(cv,arr,off,count){const ctx=cv.getContext('2d');
 for(let i=0;i<count;i++){const k=(off+i)*3;
 if(arr&&arr.length>=k+3){ctx.fillStyle='rgb('+arr[k]+','+arr[k+1]+','+arr[k+2]+')';}else{ctx.fillStyle='#000';}
 ctx.fillRect(i,0,1,1);}}
-let liveOk=true,liveFails=0;
-function pollLive(){if(!liveOk)return;
-fetch('/json/live').then(r=>{if(!r.ok)throw 0;return r.json();}).then(j=>{
-let a=j.leds;if(!a)throw 0;
-if(Array.isArray(a[0])){const f=[];for(let i=0;i<a.length;i++){f.push(a[i][0],a[i][1],a[i][2]);}a=f;}
-liveFails=0;drawBar(pvR,a,0,48);drawBar(pvL,a,48,48);
-}).catch(()=>{liveFails++;if(liveFails>4)liveOk=false;});}
-setInterval(pollLive,120);pollLive();
+let liveOk=false,liveFails=0;
+let mzWS=null,mzWSRetry=null;
+function mzConnectLive(){
+  try{ mzWS=new WebSocket('ws://'+window.location.host+'/ws'); }catch(e){ return; }
+  mzWS.onopen=()=>{
+    mzWS.send(JSON.stringify({lv:true}));
+    if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}
+  };
+  mzWS.onmessage=(evt)=>{
+    let j; try{ j=JSON.parse(evt.data); }catch(e){ return; }
+    let a=j.leds; if(!a) return;
+    if(Array.isArray(a[0])){const f=[];for(let i=0;i<a.length;i++){f.push(a[i][0],a[i][1],a[i][2]);}a=f;}
+    else if(typeof a[0]==='string'){const f=[];for(let i=0;i<a.length;i++){const n=parseInt(a[i],16);f.push((n>>16)&255,(n>>8)&255,n&255);}a=f;}
+    liveOk=true; liveFails=0;
+    drawBar(pvR,a,0,48); drawBar(pvL,a,48,48);
+  };
+  mzWS.onclose=()=>{ liveOk=false; mzWSRetry=setTimeout(mzConnectLive,2000); };
+  mzWS.onerror=()=>{ try{mzWS.close();}catch(e){} };
+}
+mzConnectLive();
+setInterval(()=>{ if(mzWS && mzWS.readyState===1) mzWS.send(JSON.stringify({lv:true})); }, 3000);
+window.addEventListener('beforeunload',()=>{ if(mzWS) mzWS.close(); });
 /* state segmen utk simulator */
 let simSegs=[{fx:0,pal:0,sx:128,ix:128,col:[[255,165,0]]},{fx:0,pal:0,sx:128,ix:128,col:[[255,165,0]]}];
 setInterval(()=>{fetch('/json/state').then(r=>r.json()).then(j=>{
@@ -968,61 +982,64 @@ return renderPage(html.c_str(), activeKey);
 }
 public:
 void setup() override {
-apBehavior = AP_BEHAVIOR_ALWAYS;
-DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
-server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_HOME_HTML, "beranda")); });
-server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_LED_HTML, "lampu")); });
-server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_SETTINGS_HTML, "pengaturan")); });
-server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Servis", "&#128736;", "servis")); });
-server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "&#128274;", "keamanan")); });
-server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
-server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *request){
-request->send_P(200, "text/html", MIZUMA_HEADER_HTML);
-});
-server.on("/mizuma/frag/script", HTTP_GET, [](AsyncWebServerRequest *request){
-request->send_P(200, "text/javascript", MIZUMA_HEADER_SCRIPT);
-});
-server.on("/mizuma/frag/nav", HTTP_GET, [](AsyncWebServerRequest *request){
-request->send_P(200, "text/html", MIZUMA_BOTTOMNAV_HTML);
-});
-bool apOn  = (WiFi.softAPgetStationNum() > 0);
-bool staOn = (WiFi.status() == WL_CONNECTED);
-String staIP = staOn ? WiFi.localIP().toString() : "";
-String json = "{\"ap\":"; json += apOn ? "true" : "false";
-json += ",\"sta\":"; json += staOn ? "true" : "false";
-json += ",\"staIP\":\""; json += staIP;
-json += "\",\"ssid\":\""; json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
-json += "\"}";
-request->send(200, "application/json", json);
-});
-// FASE 8: simpan 1 slot preset (dipanggil tombol FAB di UI via GET params)
-server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *request){
-String slotName = request->arg("slot");
-int i = slotIdx(slotName);
-if(i < 0){ request->send(400, "application/json", "{\"ok\":false}"); return; }
-PresetSlot &p = pslots[i];
-p.valid = true;
-p.fx  = request->arg("fx").toInt();
-p.pal = request->arg("pal").toInt();
-p.r   = request->arg("r").toInt();
-p.g   = request->arg("g").toInt();
-p.b   = request->arg("b").toInt();
-p.sx  = request->arg("sx").toInt();
-p.ix  = request->arg("ix").toInt();
-p.bri = request->arg("bri").toInt();
-// Data tersimpan di RAM. WLED otomatis menulis ke cfg.json saat reboot/shutdown.
-request->send(200, "application/json", "{\"ok\":true}");
-});
-// FASE 8: baca semua slot (dipanggil UI saat pindah tab)
-server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *request){
-DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
-for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
-s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
-JsonArray c = s.createNestedArray("col"); c.add(pslots[i].r); c.add(pslots[i].g); c.add(pslots[i].b);
-s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
-String out; serializeJson(doc, out);
-request->send(200, "application/json", out);
-});
+  apBehavior = AP_BEHAVIOR_ALWAYS;
+  DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
+
+  server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_HOME_HTML, "beranda")); });
+  server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_LED_HTML, "lampu")); });
+  server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPage(MIZUMA_SETTINGS_HTML, "pengaturan")); });
+  server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Servis", "&#128736;", "servis")); });
+  server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *request){ request->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "&#128274;", "keamanan")); });
+
+  server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/html", MIZUMA_HEADER_HTML);
+  });
+  server.on("/mizuma/frag/script", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/javascript", MIZUMA_HEADER_SCRIPT);
+  });
+  server.on("/mizuma/frag/nav", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send_P(200, "text/html", MIZUMA_BOTTOMNAV_HTML);
+  });
+
+  server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *request){
+    bool apOn  = (WiFi.softAPgetStationNum() > 0);
+    bool staOn = (WiFi.status() == WL_CONNECTED);
+    String staIP = staOn ? WiFi.localIP().toString() : "";
+    String json = "{\"ap\":"; json += apOn ? "true" : "false";
+    json += ",\"sta\":"; json += staOn ? "true" : "false";
+    json += ",\"staIP\":\""; json += staIP;
+    json += "\",\"ssid\":\""; json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
+    json += "\"}";
+    request->send(200, "application/json", json);
+  });
+
+  // FASE 8: simpan 1 slot preset (dipanggil tombol FAB di UI via GET params)
+  server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *request){
+    String slotName = request->arg("slot");
+    int i = slotIdx(slotName);
+    if(i < 0){ request->send(400, "application/json", "{\"ok\":false}"); return; }
+    PresetSlot &p = pslots[i];
+    p.valid = true;
+    p.fx  = request->arg("fx").toInt();
+    p.pal = request->arg("pal").toInt();
+    p.r   = request->arg("r").toInt();
+    p.g   = request->arg("g").toInt();
+    p.b   = request->arg("b").toInt();
+    p.sx  = request->arg("sx").toInt();
+    p.ix  = request->arg("ix").toInt();
+    p.bri = request->arg("bri").toInt();
+    request->send(200, "application/json", "{\"ok\":true}");
+  });
+
+  server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *request){
+    DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
+    for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
+      s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
+      JsonArray c = s.createNestedArray("col"); c.add(pslots[i].r); c.add(pslots[i].g); c.add(pslots[i].b);
+      s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
+    String out; serializeJson(doc, out);
+    request->send(200, "application/json", out);
+  });
 }
 void loop() override {
 // FASE 9: boot -> Welcoming (kedua sisi), lalu Riding setelah durasi
