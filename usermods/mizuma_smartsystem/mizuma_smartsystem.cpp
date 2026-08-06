@@ -4,6 +4,7 @@
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
+extern void doSerializeConfig();
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 // Blok 1 — Komponen Bersama (Native-feel FINAL: tanpa getar, transisi 110ms, nav "Dashboard")
