@@ -441,7 +441,7 @@ body{display:flex;flex-direction:column;}
 .live-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .live-btn.on{color:var(--ac);border-color:var(--ac);background:var(--ac-dim);animation:livePulse 2s infinite;}
 @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(245,165,36,.35);}70%{box-shadow:0 0 0 6px rgba(245,165,36,0);}100%{box-shadow:0 0 0 0 rgba(245,165,36,0);}}
-.info-row3{display:grid;grid-template-columns:1fr minmax(110px,42%) 1fr;gap:10px;align-items:center;padding:4px 12px 10px;background:var(--bg);}
+.info-row3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr) minmax(0,1fr);gap:8px;align-items:center;padding:4px 12px 10px;background:var(--bg);border-bottom:1px solid var(--bd);}
 .info-row3 .i3{font-size:9.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .i3.left{text-align:left;} .i3.right{text-align:right;}
 .i3.mid{display:flex;align-items:center;gap:6px;}
@@ -485,7 +485,10 @@ body{display:flex;flex-direction:column;}
 .ctl-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
 .ctl-row label{width:64px;font-size:11px;font-weight:700;color:var(--tx2);}
 .ctl-row .val{width:34px;font-size:11px;color:var(--tx2);text-align:right;}
-.palette-list{display:flex;flex-direction:column;gap:8px;}
+.palette-list{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pal-row{padding:8px 8px 12px;}
+.pal-row .pnum{display:none;}
+.sec-title{font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;font-weight:700;}
 .pal-row{position:relative;display:flex;align-items:center;gap:8px;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:10px 12px 14px;overflow:hidden;}
 .pal-row .pradio{width:14px;height:14px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;}
 .pal-row.active{border-color:var(--ac);}
@@ -572,8 +575,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 <div class="right-col">
 <div class="pane-head" id="headWarna" style="display:none;">
 <div class="toggle-pair" id="colorToggle">
-<button data-ct="custom" class="active">Custom</button>
 <button data-ct="template">Template</button>
+<button data-ct="custom" class="active">Custom</button>
 </div>
 <div class="mode-row">Mode aktif: <b id="modeAktif">Custom &mdash; Slot 1</b></div>
 <input class="search-box" id="searchBox" placeholder="Cari palette..." style="display:none;">
@@ -602,6 +605,8 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;bac
 </div>
 </div>
 <div class="ctl-row"><label>Saturation</label><input type="range" min="0" max="100" value="100" id="satSlider"><span class="val" id="satVal">100</span></div>
+<div class="sec-title">Warna Custom</div>
+<div class="palette-list" id="customPalGrid"></div>
 </div>
 </div>
 <div id="ctTemplate" style="display:none;">
@@ -670,10 +675,19 @@ document.addEventListener('input',function(e){if(e.target.matches&&e.target.matc
 const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
 function drawLive(flat){
 const cR=pvR.getContext('2d'),cL=pvL.getContext('2d');
-for(let i=0;i<48;i++){const k=i*3,k2=(48+i)*3;
+for(let i=0;i<48;i++){
+const k=(segR.start+i)*3,k2=(segL.start+i)*3;
 cR.fillStyle=(flat.length>=k+3)?'rgb('+flat[k+LIVE_CO[0]]+','+flat[k+LIVE_CO[1]]+','+flat[k+LIVE_CO[2]]+')':'#000';
 cL.fillStyle=(flat.length>=k2+3)?'rgb('+flat[k2+LIVE_CO[0]]+','+flat[k2+LIVE_CO[1]]+','+flat[k2+LIVE_CO[2]]+')':'#000';
 cR.fillRect(i,0,1,1);cL.fillRect(i,0,1,1);}}
+let segR={start:0,stop:48},segL={start:48,stop:96};
+fetch('/json/state').then(function(r){return r.json();}).then(function(j){
+if(j.seg&&j.seg.length>0){
+segR={start:j.seg[0].start||0,stop:j.seg[0].stop||48};
+if(j.seg.length>1)segL={start:j.seg[1].start||48,stop:j.seg[1].stop||96};
+if(segL.start<segR.stop)segR.stop=segL.start;
+}
+}).catch(function(){});
 let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
 function mzConnectLive(){
 if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}
@@ -789,6 +803,22 @@ const grad=PAL_GRADS[e.n]||seedGrad(e.i);
 row.innerHTML='<span class="pradio"></span><span class="pnum">'+(seq+1)+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
 row.addEventListener('click',function(){cur.palName=e.n;document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});row.classList.add('active');sendPalette(e.i);updateModeAktif();});
 paletteGrid.appendChild(row);});}
+const paletteGrid=document.getElementById('paletteGrid');
+const customPalGrid=document.getElementById('customPalGrid');
+function makePalRow(e,grid,numbered,seq){
+const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
+const grad=PAL_GRADS[e.n]||seedGrad(e.i);
+row.innerHTML=(numbered?'<span class="pnum" style="display:block;font-size:9px;color:var(--tx3);">'+(seq+1)+'</span>':'')+'<span class="pradio"></span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
+row.addEventListener('click',function(){cur.palName=e.n;
+document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});
+row.classList.add('active');sendPalette(e.i);updateModeAktif();});
+grid.appendChild(row);}
+function renderPaletteRows(q){paletteGrid.innerHTML='';customPalGrid.innerHTML='';
+let t=0;
+palList.forEach(function(e){
+if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}
+if(q&&e.n.toLowerCase().indexOf(q)<0)return;
+makePalRow(e,paletteGrid,true,t);t++;});}
 fetch('/json/pal').then(function(r){return r.json();}).then(function(names){palNamesRaw=names;
 const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});
 arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');}).catch(function(){});
