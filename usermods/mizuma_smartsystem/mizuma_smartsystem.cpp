@@ -1059,7 +1059,7 @@ void setup() override {
     p.sx  = req->arg("sx").toInt();
     p.ix  = req->arg("ix").toInt();
     p.bri = req->arg("bri").toInt();
-saveSettings(); // persist ke cfg.json agar tahan power cycle
+doSerializeConfig(); // persist ke cfg.json agar tahan power cycle
 req->send(200, "application/json", "{\"ok\":true}");
   });
 
