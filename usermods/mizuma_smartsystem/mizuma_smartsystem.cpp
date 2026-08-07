@@ -1,4 +1,4 @@
-// ======================================================================================================================================
+// =====================================================================================================================================
 // MIZUMA SMARTSYSTEM — FINAL ASSEMBLY — PART 1/2
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
