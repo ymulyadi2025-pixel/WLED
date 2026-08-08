@@ -648,7 +648,7 @@ let dirty=false,pendingTab=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
 let cur={fx:0,pal:0,col:null,bri:180,params:{},palName:''};
 let wHue=0,wSat=1,liveEnabled=true;
-let segColors=[[255,165,0],[0,0,0],[255,0,0]],colorTarget=0,slotCount=3;
+let segColors=[[255,165,0]],colorTarget=0,slotCount=1;
 const LIVE_CO=[2,0,1];
 const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
@@ -767,7 +767,13 @@ document.getElementById('kelvinVal').textContent=e.target.value;
 const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 
 /* ===== State Control ===== */
-function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}const segs=segIds().map(function(id){return{id:id,col:[[r,g,b]]};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();}
+function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}
+segColors[colorTarget]=[r,g,b];
+const cols=[];for(let i=0;i<3;i++){if(segColors[i])cols.push([segColors[i][0],segColors[i][1],segColors[i][2]]);}
+const segs=segIds().map(function(id){return{id:id,col:cols};});
+post({seg:segs});cur.col=[r,g,b];
+if(!silent)markDirty();
+renderColorRow();}
 function sendColorSilent(r,g,b){const segs=segIds().map(function(id){return{id:id,col:[[r,g,b]]};});if(segs.length)post({seg:segs});cur.col=[r,g,b];}
 function sendPalette(i){if(activeSide===''){toast('Pilih sisi dulu');return;}const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();renderColorRow();}
 function sendEffect(i){if(activeSide===''){toast('Pilih sisi dulu');return;}const segs=segIds().map(function(id){const o={id:id,fx:i};if(isRestrictedTab())o.pal=0;return o;});post({seg:segs});cur.fx=i;if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();}
@@ -810,12 +816,11 @@ r.innerHTML='<span style="position:absolute;inset:5px;border-radius:50%;backgrou
 r.addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});box.appendChild(r);})();
 
 /* ===== Sync Custom ===== */
-function setColor(r,g,b,silent){
-segColors[colorTarget]=[r,g,b];
+function setColor(r,g,b,silent){const act=document.querySelector('.slot.active');if(act)act.style.borderColor='rgb('+r+','+g+','+b+')';
 const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];
 document.getElementById('satSlider').value=Math.round(wSat*100);document.getElementById('satVal').textContent=Math.round(wSat*100);paintRange(document.getElementById('satSlider'));
 paintWheel(wheel,wHue,wSat);
-sendColor(r,g,b,silent);renderColorRow();updateModeAktif();}
+sendColor(r,g,b,silent);updateModeAktif();}
 
 /* ===== Restricted ===== */
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';
