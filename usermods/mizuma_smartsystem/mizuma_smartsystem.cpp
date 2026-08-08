@@ -786,9 +786,9 @@ function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
 function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0,c2=segColors[2]||c1;
 if(name.indexOf('* Color 1')===0)return gstr(c0);
-if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')';
-if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+','+gstr(c2)+')';
-if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';
+if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c1)+','+gstr(c0)+')';
+if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';
+if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c2)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c0)+' 66% 100%)';
 return null;}
 function updateStarStrips(){document.querySelectorAll('#customPalGrid .pal-row').forEach(function(row){
 const g2=starGrad(row.dataset.palname||'');if(g2)row.querySelector('.pstrip').style.background=g2;});}
@@ -937,6 +937,7 @@ el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+
 /* ===== Save ===== */
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
+const currentBri = document.getElementById('brightSlider').value; // Ambil langsung dari UI
 const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:segColors[0][0],g:segColors[0][1],b:segColors[0][2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
 sides.forEach(function(sd){fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString()).catch(function(){});
 localStorage.setItem('mzts_'+activeTab+'_'+sd,String(Date.now()));});
@@ -1020,6 +1021,8 @@ activeTab=tabForFx(allFx[cur.fx]||'');
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
 refreshColorModeVisibility();buildEffects();syncUiToState();refreshSavedInfo();renderColorRow();
 document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});
+// Delay applySaved agar tidak tabrakan dengan live preview saat load awal
+setTimeout(function(){ applySaved(activeTab); }, 400);
 });}
 </script>
 <script>
@@ -1155,7 +1158,7 @@ req->send(200,"application/json", out);
 void loop() override {
 if(bootDone) return;
 unsigned long m = millis();
-if(bootStage==0 && m>1200){ applySlotToSeg(0,0); applySlotToSeg(1,1); bootStage=1; bootT=m; }
+if(bootStage==0 && m>800){ applySlotToSeg(0,0); applySlotToSeg(1,1); bootStage=1; bootT=m; }
 else if(bootStage==1 && m-bootT>=welcomeDur){ applySlotToSeg(2,0); applySlotToSeg(3,1); bootDone=true; }
 }
 void addToConfig(JsonObject& root) override {
