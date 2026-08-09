@@ -417,7 +417,7 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 
 // ================= AKHIR PART 1/2 — balas "lanjut" untuk PART 2/2 (Blok 5 + Blok 6) =================
 // ================= BLOK 5 : LED =====================================================================
-// ================= BLOK 5 : LED (FINAL CLEAN) =================
+// ================= BLOK 5 : LED (TERPERBAIKI BUGS 1 & 2) =================
 const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
@@ -476,7 +476,6 @@ body{display:flex;flex-direction:column;}
 .fx-head-row{display:flex;align-items:center;gap:8px;}
 .fx-chip{font-size:10.5px;font-weight:700;color:var(--ac);background:var(--ac-dim);padding:4px 10px;border-radius:14px;white-space:nowrap;max-width:42%;overflow:hidden;text-overflow:ellipsis;}
 .fx-search{flex:1;min-width:0;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-size:11px;}
-/* Custom Grid Layout */
 .custom-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:10px;align-items:start;margin-bottom:10px;}
 .cg-wheel canvas{width:100%;height:auto;border-radius:50%;touch-action:none;display:block;}
 .wled-slider{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
@@ -488,7 +487,6 @@ body{display:flex;flex-direction:column;}
 .crow{display:flex;gap:8px;flex-wrap:wrap;}
 .crow-btn{width:42px;height:42px;border-radius:50%;border:2px solid var(--bd2);color:#fff;font-size:13px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.7);}
 .crow-btn.active{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-dim);}
-/* Palette List */
 .palette-list{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
 .pal-row{position:relative;display:flex;align-items:center;gap:6px;background:var(--s1);border:1px solid var(--bd);border-radius:11px;padding:8px 6px 12px;overflow:hidden;}
 .pal-row .pradio{width:12px;height:12px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;}
@@ -498,7 +496,6 @@ body{display:flex;flex-direction:column;}
 .pal-row .pname{flex:1;text-align:center;font-size:11px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .pal-row .pstrip{position:absolute;left:0;right:0;bottom:0;height:4px;}
 .sec-title{font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;font-weight:700;}
-/* Effects */
 .fx-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
 @media(min-width:420px){.fx-grid{grid-template-columns:repeat(3,1fr);}}
 .fx-item{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:10px 8px;font-size:11px;color:var(--tx);}
@@ -509,12 +506,10 @@ body{display:flex;flex-direction:column;}
 .param-row input[type=range]{width:100%;}
 .param-label{display:flex;justify-content:space-between;font-size:11px;color:var(--tx2);margin-bottom:5px;}
 .foot-hint{font-size:11px;color:var(--tx3);text-align:center;padding:4px 0;}
-/* Restricted */
 .restricted-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
 .rswatch{aspect-ratio:1;border-radius:10px;border:3px solid transparent;}
 .rswatch.active{border-color:#fff;}
 .restricted-note{font-size:11px;color:var(--tx3);text-align:center;padding:10px 0 4px;}
-/* Misc */
 .saved-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd);font-size:12px;}
 .saved-row:last-child{border-bottom:none;}
 .saved-row .sk{flex:1;color:var(--tx);}
@@ -649,7 +644,7 @@ let dirty=false,pendingTab=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
 let cur={fx:0,pal:0,col:null,bri:180,params:{},palName:''};
 let wHue=0,wSat=1,liveEnabled=true;
-let segColors=[[255,165,0]],colorTarget=0,slotCount=1;
+let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0,slotCount=1;
 const LIVE_CO=[2,0,1];
 const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
@@ -767,16 +762,19 @@ document.getElementById('kelvinSlider').addEventListener('input',function(e){
 document.getElementById('kelvinVal').textContent=e.target.value;
 const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 
-/* ===== State Control ===== */
+/* ===== State Control (FIXED BUG 1 & 2) ===== */
 function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}
 segColors[colorTarget]=[r,g,b];
-// Pastikan selalu kirim 3 slot agar tidak reset ke 1 slot oleh WLED
 const cols = [
   segColors[0] || [255,165,0], 
   segColors[1] || [0,0,0], 
   segColors[2] || [0,0,0]
 ];
-const segs=segIds().map(function(id){return{id:id,col:cols};});
+// FIX BUG 1: Jika di mode Custom dan palette bukan palette '*', paksa WLED ke palette '*'
+if(currentCT==='custom'&&!isStarPal()){
+  cur.pal=0; cur.palName=palNamesRaw[0]||'* Color 1';
+}
+const segs=segIds().map(function(id){return{id:id,col:cols,pal:cur.pal};});
 post({seg:segs});cur.col=[r,g,b];
 if(!silent)markDirty();
 renderColorRow();}
@@ -792,11 +790,8 @@ function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
 function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0,c2=segColors[2]||c1;
 if(name.indexOf('* Color 1')===0)return gstr(c0);
-// FIX: Colors 1&2 seharusnya gradient c0 -> c1 (sesuai screenshot WLED asli)
 if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')'; 
-// FIX: Color Gradient seharusnya smooth c0 -> c1 -> c2
 if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';
-// FIX: Colors Only seharusnya blok tegas (hard stop), bukan gradient halus
 if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';
 return null;}
 function updateStarStrips(){document.querySelectorAll('#customPalGrid .pal-row').forEach(function(row){
@@ -870,6 +865,8 @@ if(got)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase(
 }).catch(function(){});}
 function makePalRow(e,grid,numbered,seq){
 const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
+// FIX BUG 1: Set dataset.palname agar updateStarStrips mengenali nama palette
+row.dataset.palname=e.n;
 const grad=palXGrad[e.i]||PAL_GRADS[e.n]||seedGrad(e.i);
 row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
 row.addEventListener('click',function(){cur.palName=e.n;
@@ -929,17 +926,6 @@ function loadFxData(cb){Promise.all([fetch('/json/eff').then(function(r){return 
 function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;
 if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;
 if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
-function syncUiToState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){
-if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));cur.bri=j.bri;}
-const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(!s)return;
-if(s.fx!=null)cur.fx=s.fx;
-if(s.pal!=null)cur.pal=s.pal;
-if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}
-captureParams(s);
-renderColorRow();renderParams(cur.fx);
-const name=allFx[cur.fx]||'';
-if(name){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===name);});}
-updateCtx();}).catch(function(){});}
 
 /* ===== Labels & Context ===== */
 function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua','':'Pilih sisi'}[activeSide];}
@@ -964,7 +950,6 @@ el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+
 /* ===== Save ===== */
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
-const currentBri = document.getElementById('brightSlider').value; // Ambil langsung dari UI
 const c0=segColors[0]||[255,255,255],c1=segColors[1]||[0,0,0],c2=segColors[2]||[0,0,0];
 const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
 sides.forEach(function(sd){fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString()).catch(function(){});
@@ -988,11 +973,70 @@ document.getElementById('mSave').addEventListener('click',function(){doSave();do
 document.getElementById('mDiscard').addEventListener('click',function(){clearDirty();document.getElementById('saveModal').style.display='none';if(pendingTab)switchTab(pendingTab);pendingTab=null;});
 document.getElementById('mCancel').addEventListener('click',function(){document.getElementById('saveModal').style.display='none';pendingTab=null;});
 
-/* ===== Navigation ===== */
-function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
-[['Kanan',0],['Kiri',1]].forEach(function(pr){const st=d[tab+pr[0]];
-if(st&&st.valid){const o={id:pr[1],fx:st.fx,pal:st.pal,sx:st.sx,ix:st.ix,col:Array.isArray(st.col[0])?st.col:[st.col]};post({seg:[o]});post({bri:st.bri});}});
-}).catch(function(){});}
+/* ===== Navigation (FIXED BUG 2) ===== */
+function applySaved(tab){
+fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
+const firstKey=activeSide==='kiri'?'Kiri':'Kanan';
+const st=d[tab+firstKey];
+
+// 1. Kirim state ke WLED hardware
+[['Kanan',0],['Kiri',1]].forEach(function(pr){
+  const sData=d[tab+pr[0]];
+  if(sData&&sData.valid){
+    const cols=Array.isArray(sData.col[0])?sData.col:[sData.col];
+    const o={id:pr[1],fx:sData.fx,pal:sData.pal,sx:sData.sx,ix:sData.ix,col:cols};
+    post({seg:[o]});
+    if(sData.bri)post({bri:sData.bri});
+  }
+});
+
+// 2. Update memori JavaScript HP & Tampilan UI dari preset yang baru dimuat
+if(st&&st.valid){
+  cur.fx=st.fx; cur.pal=st.pal;
+  if(st.bri!=null){
+    cur.bri=st.bri;
+    document.getElementById('brightSlider').value=st.bri;
+    document.getElementById('brightVal').textContent=st.bri;
+    paintRange(document.getElementById('brightSlider'));
+  }
+  if(st.col&&st.col.length){
+    const cols=Array.isArray(st.col[0])?st.col:[st.col];
+    for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}
+    slotCount=cols.length;
+  }
+  cur.params.sx=st.sx!=null?st.sx:128;
+  cur.params.ix=st.ix!=null?st.ix:128;
+  
+  const pName=palNamesRaw[st.pal]||'';
+  cur.palName=pName;
+  
+  if(!isRestrictedTab()){
+    currentCT=(pName.charAt(0)==='*')?'custom':'template';
+    document.querySelectorAll('#colorToggle button').forEach(function(b){
+      b.classList.toggle('active',b.dataset.ct===currentCT);
+    });
+    refreshColorModeVisibility();
+  }
+  
+  renderColorRow();
+  renderParams(cur.fx);
+  
+  const fxName=allFx[cur.fx]||'';
+  if(fxName){
+    document.querySelectorAll('.fx-item').forEach(function(el){
+      el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);
+    });
+  }
+  document.querySelectorAll('.pal-row').forEach(function(el){
+    el.classList.toggle('active',el.dataset.palname===pName);
+  });
+  
+  updateCtx();
+  refreshSavedInfo();
+}
+}).catch(function(){});
+}
+
 function refreshColorModeVisibility(){const r=isRestrictedTab();
 document.getElementById('colorToggle').style.display=r?'none':'flex';
 document.getElementById('ctCustom').style.display=(!r&&currentCT==='custom')?'block':'none';
@@ -1000,23 +1044,35 @@ document.getElementById('ctTemplate').style.display=(!r&&currentCT==='template')
 document.getElementById('ctRestricted').style.display=r?'block':'none';
 document.getElementById('searchBox').style.display=(!r&&currentCT==='template')?'block':'none';
 if(r)buildRestricted();updateModeAktif();}
+
 function tabForFx(name){
 if(!name)return 'welcoming';
 if(WELCOMING_NAMES.indexOf(name)>=0)return 'welcoming';
 if(RESTRICTED_FX.indexOf(name)>=0)return 'sein';
 return 'riding';}
-function switchTab(t){activeTab=t;
+
+function switchTab(t){
+activeTab=t;
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
 refreshColorModeVisibility();
-if(!allFx.length){loadFxData(function(ok){buildEffects();syncUiToState();});}else{buildEffects();syncUiToState();}
-applySaved(t);
-updateCtx();refreshSavedInfo();}
+if(!allFx.length){
+  loadFxData(function(ok){buildEffects();applySaved(t);});
+}else{
+  buildEffects();
+  applySaved(t); // Langsung muat preset tab tujuan (membersihkan state tab sebelumnya)
+}
+updateCtx();
+refreshSavedInfo();
+}
+
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;
 const t=e.target.dataset.tab;if(t===activeTab)return;
 if(dirty)showModal(t);else switchTab(t);});
+
 document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn||!btn.dataset.side)return;
 document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.remove('active');});
 btn.classList.add('active');activeSide=btn.dataset.side;updateCtx();refreshSavedInfo();});
+
 function setSub(k){activeSub=k;
 document.getElementById('headWarna').style.display=k==='warna'?'flex':'none';
 document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
@@ -1026,11 +1082,14 @@ document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';
 document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';
 document.getElementById('footEfek').style.display=k==='efek'?'block':'none';
 if(k==='simpan')renderSavedList();}
+
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;
 document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
+
 document.getElementById('colorToggle').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;
 document.querySelectorAll('#colorToggle button').forEach(function(b){b.classList.remove('active');});e.target.classList.add('active');
 currentCT=e.target.dataset.ct;refreshColorModeVisibility();});
+
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 
 /* ===== Init ===== */
@@ -1039,6 +1098,7 @@ renderSavedList();updateCtx();
 loadFxData(function(ok){
 if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}
 else initFromState();});
+
 function initFromState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){
 if(j.bri!=null)cur.bri=j.bri;
 const s=(j.seg&&j.seg[0])?j.seg[0]:null;
@@ -1047,9 +1107,8 @@ if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][
 }).catch(function(){}).then(function(){
 activeTab=tabForFx(allFx[cur.fx]||'');
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
-refreshColorModeVisibility();buildEffects();syncUiToState();refreshSavedInfo();renderColorRow();
+refreshColorModeVisibility();buildEffects();refreshSavedInfo();renderColorRow();
 document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});
-// Delay applySaved agar tidak tabrakan dengan live preview saat load awal
 setTimeout(function(){ applySaved(activeTab); }, 400);
 });}
 </script>
