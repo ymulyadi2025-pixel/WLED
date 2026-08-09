@@ -645,8 +645,7 @@ let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
 let cur={fx:0,pal:0,col:null,bri:180,params:{},palName:''};
 let wHue=0,wSat=1,liveEnabled=true;
 let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0,slotCount=1;
-// WLED peek biasanya sudah RGB. Kalau masih terbalik coba [0,1,2] atau [2,1,0]
-const LIVE_CO = [0,1,2];
+const LIVE_CO=[2,0,1];
 const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
 const RESTRICTED_COLORS={
@@ -676,15 +675,8 @@ function drawLive(flat){
 const cR=pvR.getContext('2d'),cL=pvL.getContext('2d');
 for(let i=0;i<48;i++){
 const k=(segR.start+i)*3,k2=(segL.start+i)*3;
-function px(flat, base){
-  if(flat.length < base + 3) return '#000';
-  const r = flat[base + LIVE_CO[0]] || 0;
-  const g = flat[base + LIVE_CO[1]] || 0;
-  const b = flat[base + LIVE_CO[2]] || 0;
-  return 'rgb('+r+','+g+','+b+')';
-}
-cR.fillStyle = px(flat, k);
-cL.fillStyle = px(flat, k2);
+cR.fillStyle=(flat.length>=k+3)?'rgb('+flat[k+LIVE_CO[0]]+','+flat[k+LIVE_CO[1]]+','+flat[k+LIVE_CO[2]]+')':'#000';
+cL.fillStyle=(flat.length>=k2+3)?'rgb('+flat[k2+LIVE_CO[0]]+','+flat[k2+LIVE_CO[1]]+','+flat[k2+LIVE_CO[2]]+')':'#000';
 cR.fillRect(i,0,1,1);cL.fillRect(i,0,1,1);}}
 let segR={start:0,stop:48},segL={start:48,stop:96};
 fetch('/json/state').then(function(r){return r.json();}).then(function(j){
@@ -767,12 +759,8 @@ if(k>=66)b=255;else if(k<=19)b=0;else b=138.52*Math.log(k-10)-305.04;
 const cl=function(v){return Math.max(0,Math.min(255,Math.round(v)));};
 return[cl(r),cl(g),cl(b)];}
 document.getElementById('kelvinSlider').addEventListener('input',function(e){
-  document.getElementById('kelvinVal').textContent = e.target.value;
-  // Hanya terapkan di mode Custom (mirip perilaku WLED color picker)
-  if(currentCT !== 'custom' && !isRestrictedTab()) return;
-  const rgb = kelvinToRgb(+e.target.value);
-  setColor(rgb[0], rgb[1], rgb[2], false);
-});
+document.getElementById('kelvinVal').textContent=e.target.value;
+const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 
 /* ===== State Control (FIXED BUG 1 & 2) ===== */
 function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}
@@ -792,28 +780,8 @@ if(!silent)markDirty();
 renderColorRow();}
 function sendColorSilent(r,g,b){const segs=segIds().map(function(id){return{id:id,col:[[r,g,b]]};});if(segs.length)post({seg:segs});cur.col=[r,g,b];}
 function sendPalette(i){if(activeSide===''){toast('Pilih sisi dulu');return;}const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();renderColorRow();}
-function sendEffect(i){
-  if(activeSide===''){toast('Pilih sisi dulu');return;}
-  // Reset parameter setiap ganti efek (perilaku mirip WLED original)
-  cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
-  const segs = segIds().map(function(id){
-    const o = {id:id, fx:i, sx:128, ix:128};
-    if(isRestrictedTab()) o.pal = 0;
-    return o;
-  });
-  post({seg:segs});
-  cur.fx = i;
-  if(isRestrictedTab()){
-    cur.pal = 0;
-    cur.palName = (palNamesRaw && palNamesRaw[0]) ? palNamesRaw[0] : '* Color 1';
-  }
-  markDirty();
-  renderColorRow();
-  renderParams(i);
-}
-  renderParams(i);   // pastikan slider langsung ikut default
-}
-const sendParamD=debounce(function(k,v){if(activeSide==='')return;const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},120);
+function sendEffect(i){if(activeSide===''){toast('Pilih sisi dulu');return;}const segs=segIds().map(function(id){const o={id:id,fx:i};if(isRestrictedTab())o.pal=0;return o;});post({seg:segs});cur.fx=i;if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();}
+const sendParamD=debounce(function(k,v){if(activeSide==='')return;const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
 const sendBriD=debounce(function(v){post({bri:v});cur.bri=v;markDirty();},80);
 
 /* ===== Fx/Bg/Cs Logic ===== */
@@ -859,29 +827,14 @@ paintWheel(wheel,wHue,wSat);
 sendColor(r,g,b,silent);updateModeAktif();}
 
 /* ===== Restricted ===== */
-function buildRestricted(){
-  const grid = document.getElementById('restrictedGrid');
-  if(!grid) return;
-  grid.innerHTML = '';
-  const colors = RESTRICTED_COLORS[activeTab] || RESTRICTED_COLORS.sein;
-  colors.forEach(function(c,i){
-    const d = document.createElement('div');
-    d.className = 'rswatch' + (i===0 ? ' active' : '');
-    d.style.background = '#' + c.h;
-    d.addEventListener('click', function(){
-      document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});
-      d.classList.add('active');
-      restrictedName = c.n;
-      const n = parseInt(c.h, 16);
-      sendColor((n>>16)&255, (n>>8)&255, n&255, false);
-      updateModeAktif();
-    });
-    grid.appendChild(d);
-  });
-  const wheelR = document.getElementById('wheelR');
-  if(wheelR) buildWheelImg(wheelR, HUE_RULES[activeTab]);
-  restrictedName = colors[0] ? colors[0].n : '';
-}
+function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';
+const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;
+colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;
+d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');
+restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});
+grid.appendChild(d);});
+buildWheelImg(document.getElementById('wheelR'),HUE_RULES[activeTab]);
+restrictedName=colors[0].n;}
 document.getElementById('wheelR').addEventListener('pointerdown',function(e){const cv=document.getElementById('wheelR');
 const rect=cv.getBoundingClientRect();const wr=cv.width/2;const x=(e.clientX-rect.left)*(cv.width/rect.width),y=(e.clientY-rect.top)*(cv.height/rect.height);
 const dx=x-wr,dy=y-wr;if(Math.sqrt(dx*dx+dy*dy)>wr)return;
@@ -902,32 +855,19 @@ return out;}
 function gradFromCols(cols){if(!cols||!cols.length)return null;if(cols.length===1)return 'rgb('+cols[0][0]+','+cols[0][1]+','+cols[0][2]+')';
 const parts=cols.map(function(c,i){return 'rgb('+c[0]+','+c[1]+','+c[2]+') '+Math.round(i*100/(cols.length-1))+'%';});
 return 'linear-gradient(90deg,'+parts.join(',')+')';}
-function loadPalX(){
-  fetch('/json/palx').then(function(r){ return r.ok ? r.json() : Promise.reject(); }).then(function(d){
-    let map = d;
-    if(map && map.p && typeof map.p === 'object') map = map.p;
-    if(!map || Array.isArray(map)) throw 0;
-    let got = 0;
-    Object.keys(map).forEach(function(k){
-      const v = map[k];
-      if(Array.isArray(v)){
-        const g = gradFromCols(normCols(v));
-        if(g){ palXGrad[parseInt(k,10) || k] = g; got++; }
-      }
-    });
-    // Paksa re-render meskipun hanya sebagian yang didapat
-    renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
-  }).catch(function(){
-    // Fallback terakhir: tetap render dengan PAL_GRADS / seed
-    renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
-  });
-}
+function loadPalX(){fetch('/json/palx').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){
+let map=d;if(map&&map.p&&typeof map.p==='object')map=map.p;
+if(!map||Array.isArray(map))throw 0;
+let got=0;
+Object.keys(map).forEach(function(k){const v=map[k];
+if(Array.isArray(v)){const g=gradFromCols(normCols(v));if(g){palXGrad[parseInt(k,10)||k]=g;got++;}}});
+if(got)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
+}).catch(function(){});}
 function makePalRow(e,grid,numbered,seq){
 const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
 // FIX BUG 1: Set dataset.palname agar updateStarStrips mengenali nama palette
 row.dataset.palname=e.n;
-// Prioritas: data asli WLED → hardcode nama → seed
-const grad = palXGrad[e.i] || palXGrad[String(e.i)] || PAL_GRADS[e.n] || seedGrad(e.i);
+const grad=palXGrad[e.i]||PAL_GRADS[e.n]||seedGrad(e.i);
 row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
 row.addEventListener('click',function(){cur.palName=e.n;
 document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});
@@ -947,29 +887,9 @@ document.getElementById('searchBox').addEventListener('input',function(e){render
 
 /* ===== Effects ===== */
 function lookup(n){const t=n.toLowerCase();let i=allFx.findIndex(function(x){return x.toLowerCase()===t;});if(i>=0)return i;return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
-function listForTab(){
-  const isBad = function(n){
-    const low = n.toLowerCase();
-    if(low.indexOf('2d') === 0) return true;
-    if(FX_BLACKLIST.indexOf(low) >= 0) return true;
-    // tambahan filter umum efek yang biasanya butuh matrix / audio / multi-segment khusus
-    if(low.indexOf('matrix') >= 0 || low.indexOf('audio') >= 0 || low.indexOf('fft') >= 0) return true;
-    return false;
-  };
-  if(activeTab === 'riding'){
-    return allFx.map(function(n,i){ return {name:n, idx:i}; })
-                .filter(function(e){ return !isBad(e.name); });
-  }
-  if(activeTab === 'welcoming'){
-    return WELCOMING_NAMES.map(lookup).filter(function(i){ return i >= 0; })
-                          .map(function(i){ return {name:allFx[i], idx:i}; })
-                          .filter(function(e){ return !isBad(e.name); });
-  }
-  // Sein / Rem / Hazard
-  return RESTRICTED_FX.map(lookup).filter(function(i){ return i >= 0; })
-                      .map(function(i){ return {name:allFx[i], idx:i}; })
-                      .filter(function(e){ return !isBad(e.name); });
-}
+function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return e.name.indexOf('2D')!==0&&FX_BLACKLIST.indexOf(e.name.toLowerCase())<0;});
+if(activeTab==='welcoming')return WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});
+return RESTRICTED_FX.map(lookup).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
 function parseFxData(meta){const parts=(meta||'').split(';');const labels=(parts[0]||'').split(',');
 const def=['Speed','Intensity','Custom 1','Custom 2','Custom 3'];const keys=['sx','ix','c1','c2','c3'];const sl=[];
 for(let i=0;i<5;i++){let l=labels[i];if(l===undefined||l==='')continue;if(l==='!')l=def[i];sl.push({key:keys[i],label:l});}
@@ -1055,85 +975,86 @@ document.getElementById('mCancel').addEventListener('click',function(){document.
 
 /* ===== Navigation (FIXED BUG 2) ===== */
 function applySaved(tab){
-  fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
-    const firstKey = activeSide === 'kiri' ? 'Kiri' : 'Kanan';
-    const st = d[tab + firstKey];
-    const restricted = (tab === 'sein' || tab === 'rem' || tab === 'hazard');
+fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
+const firstKey=activeSide==='kiri'?'Kiri':'Kanan';
+const st=d[tab+firstKey];
 
-    // 1. Kirim state ke hardware
-    [['Kanan',0],['Kiri',1]].forEach(function(pr){
-      const sData = d[tab + pr[0]];
-      if(sData && sData.valid){
-        const cols = Array.isArray(sData.col[0]) ? sData.col : [sData.col];
-        const o = {
-          id: pr[1],
-          fx: sData.fx,
-          pal: restricted ? 0 : sData.pal,
-          sx: (sData.sx != null) ? sData.sx : 128,
-          ix: (sData.ix != null) ? sData.ix : 128,
-          col: cols
-        };
-        post({seg:[o]});
-        if(sData.bri) post({bri:sData.bri});
-      }
-    });
+// 1. Kirim state ke WLED hardware
+[['Kanan',0],['Kiri',1]].forEach(function(pr){
+  const sData=d[tab+pr[0]];
+  if(sData&&sData.valid){
+    const cols=Array.isArray(sData.col[0])?sData.col:[sData.col];
+    const o={id:pr[1],fx:sData.fx,pal:sData.pal,sx:sData.sx,ix:sData.ix,col:cols};
+    post({seg:[o]});
+    if(sData.bri)post({bri:sData.bri});
+  }
+});
 
-    // 2. Update memori JS + UI
-    if(st && st.valid){
-      cur.fx = st.fx;
-      cur.pal = restricted ? 0 : st.pal;
-
-      if(st.bri != null){
-        cur.bri = st.bri;
-        const briEl = document.getElementById('brightSlider');
-        const briVal = document.getElementById('brightVal');
-        if(briEl){ briEl.value = st.bri; paintRange(briEl); }
-        if(briVal) briVal.textContent = st.bri;
-      }
-
-      if(st.col && st.col.length){
-        const cols = Array.isArray(st.col[0]) ? st.col : [st.col];
-        for(let i=0;i<3;i++){
-          if(cols[i]) segColors[i] = [cols[i][0], cols[i][1], cols[i][2]];
-        }
-        slotCount = cols.length;
-      }
-
-      // Full reset params lalu ambil dari preset
-      cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
-      if(st.sx != null) cur.params.sx = st.sx;
-      if(st.ix != null) cur.params.ix = st.ix;
-
-      const pName = restricted ? ((palNamesRaw && palNamesRaw[0]) || '* Color 1') : ((palNamesRaw && palNamesRaw[st.pal]) || '');
-      cur.palName = pName;
-
-      if(!restricted){
-        currentCT = (pName.charAt(0) === '*') ? 'custom' : 'template';
+// 2. Update memori JavaScript HP & Tampilan UI dari preset yang baru dimuat
+if(st&&st.valid){
+  cur.fx=st.fx; cur.pal=st.pal;
+  if(st.bri!=null){
+    cur.bri=st.bri;
+    document.getElementById('brightSlider').value=st.bri;
+    document.getElementById('brightVal').textContent=st.bri;
+    paintRange(document.getElementById('brightSlider'));
+  }
+  if(st.col&&st.col.length){
+    const cols=Array.isArray(st.col[0])?st.col:[st.col];
+    for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}
+    slotCount=cols.length;
+  }
+  cur.params.sx=st.sx!=null?st.sx:128;
+  cur.params.ix=st.ix!=null?st.ix:128;
+  
+  const pName=palNamesRaw[st.pal]||'';
+  cur.palName=pName;
+  
+        if(!isRestrictedTab()){
+        currentCT=(pName.charAt(0)==='*')?'custom':'template';
         document.querySelectorAll('#colorToggle button').forEach(function(b){
-          b.classList.toggle('active', b.dataset.ct === currentCT);
+          b.classList.toggle('active',b.dataset.ct===currentCT);
         });
         refreshColorModeVisibility();
+      } else {
+        // Sinkronkan restricted UI dengan warna yang dimuat
+        var loadedCol = [st.r, st.g, st.b];
+        var colors = RESTRICTED_COLORS[tab] || RESTRICTED_COLORS.sein;
+        var found = false;
+        for(var i=0; i<colors.length; i++){
+          var c = parseInt(colors[i].h, 16);
+          var r = (c>>16)&255, g=(c>>8)&255, b=c&255;
+          if(r===loadedCol[0] && g===loadedCol[1] && b===loadedCol[2]){
+            restrictedName = colors[i].n;
+            var swatches = document.querySelectorAll('.rswatch');
+            swatches.forEach(function(el){ el.classList.remove('active'); });
+            if(swatches[i]) swatches[i].classList.add('active');
+            found = true;
+            break;
+          }
+        }
+        if(!found){
+          restrictedName = colors[0].n;
+        }
       }
-
+      
       renderColorRow();
       renderParams(cur.fx);
-
-      const fxName = allFx[cur.fx] || '';
-      document.querySelectorAll('.fx-item').forEach(function(el){
-        const nameEl = el.querySelector('.fx-name');
-        if(nameEl) el.classList.toggle('active', nameEl.textContent === fxName);
-      });
-      const chip = document.getElementById('fxSavedName');
-      if(chip) chip.textContent = fxName || '-';
-
+      
+      const fxName=allFx[cur.fx]||'';
+      if(fxName){
+        document.querySelectorAll('.fx-item').forEach(function(el){
+          el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);
+        });
+      }
       document.querySelectorAll('.pal-row').forEach(function(el){
-        el.classList.toggle('active', el.dataset.palname === pName);
+        el.classList.toggle('active',el.dataset.palname===pName);
       });
-
+      
       updateCtx();
       refreshSavedInfo();
-    }
-  }).catch(function(){});
+}
+}).catch(function(){});
 }
 
 function refreshColorModeVisibility(){const r=isRestrictedTab();
@@ -1151,23 +1072,17 @@ if(RESTRICTED_FX.indexOf(name)>=0)return 'sein';
 return 'riding';}
 
 function switchTab(t){
-  activeTab = t;
-  document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
-
-  // Reset parameter saja (aman)
-  cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
-  colorTarget = 0;
-
-  refreshColorModeVisibility();
-
-  if(!allFx.length){
-    loadFxData(function(ok){ buildEffects(); applySaved(t); });
-  }else{
-    buildEffects();
-    applySaved(t);
-  }
-  updateCtx();
-  refreshSavedInfo();
+activeTab=t;
+document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
+refreshColorModeVisibility();
+if(!allFx.length){
+  loadFxData(function(ok){buildEffects();applySaved(t);});
+}else{
+  buildEffects();
+  applySaved(t); // Langsung muat preset tab tujuan (membersihkan state tab sebelumnya)
+}
+updateCtx();
+refreshSavedInfo();
 }
 
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;
