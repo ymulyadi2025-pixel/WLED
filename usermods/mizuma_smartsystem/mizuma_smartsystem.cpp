@@ -876,7 +876,7 @@ return 'linear-gradient(90deg,'+parts.join(',')+')';
 }
 function makePalRow(e,grid,numbered,seq){
 const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();row.dataset.palname=e.n;
-const grad=paletteGradCss(e.i)||PAL_GRADS[e.n]||seedGrad(e.i);
+const grad=palXGrad[e.i]||PAL_GRADS[e.n]||seedGrad(e.i);
 row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
 row.addEventListener('click',function(){cur.palName=e.n;
 document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});
@@ -889,6 +889,34 @@ if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}
 if(q&&e.n.toLowerCase().indexOf(q)<0)return;
 makePalRow(e,paletteGrid,true,t);t++;});
 updateStarStrips();}
+/* ===== Patch 2: thumbnail palette asli via /json/palx ===== */
+let palXGrad={};
+function colsToGrad(cols){
+if(!cols||!cols.length)return null;
+const stops=[];
+for(let i=0;i<cols.length;i++){const c=cols[i];let r,g,b,pos=null;
+if(Array.isArray(c)){if(c.length>=4){pos=c[0];r=c[1];g=c[2];b=c[3];}else if(c.length===3){r=c[0];g=c[1];b=c[2];}else continue;}
+else if(typeof c==='string'){const n=parseInt(c,16);r=(n>>16)&255;g=(n>>8)&255;b=n&255;}
+else if(typeof c==='number'){r=(c>>16)&255;g=(c>>8)&255;b=c&255;}
+else continue;
+stops.push({pos:pos,r:r,g:g,b:b});}
+if(!stops.length)return null;
+const n=stops.length;
+const parts=stops.map(function(s,i){const p=(s.pos!=null)?(s.pos/255*100):(i*100/(n-1||1));
+return 'rgb('+s.r+','+s.g+','+s.b+') '+p.toFixed(1)+'%';});
+return 'linear-gradient(90deg,'+parts.join(',')+')';}
+function loadPalX(page){
+fetch('/json/palx'+(page!=null?'?page='+page:'')).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
+let map=d;if(map&&map.p&&typeof map.p==='object')map=map.p;
+if(!map)throw 0;
+let got=0;
+if(Array.isArray(map)){map.forEach(function(v,idx){if(Array.isArray(v)){const g=colsToGrad(v);if(g){palXGrad[idx]=g;got++;}}});}
+else{Object.keys(map).forEach(function(k){const v=map[k];
+if(Array.isArray(v)){const g=colsToGrad(v);if(g){palXGrad[parseInt(k,10)||k]=g;got++;}}});}
+if(got)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
+if(d&&d.pages!=null&&page!=null&&page+1<d.pages)loadPalX(page+1);
+}).catch(function(){});}
+loadPalX(0);
 fetch('/json/pal').then(function(r){return r.json();}).then(function(names){palNamesRaw=names;
 const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});
 arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');renderColorRow();
