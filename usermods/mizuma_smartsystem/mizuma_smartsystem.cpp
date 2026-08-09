@@ -794,22 +794,18 @@ function sendColorSilent(r,g,b){const segs=segIds().map(function(id){return{id:i
 function sendPalette(i){if(activeSide===''){toast('Pilih sisi dulu');return;}const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();renderColorRow();}
 function sendEffect(i){
   if(activeSide===''){toast('Pilih sisi dulu');return;}
-  // Reset parameter selalu ke default (mencegah speed/intensity nyangkut)
+  // Reset parameter setiap ganti efek (perilaku mirip WLED original)
   cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
   const segs = segIds().map(function(id){
-    const o = {id:id, fx:i, sx:128, ix:128, c1:128, c2:128, c3:128};
-    if(isRestrictedTab()){
-      o.pal = 0;                 // paksa * Color 1
-      // untuk sinyal, pastikan warna utama terisi (akan ditimpa oleh buildRestricted/setColor)
-      o.col = [segColors[0] || [255,165,0], [0,0,0], [0,0,0]];
-    }
+    const o = {id:id, fx:i, sx:128, ix:128};
+    if(isRestrictedTab()) o.pal = 0;
     return o;
   });
   post({seg:segs});
   cur.fx = i;
   if(isRestrictedTab()){
     cur.pal = 0;
-    cur.palName = palNamesRaw[0] || '* Color 1';
+    cur.palName = (palNamesRaw && palNamesRaw[0]) ? palNamesRaw[0] : '* Color 1';
   }
   markDirty();
   renderColorRow();
@@ -865,6 +861,7 @@ sendColor(r,g,b,silent);updateModeAktif();}
 /* ===== Restricted ===== */
 function buildRestricted(){
   const grid = document.getElementById('restrictedGrid');
+  if(!grid) return;
   grid.innerHTML = '';
   const colors = RESTRICTED_COLORS[activeTab] || RESTRICTED_COLORS.sein;
   colors.forEach(function(c,i){
@@ -872,7 +869,7 @@ function buildRestricted(){
     d.className = 'rswatch' + (i===0 ? ' active' : '');
     d.style.background = '#' + c.h;
     d.addEventListener('click', function(){
-      document.querySelectorAll('.rswatch').forEach(function(x){ x.classList.remove('active'); });
+      document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});
       d.classList.add('active');
       restrictedName = c.n;
       const n = parseInt(c.h, 16);
@@ -881,15 +878,9 @@ function buildRestricted(){
     });
     grid.appendChild(d);
   });
-  buildWheelImg(document.getElementById('wheelR'), HUE_RULES[activeTab]);
-  restrictedName = colors[0].n;
-
-  // Langsung terapkan warna pertama ke LED (mencegah sisa warna tab sebelumnya)
-  if(colors[0] && activeSide !== ''){
-    const n = parseInt(colors[0].h, 16);
-    sendColorSilent((n>>16)&255, (n>>8)&255, n&255);
-    segColors[0] = [(n>>16)&255, (n>>8)&255, n&255];
-  }
+  const wheelR = document.getElementById('wheelR');
+  if(wheelR) buildWheelImg(wheelR, HUE_RULES[activeTab]);
+  restrictedName = colors[0] ? colors[0].n : '';
 }
 document.getElementById('wheelR').addEventListener('pointerdown',function(e){const cv=document.getElementById('wheelR');
 const rect=cv.getBoundingClientRect();const wr=cv.width/2;const x=(e.clientX-rect.left)*(cv.width/rect.width),y=(e.clientY-rect.top)*(cv.height/rect.height);
@@ -1065,35 +1056,25 @@ document.getElementById('mCancel').addEventListener('click',function(){document.
 /* ===== Navigation (FIXED BUG 2) ===== */
 function applySaved(tab){
   fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
-    const firstKey = activeSide==='kiri' ? 'Kiri' : 'Kanan';
+    const firstKey = activeSide === 'kiri' ? 'Kiri' : 'Kanan';
     const st = d[tab + firstKey];
     const restricted = (tab === 'sein' || tab === 'rem' || tab === 'hazard');
 
-    // 1. Kirim state ke WLED hardware
+    // 1. Kirim state ke hardware
     [['Kanan',0],['Kiri',1]].forEach(function(pr){
       const sData = d[tab + pr[0]];
       if(sData && sData.valid){
-        let cols = Array.isArray(sData.col[0]) ? sData.col : [sData.col];
-        // Paksa warna default sinyal jika data aneh / kosong
-        if(restricted){
-          if(!cols || !cols[0] || (cols[0][0]===0 && cols[0][1]===0 && cols[0][2]===0)){
-            cols = (tab === 'rem') ? [[255,0,0],[0,0,0],[0,0,0]] : [[255,165,0],[0,0,0],[0,0,0]];
-          }
-        }
+        const cols = Array.isArray(sData.col[0]) ? sData.col : [sData.col];
         const o = {
           id: pr[1],
           fx: sData.fx,
-          pal: restricted ? 0 : sData.pal,   // SELALU paksa pal=0 di restricted
-          sx: sData.sx != null ? sData.sx : 128,
-          ix: sData.ix != null ? sData.ix : 128,
+          pal: restricted ? 0 : sData.pal,
+          sx: (sData.sx != null) ? sData.sx : 128,
+          ix: (sData.ix != null) ? sData.ix : 128,
           col: cols
         };
         post({seg:[o]});
-        if(sData.bri) post({bri: sData.bri});
-      }else if(restricted){
-        // Belum ada preset → kirim default aman agar tidak “ngaco”
-        const defCol = (tab === 'rem') ? [[255,0,0],[0,0,0],[0,0,0]] : [[255,165,0],[0,0,0],[0,0,0]];
-        post({seg:[{id:pr[1], fx:0, pal:0, sx:128, ix:128, col:defCol}]});
+        if(sData.bri) post({bri:sData.bri});
       }
     });
 
@@ -1104,9 +1085,10 @@ function applySaved(tab){
 
       if(st.bri != null){
         cur.bri = st.bri;
-        document.getElementById('brightSlider').value = st.bri;
-        document.getElementById('brightVal').textContent = st.bri;
-        paintRange(document.getElementById('brightSlider'));
+        const briEl = document.getElementById('brightSlider');
+        const briVal = document.getElementById('brightVal');
+        if(briEl){ briEl.value = st.bri; paintRange(briEl); }
+        if(briVal) briVal.textContent = st.bri;
       }
 
       if(st.col && st.col.length){
@@ -1115,17 +1097,14 @@ function applySaved(tab){
           if(cols[i]) segColors[i] = [cols[i][0], cols[i][1], cols[i][2]];
         }
         slotCount = cols.length;
-      }else if(restricted){
-        segColors = (tab === 'rem') ? [[255,0,0],[0,0,0],[0,0,0]] : [[255,165,0],[0,0,0],[0,0,0]];
-        slotCount = 1;
       }
 
-      // Full reset params lalu isi dari preset
+      // Full reset params lalu ambil dari preset
       cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
       if(st.sx != null) cur.params.sx = st.sx;
       if(st.ix != null) cur.params.ix = st.ix;
 
-      const pName = restricted ? (palNamesRaw[0] || '* Color 1') : (palNamesRaw[st.pal] || '');
+      const pName = restricted ? ((palNamesRaw && palNamesRaw[0]) || '* Color 1') : ((palNamesRaw && palNamesRaw[st.pal]) || '');
       cur.palName = pName;
 
       if(!restricted){
@@ -1134,44 +1113,23 @@ function applySaved(tab){
           b.classList.toggle('active', b.dataset.ct === currentCT);
         });
         refreshColorModeVisibility();
-      }else{
-        // Pastikan UI restricted sudah aktif + warna default terpasang
-        buildRestricted();
-        // Terapkan warna restricted pertama ke LED
-        const first = (RESTRICTED_COLORS[tab] || RESTRICTED_COLORS.sein)[0];
-        if(first){
-          const n = parseInt(first.h, 16);
-          sendColorSilent((n>>16)&255, (n>>8)&255, n&255);
-        }
       }
 
       renderColorRow();
       renderParams(cur.fx);
 
-      // Highlight efek yang aktif di grid
       const fxName = allFx[cur.fx] || '';
       document.querySelectorAll('.fx-item').forEach(function(el){
-        el.classList.toggle('active', el.querySelector('.fx-name').textContent === fxName);
+        const nameEl = el.querySelector('.fx-name');
+        if(nameEl) el.classList.toggle('active', nameEl.textContent === fxName);
       });
-      if(fxName) document.getElementById('fxSavedName').textContent = fxName;
+      const chip = document.getElementById('fxSavedName');
+      if(chip) chip.textContent = fxName || '-';
 
       document.querySelectorAll('.pal-row').forEach(function(el){
         el.classList.toggle('active', el.dataset.palname === pName);
       });
 
-      updateCtx();
-      refreshSavedInfo();
-    }else if(restricted){
-      // Tidak ada preset sama sekali → paksa default aman
-      cur.fx = 0;
-      cur.pal = 0;
-      cur.palName = palNamesRaw[0] || '* Color 1';
-      cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
-      segColors = (tab === 'rem') ? [[255,0,0],[0,0,0],[0,0,0]] : [[255,165,0],[0,0,0],[0,0,0]];
-      buildRestricted();
-      renderColorRow();
-      renderParams(0);
-      document.getElementById('fxSavedName').textContent = allFx[0] || 'Solid';
       updateCtx();
       refreshSavedInfo();
     }
@@ -1196,19 +1154,11 @@ function switchTab(t){
   activeTab = t;
   document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});
 
-  // ===== HARD RESET state JS =====
+  // Reset parameter saja (aman)
   cur.params = {sx:128, ix:128, c1:128, c2:128, c3:128, o1:0, o2:0, o3:0};
   colorTarget = 0;
-  restrictedName = '';
-  slotCount = 1;
-  // jangan biarkan warna lama non-amber/merah ikut terbawa ke Sein/Hazard
-  if(t === 'sein' || t === 'hazard'){
-    segColors = [[255,165,0],[0,0,0],[0,0,0]];   // Amber default
-  }else if(t === 'rem'){
-    segColors = [[255,0,0],[0,0,0],[0,0,0]];       // Merah default
-  }
 
-  refreshColorModeVisibility();   // ini akan panggil buildRestricted() jika restricted
+  refreshColorModeVisibility();
 
   if(!allFx.length){
     loadFxData(function(ok){ buildEffects(); applySaved(t); });
