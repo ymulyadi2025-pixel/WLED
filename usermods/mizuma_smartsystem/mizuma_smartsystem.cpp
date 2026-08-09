@@ -765,13 +765,19 @@ const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 /* ===== State Control (FIXED BUG 1 & 2) ===== */
 function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}
 segColors[colorTarget]=[r,g,b];
+// FIX BUG: di tab restricted (Sein/Rem/Hazard) warna Bg/Cs tidak dipakai sama sekali —
+// jangan kirim leftover segColors[1]/[2] dari tab lain, paksa solid single-color.
+if(isRestrictedTab()){segColors[1]=[r,g,b];segColors[2]=[r,g,b];}
 const cols = [
   segColors[0] || [255,165,0], 
   segColors[1] || [0,0,0], 
   segColors[2] || [0,0,0]
 ];
-// FIX BUG 1: Jika di mode Custom dan palette bukan palette '*', paksa WLED ke palette '*'
-if(currentCT==='custom'&&!isStarPal()){
+// FIX BUG 1 + FIX BUG (restricted tab): paksa palette solid '* Color 1' kalau di mode Custom
+// ATAU sedang di tab restricted — sebelumnya cuma dicek currentCT==='custom', jadi kalau
+// currentCT masih 'template' sisa dari tab lain (mis. palette 'Fire' dari Riding), warna solid
+// yang dipilih di sini tercampur palette lama tsb alih-alih tampil solid murni.
+if((currentCT==='custom'||isRestrictedTab())&&!isStarPal()){
   cur.pal=0; cur.palName=palNamesRaw[0]||'* Color 1';
 }
 const segs=segIds().map(function(id){return{id:id,col:cols,pal:cur.pal};});
@@ -1026,6 +1032,11 @@ const st=d[tab+firstKey];
     const o={id:pr[1],fx:sData.fx,pal:sData.pal,sx:sData.sx,ix:sData.ix,col:cols};
     post({seg:[o]});
     if(sData.bri)post({bri:sData.bri});
+  }else{
+    // FIX BUG: sebelumnya kalau slot belum tersimpan, segmen ini SAMA SEKALI tidak
+    // disentuh -> tampil "efek nyasar" sisa dari tab sebelumnya. Sekarang dipadamkan
+    // (Solid + hitam) supaya jelas kelihatan "belum dikonfigurasi", bukan menyesatkan.
+    post({seg:[{id:pr[1],fx:0,col:[[0,0,0]]}]});
   }
 });
 
@@ -1206,6 +1217,11 @@ deserializeState(root);
 }
 String renderPage(const char* pageTemplate, const char* activeKey) {
 String html = FPSTR(pageTemplate);
+// FIX BUG HANG: reserve kapasitas akhir SEKALI di depan, supaya 6x .replace() di bawah
+// tidak realloc+copy seluruh string (~50KB+) berkali-kali secara terpisah. Halaman /led
+// saja ~51KB; tanpa reserve() ini, tiap request bisa memicu beberapa alokasi besar
+// beruntun yang rawan bikin ESP32 kehabisan heap contiguous lalu hang/reset.
+html.reserve(html.length() + 6000); // margin untuk header/nav/vehicle info yang disisipkan
 html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
 html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
 html.replace("%HEADER_SCRIPT%", FPSTR(MIZUMA_HEADER_SCRIPT));
@@ -1283,7 +1299,10 @@ serializeConfigToFS();
 req->send(200,"application/json","{\"ok\":true}");
 });
 server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
-DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
+// FIX BUG: 2048 byte kurang untuk 10 slot x 3 warna (butuh ~3216 byte, overflow ~57%).
+// Overflow bikin slot yang diproses PALING AKHIR (rem, hazard) hilang/rusak datanya di JSON,
+// karena createNestedObject/Array gagal diam-diam saat buffer penuh.
+DynamicJsonDocument doc(6144); JsonObject root = doc.to<JsonObject>();
 for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
 s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
 JsonArray c = s.createNestedArray("col");
