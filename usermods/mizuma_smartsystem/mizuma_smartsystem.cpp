@@ -769,7 +769,12 @@ const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 /* ===== State Control ===== */
 function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}
 segColors[colorTarget]=[r,g,b];
-const cols=[];for(let i=0;i<3;i++){if(segColors[i])cols.push([segColors[i][0],segColors[i][1],segColors[i][2]]);}
+// Pastikan selalu kirim 3 slot agar tidak reset ke 1 slot oleh WLED
+const cols = [
+  segColors[0] || [255,165,0], 
+  segColors[1] || [0,0,0], 
+  segColors[2] || [0,0,0]
+];
 const segs=segIds().map(function(id){return{id:id,col:cols};});
 post({seg:segs});cur.col=[r,g,b];
 if(!silent)markDirty();
@@ -786,9 +791,12 @@ function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
 function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0,c2=segColors[2]||c1;
 if(name.indexOf('* Color 1')===0)return gstr(c0);
-if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c1)+','+gstr(c0)+')';
-if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';
-if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c2)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c0)+' 66% 100%)';
+// FIX: Colors 1&2 seharusnya gradient c0 -> c1 (sesuai screenshot WLED asli)
+if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')'; 
+// FIX: Color Gradient seharusnya smooth c0 -> c1 -> c2
+if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+','+gstr(c2)+')';
+// FIX: Colors Only seharusnya blok tegas (hard stop), bukan gradient halus
+if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';
 return null;}
 function updateStarStrips(){document.querySelectorAll('#customPalGrid .pal-row').forEach(function(row){
 const g2=starGrad(row.dataset.palname||'');if(g2)row.querySelector('.pstrip').style.background=g2;});}
@@ -1158,8 +1166,18 @@ req->send(200,"application/json", out);
 void loop() override {
 if(bootDone) return;
 unsigned long m = millis();
-if(bootStage==0 && m>800){ applySlotToSeg(0,0); applySlotToSeg(1,1); bootStage=1; bootT=m; }
-else if(bootStage==1 && m-bootT>=welcomeDur){ applySlotToSeg(2,0); applySlotToSeg(3,1); bootDone=true; }
+if(bootStage==0 && m >1200){ 
+  applySlotToSeg(0,0); applySlotToSeg(1,1); 
+  // Set brightness Welcoming
+  if(pslots[0].valid) bri = pslots[0].bri; 
+  bootStage=1; bootT=m; 
+}
+else if(bootStage==1 && m-bootT >=welcomeDur){ 
+  applySlotToSeg(2,0); applySlotToSeg(3,1); 
+  // Set brightness Riding (ini yang akan bertahan)
+  if(pslots[2].valid) bri = pslots[2].bri;
+  bootDone=true; 
+}
 }
 void addToConfig(JsonObject& root) override {
 JsonObject top = root.createNestedObject("Mizuma");
