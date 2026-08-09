@@ -829,7 +829,7 @@ sendColor(r,g,b,silent);updateModeAktif();}
 /* ===== Restricted ===== */
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';
 const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;
-colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;d.dataset.h=c.h.toUpperCase();
+colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;
 d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');
 restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});
 grid.appendChild(d);});
@@ -944,31 +944,65 @@ const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const names=[];
 sides.forEach(function(sd){const s2=d[activeTab+sd];
 names.push(s2&&s2.valid?((allFx[s2.fx]||'Efek')+' - '+(palNamesRaw[s2.pal]||'Palette')):'Belum disimpan');});
+// FIX: sides[0]='Kanan', sides[1]='Kiri' -> label harus ikut urutan itu, sebelumnya kebalik
 el.textContent=(names.length>1&&names[0]!==names[1])?('Kn: '+names[0]+' | Ki: '+names[1]):names[0];
 }).catch(function(){});}
 
 /* ===== Save ===== */
+/* ===== Save ===== */
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const c0=segColors[0]||[255,255,255],c1=segColors[1]||[0,0,0],c2=segColors[2]||[0,0,0];
-const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],
-sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,
-c1:cur.params.c1!=null?cur.params.c1:128,c2:cur.params.c2!=null?cur.params.c2:128,c3:cur.params.c3!=null?cur.params.c3:128,
-o1:cur.params.o1!=null?cur.params.o1:0,o2:cur.params.o2!=null?cur.params.o2:0,o3:cur.params.o3!=null?cur.params.o3:0,bri:cur.bri});
-let chain=Promise.resolve();
-sides.forEach(function(sd){fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString())
-.then(function(r){if(!r.ok)toast('Gagal simpan '+sd);}).catch(function(){toast('Gagal simpan '+sd);});
-});
-chain.then(function(){clearDirty();
+const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
+// FIX BUG: sebelumnya localStorage ditulis SEBELUM tahu request sukses/gagal, dan
+// 2 sisi (Kanan+Kiri) ditembak bersamaan sehingga bisa saling rebutan flash-write di ESP32.
+// Sekarang: kirim berurutan (bukan bersamaan), tunggu respons, dan HANYA tandai sukses
+// kalau ESP32 benar-benar konfirmasi {ok:true}. Kalau ada yang gagal, user diberi tahu jelas.
+async function saveOne(sd){
+try{
+const res=await fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString());
+if(!res.ok)return false;
+const j=await res.json().catch(function(){return null;});
+if(!j||j.ok!==true)return false;
+localStorage.setItem('mzts_'+activeTab+'_'+sd,String(Date.now()));
+return true;
+}catch(e){return false;}
+}
+(async function(){
+const results=[];
+for(const sd of sides){results.push(await saveOne(sd));} // sequential, bukan Promise.all, agar tidak overlap flash-write
+const okCount=results.filter(Boolean).length;
+if(okCount===sides.length){
+clearDirty();
 const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));
-renderSavedList();refreshSavedInfo();});}
+}else if(okCount>0){
+toast('\u26a0 Sebagian gagal tersimpan, coba lagi');
+}else{
+toast('\u2717 Gagal tersimpan, cek koneksi ke ESP32');
+}
+renderSavedList();refreshSavedInfo();
+})();
+}
 function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='';
+// FIX BUG: sebelumnya checklist ini murni percaya localStorage (bisa "berbohong" kalau
+// request save sebelumnya gagal diam-diam). Sekarang verifikasi ke /mizuma/presets (data
+// asli di ESP32) dulu; localStorage hanya dipakai untuk tampilan jam kalau ada & valid di server.
+fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
 ['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){
-const ts=localStorage.getItem('mzts_'+t+'_'+s);const row=document.createElement('div');row.className='saved-row';
+const serverValid=!!(d[t+s]&&d[t+s].valid);
+const ts=localStorage.getItem('mzts_'+t+'_'+s);
+const row=document.createElement('div');row.className='saved-row';
 let txt='Belum disimpan',on=false;
-if(ts){const d=new Date(+ts);txt='\u2713 '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2);on=true;}
+if(serverValid){
+on=true;
+if(ts){const d2=new Date(+ts);txt='\u2713 '+('0'+d2.getHours()).slice(-2)+':'+('0'+d2.getMinutes()).slice(-2)+' '+('0'+d2.getDate()).slice(-2)+'/'+('0'+(d2.getMonth()+1)).slice(-2);}
+else txt='\u2713 Tersimpan'; // valid di server tapi tidak ada jejak waktu lokal (mis. disimpan dari device lain)
+}
 row.innerHTML='<span class="sk">'+{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[t]+' \u2014 '+s+'</span><span class="st'+(on?' on':'')+'">'+txt+'</span>';
-box.appendChild(row);});});}
+box.appendChild(row);});});
+}).catch(function(){
+box.innerHTML='<div class="saved-row"><span class="sk">Gagal memuat status dari ESP32</span></div>';
+});}
 document.getElementById('btnSaveSub').addEventListener('click',doSave);
 
 /* ===== Modal ===== */
@@ -979,26 +1013,68 @@ document.getElementById('mDiscard').addEventListener('click',function(){clearDir
 document.getElementById('mCancel').addEventListener('click',function(){document.getElementById('saveModal').style.display='none';pendingTab=null;});
 
 /* ===== Navigation (FIXED BUG 2) ===== */
-function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
-let first=null;
-[['Kanan',0],['Kiri',1]].forEach(function(pr){const st=d[tab+pr[0]];
-if(st&&st.valid){if(!first)first=st;
-const o={id:pr[1],fx:st.fx,pal:st.pal,sx:st.sx,ix:st.ix,col:Array.isArray(st.col&&st.col[0])?st.col:[st.col]};
-post({seg:[o]});post({bri:st.bri});}});
-if(first){
-cur.fx=first.fx;cur.pal=first.pal;cur.bri=first.bri;
-cur.params.sx=first.sx!=null?first.sx:128; cur.params.ix=first.ix!=null?first.ix:128;
-if(first.c1!=null)cur.params.c1=first.c1; if(first.c2!=null)cur.params.c2=first.c2; if(first.c3!=null)cur.params.c3=first.c3;
-if(first.o1!=null)cur.params.o1=first.o1; if(first.o2!=null)cur.params.o2=first.o2; if(first.o3!=null)cur.params.o3=first.o3;
-if(first.col&&first.col.length){for(let i=0;i<3;i++){if(first.col[i])segColors[i]=Array.isArray(first.col[i])?first.col[i]:first.col;}}
-renderParams(cur.fx);renderColorRow();
-document.getElementById('fxSavedName').textContent=allFx[cur.fx]||'-';
-}else{
-// tidak ada preset: reset parameter agar tidak membawa nilai tab sebelumnya
-cur.params={sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0};
-renderParams(cur.fx);renderColorRow();
+function applySaved(tab){
+fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
+const firstKey=activeSide==='kiri'?'Kiri':'Kanan';
+const st=d[tab+firstKey];
+
+// 1. Kirim state ke WLED hardware
+[['Kanan',0],['Kiri',1]].forEach(function(pr){
+  const sData=d[tab+pr[0]];
+  if(sData&&sData.valid){
+    const cols=Array.isArray(sData.col[0])?sData.col:[sData.col];
+    const o={id:pr[1],fx:sData.fx,pal:sData.pal,sx:sData.sx,ix:sData.ix,col:cols};
+    post({seg:[o]});
+    if(sData.bri)post({bri:sData.bri});
+  }
+});
+
+// 2. Update memori JavaScript HP & Tampilan UI dari preset yang baru dimuat
+if(st&&st.valid){
+  cur.fx=st.fx; cur.pal=st.pal;
+  if(st.bri!=null){
+    cur.bri=st.bri;
+    document.getElementById('brightSlider').value=st.bri;
+    document.getElementById('brightVal').textContent=st.bri;
+    paintRange(document.getElementById('brightSlider'));
+  }
+  if(st.col&&st.col.length){
+    const cols=Array.isArray(st.col[0])?st.col:[st.col];
+    for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}
+    slotCount=cols.length;
+  }
+  cur.params.sx=st.sx!=null?st.sx:128;
+  cur.params.ix=st.ix!=null?st.ix:128;
+  
+  const pName=palNamesRaw[st.pal]||'';
+  cur.palName=pName;
+  
+  if(!isRestrictedTab()){
+    currentCT=(pName.charAt(0)==='*')?'custom':'template';
+    document.querySelectorAll('#colorToggle button').forEach(function(b){
+      b.classList.toggle('active',b.dataset.ct===currentCT);
+    });
+    refreshColorModeVisibility();
+  }
+  
+  renderColorRow();
+  renderParams(cur.fx);
+  
+  const fxName=allFx[cur.fx]||'';
+  if(fxName){
+    document.querySelectorAll('.fx-item').forEach(function(el){
+      el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);
+    });
+  }
+  document.querySelectorAll('.pal-row').forEach(function(el){
+    el.classList.toggle('active',el.dataset.palname===pName);
+  });
+  
+  updateCtx();
+  refreshSavedInfo();
 }
-}).catch(function(){});}
+}).catch(function(){});
+}
 
 function refreshColorModeVisibility(){const r=isRestrictedTab();
 document.getElementById('colorToggle').style.display=r?'none':'flex';
@@ -1103,10 +1179,11 @@ String vehiclePlate = "";
 struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
 ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
 struct PresetSlot { bool valid=false; uint8_t fx=0; uint8_t pal=0;
-uint8_t r=255,g=255,b=255; uint8_t r1=0,g1=0,b1=0; uint8_t r2=0,g2=0,b2=0;
-uint8_t sx=128,ix=128,bri=180; uint8_t c1=128,c2=128,c3=128; uint8_t o1=0,o2=0,o3=0; };
+uint8_t r=255,g=255,b=255;
+uint8_t r1=0,g1=0,b1=0;
+uint8_t r2=0,g2=0,b2=0;
+uint8_t sx=128,ix=128,bri=180; };
 PresetSlot pslots[10];
-bool cfgPending=false; unsigned long cfgAt=0;
 uint16_t welcomeDur = 7000;
 int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
 const char* slotKey(int i){ switch(i){
@@ -1202,9 +1279,7 @@ p.b2  = (uint8_t)constrain(req->arg("b2").toInt(),0,255);
 p.sx  = (uint8_t)constrain(req->arg("sx").toInt(),0,255);
 p.ix  = (uint8_t)constrain(req->arg("ix").toInt(),0,255);
 p.bri = (uint8_t)constrain(req->arg("bri").toInt(),1,255);
-p.c1 = req->arg("c1").toInt(); p.c2 = req->arg("c2").toInt(); p.c3 = req->arg("c3").toInt();
-p.o1 = req->arg("o1").toInt(); p.o2 = req->arg("o2").toInt(); p.o3 = req->arg("o3").toInt();
-cfgPending=true; cfgAt=millis();
+serializeConfigToFS();
 req->send(200,"application/json","{\"ok\":true}");
 });
 server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
@@ -1215,14 +1290,12 @@ JsonArray c = s.createNestedArray("col");
 JsonArray c0 = c.createNestedArray(); c0.add(pslots[i].r); c0.add(pslots[i].g); c0.add(pslots[i].b);
 JsonArray c1 = c.createNestedArray(); c1.add(pslots[i].r1); c1.add(pslots[i].g1); c1.add(pslots[i].b1);
 JsonArray c2 = c.createNestedArray(); c2.add(pslots[i].r2); c2.add(pslots[i].g2); c2.add(pslots[i].b2);
-s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; s["c1"]=pslots[i].c1; s["c2"]=pslots[i].c2; s["c3"]=pslots[i].c3;
-s["o1"]=pslots[i].o1; s["o2"]=pslots[i].o2; s["o3"]=pslots[i].o3; }
+s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
 String out; serializeJson(doc,out);
 req->send(200,"application/json", out);
 });
 }
 void loop() override {
-if(cfgPending && (millis()-cfgAt)>600){ cfgPending=false; serializeConfigToFS(); }
 if(bootDone) return;
 unsigned long m = millis();
 if(bootStage==0 && m >1200){ 
