@@ -979,7 +979,7 @@ fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
 const firstKey=activeSide==='kiri'?'Kiri':'Kanan';
 const st=d[tab+firstKey];
 
-// 1. Kirim state ke WLED hardware
+// 1. Kirim state ke hardware (kedua sisi)
 [['Kanan',0],['Kiri',1]].forEach(function(pr){
   const sData=d[tab+pr[0]];
   if(sData&&sData.valid){
@@ -990,7 +990,7 @@ const st=d[tab+firstKey];
   }
 });
 
-// 2. Update memori JavaScript HP & Tampilan UI dari preset yang baru dimuat
+// 2. Update memori dan UI (gunakan data dari sisi Kanan sebagai representasi utama)
 if(st&&st.valid){
   cur.fx=st.fx; cur.pal=st.pal;
   if(st.bri!=null){
@@ -1006,53 +1006,63 @@ if(st&&st.valid){
   }
   cur.params.sx=st.sx!=null?st.sx:128;
   cur.params.ix=st.ix!=null?st.ix:128;
-  
   const pName=palNamesRaw[st.pal]||'';
   cur.palName=pName;
-  
-        if(!isRestrictedTab()){
-        currentCT=(pName.charAt(0)==='*')?'custom':'template';
-        document.querySelectorAll('#colorToggle button').forEach(function(b){
-          b.classList.toggle('active',b.dataset.ct===currentCT);
-        });
-        refreshColorModeVisibility();
-      } else {
-        // Sinkronkan restricted UI dengan warna yang dimuat
-        var loadedCol = [st.r, st.g, st.b];
-        var colors = RESTRICTED_COLORS[tab] || RESTRICTED_COLORS.sein;
-        var found = false;
-        for(var i=0; i<colors.length; i++){
-          var c = parseInt(colors[i].h, 16);
-          var r = (c>>16)&255, g=(c>>8)&255, b=c&255;
-          if(r===loadedCol[0] && g===loadedCol[1] && b===loadedCol[2]){
-            restrictedName = colors[i].n;
-            var swatches = document.querySelectorAll('.rswatch');
-            swatches.forEach(function(el){ el.classList.remove('active'); });
-            if(swatches[i]) swatches[i].classList.add('active');
-            found = true;
-            break;
-          }
-        }
-        if(!found){
-          restrictedName = colors[0].n;
-        }
+
+  if(!isRestrictedTab()){
+    // Mode template / custom
+    currentCT=(pName.charAt(0)==='*')?'custom':'template';
+    document.querySelectorAll('#colorToggle button').forEach(function(b){
+      b.classList.toggle('active',b.dataset.ct===currentCT);
+    });
+    refreshColorModeVisibility();
+    // Highlight palette row
+    document.querySelectorAll('.pal-row').forEach(function(el){
+      el.classList.toggle('active',el.dataset.palname===pName);
+    });
+  } else {
+    // Mode terbatas (Rem / Hazard / Sein) – sinkronkan warna dengan grid terbatas
+    var loadedCol = [st.r, st.g, st.b];
+    var colors = RESTRICTED_COLORS[tab] || RESTRICTED_COLORS.sein;
+    var found = false;
+    for(var i=0; i<colors.length; i++){
+      var c = parseInt(colors[i].h, 16);
+      var r = (c>>16)&255, g=(c>>8)&255, b=c&255;
+      if(r===loadedCol[0] && g===loadedCol[1] && b===loadedCol[2]){
+        restrictedName = colors[i].n;
+        var swatches = document.querySelectorAll('.rswatch');
+        swatches.forEach(function(el){ el.classList.remove('active'); });
+        if(swatches[i]) swatches[i].classList.add('active');
+        found = true;
+        break;
       }
-      
-      renderColorRow();
-      renderParams(cur.fx);
-      
-      const fxName=allFx[cur.fx]||'';
-      if(fxName){
-        document.querySelectorAll('.fx-item').forEach(function(el){
-          el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);
-        });
-      }
-      document.querySelectorAll('.pal-row').forEach(function(el){
-        el.classList.toggle('active',el.dataset.palname===pName);
-      });
-      
-      updateCtx();
-      refreshSavedInfo();
+    }
+    if(!found){
+      // fallback ke warna pertama
+      var c = parseInt(colors[0].h, 16);
+      restrictedName = colors[0].n;
+      var swatches = document.querySelectorAll('.rswatch');
+      swatches.forEach(function(el){ el.classList.remove('active'); });
+      if(swatches[0]) swatches[0].classList.add('active');
+    }
+    // Refresh tampilan mode terbatas (misal teks)
+    refreshColorModeVisibility(); // Akan memanggil buildRestricted() jika perlu
+    updateModeAktif();            // Perbarui label
+  }
+
+  renderColorRow();
+  renderParams(cur.fx);
+
+  // Sorot efek yang aktif di grid
+  const fxName=allFx[cur.fx]||'';
+  if(fxName){
+    document.querySelectorAll('.fx-item').forEach(function(el){
+      el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);
+    });
+  }
+
+  updateCtx();
+  refreshSavedInfo();
 }
 }).catch(function(){});
 }
