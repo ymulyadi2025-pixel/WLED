@@ -829,7 +829,7 @@ sendColor(r,g,b,silent);updateModeAktif();}
 /* ===== Restricted ===== */
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';
 const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;
-colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;d.dataset.h=c.h.toUpperCase();
+colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;
 d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');
 restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});
 grid.appendChild(d);});
@@ -944,6 +944,7 @@ const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const names=[];
 sides.forEach(function(sd){const s2=d[activeTab+sd];
 names.push(s2&&s2.valid?((allFx[s2.fx]||'Efek')+' - '+(palNamesRaw[s2.pal]||'Palette')):'Belum disimpan');});
+// FIX: sides[0]='Kanan', sides[1]='Kiri' -> label harus ikut urutan itu, sebelumnya kebalik
 el.textContent=(names.length>1&&names[0]!==names[1])?('Kn: '+names[0]+' | Ki: '+names[1]):names[0];
 }).catch(function(){});}
 
@@ -951,22 +952,56 @@ el.textContent=(names.length>1&&names[0]!==names[1])?('Kn: '+names[0]+' | Ki: '+
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const c0=segColors[0]||[255,255,255],c1=segColors[1]||[0,0,0],c2=segColors[2]||[0,0,0];
-const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
-let chain=Promise.resolve();
-sides.forEach(function(sd){
+const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
+// FIX BUG: sebelumnya localStorage ditulis SEBELUM tahu request sukses/gagal, dan
+// 2 sisi (Kanan+Kiri) ditembak bersamaan sehingga bisa saling rebutan flash-write di ESP32.
+// Sekarang: kirim berurutan (bukan bersamaan), tunggu respons, dan HANYA tandai sukses
+// kalau ESP32 benar-benar konfirmasi {ok:true}. Kalau ada yang gagal, user diberi tahu jelas.
+async function saveOne(sd){
+try{
+const res=await fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString());
+if(!res.ok)return false;
+const j=await res.json().catch(function(){return null;});
+if(!j||j.ok!==true)return false;
 localStorage.setItem('mzts_'+activeTab+'_'+sd,String(Date.now()));
-chain=chain.then(function(){return fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString()).catch(function(){});});
-});
-chain.then(function(){clearDirty();
+return true;
+}catch(e){return false;}
+}
+(async function(){
+const results=[];
+for(const sd of sides){results.push(await saveOne(sd));} // sequential, bukan Promise.all, agar tidak overlap flash-write
+const okCount=results.filter(Boolean).length;
+if(okCount===sides.length){
+clearDirty();
 const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));
-renderSavedList();refreshSavedInfo();});}
+}else if(okCount>0){
+toast('\u26a0 Sebagian gagal tersimpan, coba lagi');
+}else{
+toast('\u2717 Gagal tersimpan, cek koneksi ke ESP32');
+}
+renderSavedList();refreshSavedInfo();
+})();
+}
 function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='';
+// FIX BUG: sebelumnya checklist ini murni percaya localStorage (bisa "berbohong" kalau
+// request save sebelumnya gagal diam-diam). Sekarang verifikasi ke /mizuma/presets (data
+// asli di ESP32) dulu; localStorage hanya dipakai untuk tampilan jam kalau ada & valid di server.
+fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
 ['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){
-const ts=localStorage.getItem('mzts_'+t+'_'+s);const row=document.createElement('div');row.className='saved-row';
+const serverValid=!!(d[t+s]&&d[t+s].valid);
+const ts=localStorage.getItem('mzts_'+t+'_'+s);
+const row=document.createElement('div');row.className='saved-row';
 let txt='Belum disimpan',on=false;
-if(ts){const d=new Date(+ts);txt='\u2713 '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2)+' '+('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2);on=true;}
+if(serverValid){
+on=true;
+if(ts){const d2=new Date(+ts);txt='\u2713 '+('0'+d2.getHours()).slice(-2)+':'+('0'+d2.getMinutes()).slice(-2)+' '+('0'+d2.getDate()).slice(-2)+'/'+('0'+(d2.getMonth()+1)).slice(-2);}
+else txt='\u2713 Tersimpan'; // valid di server tapi tidak ada jejak waktu lokal (mis. disimpan dari device lain)
+}
 row.innerHTML='<span class="sk">'+{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[t]+' \u2014 '+s+'</span><span class="st'+(on?' on':'')+'">'+txt+'</span>';
-box.appendChild(row);});});}
+box.appendChild(row);});});
+}).catch(function(){
+box.innerHTML='<div class="saved-row"><span class="sk">Gagal memuat status dari ESP32</span></div>';
+});}
 document.getElementById('btnSaveSub').addEventListener('click',doSave);
 
 /* ===== Modal ===== */
@@ -977,50 +1012,67 @@ document.getElementById('mDiscard').addEventListener('click',function(){clearDir
 document.getElementById('mCancel').addEventListener('click',function(){document.getElementById('saveModal').style.display='none';pendingTab=null;});
 
 /* ===== Navigation (FIXED BUG 2) ===== */
-function applySaved(tab,attempt){
+function applySaved(tab){
 fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
-const restricted=isRestrictedTab();
-let anyValid=false,firstValid=null;
+const firstKey=activeSide==='kiri'?'Kiri':'Kanan';
+const st=d[tab+firstKey];
+
+// 1. Kirim state ke WLED hardware
 [['Kanan',0],['Kiri',1]].forEach(function(pr){
-let sData=d[tab+pr[0]];
-if(!sData||!sData.valid)sData=d[tab+(pr[0]==='Kanan'?'Kiri':'Kanan')];
-if(sData&&sData.valid){
-anyValid=true;if(!firstValid)firstValid=sData;
-let cols=[[255,165,0]];
-try{cols=Array.isArray(sData.col[0])?sData.col:[sData.col];}catch(e){}
-post({seg:[{id:pr[1],fx:sData.fx,pal:sData.pal,sx:sData.sx,ix:sData.ix,col:cols}]});
-if(sData.bri)post({bri:sData.bri});
-}
+  const sData=d[tab+pr[0]];
+  if(sData&&sData.valid){
+    const cols=Array.isArray(sData.col[0])?sData.col:[sData.col];
+    const o={id:pr[1],fx:sData.fx,pal:sData.pal,sx:sData.sx,ix:sData.ix,col:cols};
+    post({seg:[o]});
+    if(sData.bri)post({bri:sData.bri});
+  }
 });
-if(!anyValid&&restricted){
-const def=RESTRICTED_COLORS[tab]||RESTRICTED_COLORS.sein;
-const n=parseInt(def[0].h,16);
-const col=[[(n>>16)&255,(n>>8)&255,n&255]];
-const fx0=lookup('Solid')>=0?lookup('Solid'):0;
-post({seg:[{id:0,fx:fx0,pal:0,col:col},{id:1,fx:fx0,pal:0,col:col}]});
+
+// 2. Update memori JavaScript HP & Tampilan UI dari preset yang baru dimuat
+if(st&&st.valid){
+  cur.fx=st.fx; cur.pal=st.pal;
+  if(st.bri!=null){
+    cur.bri=st.bri;
+    document.getElementById('brightSlider').value=st.bri;
+    document.getElementById('brightVal').textContent=st.bri;
+    paintRange(document.getElementById('brightSlider'));
+  }
+  if(st.col&&st.col.length){
+    const cols=Array.isArray(st.col[0])?st.col:[st.col];
+    for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}
+    slotCount=cols.length;
+  }
+  cur.params.sx=st.sx!=null?st.sx:128;
+  cur.params.ix=st.ix!=null?st.ix:128;
+  
+  const pName=palNamesRaw[st.pal]||'';
+  cur.palName=pName;
+  
+  if(!isRestrictedTab()){
+    currentCT=(pName.charAt(0)==='*')?'custom':'template';
+    document.querySelectorAll('#colorToggle button').forEach(function(b){
+      b.classList.toggle('active',b.dataset.ct===currentCT);
+    });
+    refreshColorModeVisibility();
+  }
+  
+  renderColorRow();
+  renderParams(cur.fx);
+  
+  const fxName=allFx[cur.fx]||'';
+  if(fxName){
+    document.querySelectorAll('.fx-item').forEach(function(el){
+      el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);
+    });
+  }
+  document.querySelectorAll('.pal-row').forEach(function(el){
+    el.classList.toggle('active',el.dataset.palname===pName);
+  });
+  
+  updateCtx();
+  refreshSavedInfo();
 }
-const st=firstValid;
-if(st){
-cur.fx=st.fx;cur.pal=st.pal;
-if(st.bri!=null){cur.bri=st.bri;document.getElementById('brightSlider').value=st.bri;document.getElementById('brightVal').textContent=st.bri;paintRange(document.getElementById('brightSlider'));}
-if(st.col&&st.col.length){let cols=st.col;try{cols=Array.isArray(st.col[0])?st.col:[st.col];}catch(e){}
-for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}slotCount=cols.length;}
-cur.params.sx=st.sx!=null?st.sx:128;cur.params.ix=st.ix!=null?st.ix:128;
-const pName=palNamesRaw[st.pal]||'';cur.palName=pName;
-if(!restricted){currentCT=(pName.charAt(0)==='*')?'custom':'template';
-document.querySelectorAll('#colorToggle button').forEach(function(b){b.classList.toggle('active',b.dataset.ct===currentCT);});
-refreshColorModeVisibility();}
-renderColorRow();renderParams(cur.fx);
-const fxName=allFx[cur.fx]||'';
-if(fxName){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);});}
-document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===pName);});
-if(restricted&&segColors[0]){const c=segColors[0];
-const hex=((c[0]<<16|c[1]<<8|c[2])>>>0).toString(16).padStart(6,'0').toUpperCase();
-let done=false;
-document.querySelectorAll('.rswatch').forEach(function(x){const on=!done&&(x.dataset.h||'')===hex;if(on)done=true;x.classList.toggle('active',on);});}
-updateCtx();refreshSavedInfo();
-}
-}).catch(function(){if((attempt||0)<2)setTimeout(function(){applySaved(tab,(attempt||0)+1);},500);});
+}).catch(function(){});
 }
 
 function refreshColorModeVisibility(){const r=isRestrictedTab();
@@ -1131,7 +1183,6 @@ uint8_t r1=0,g1=0,b1=0;
 uint8_t r2=0,g2=0,b2=0;
 uint8_t sx=128,ix=128,bri=180; };
 PresetSlot pslots[10];
-bool cfgPending=false; unsigned long cfgAt=0;
 uint16_t welcomeDur = 7000;
 int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
 const char* slotKey(int i){ switch(i){
@@ -1227,7 +1278,7 @@ p.b2  = (uint8_t)constrain(req->arg("b2").toInt(),0,255);
 p.sx  = (uint8_t)constrain(req->arg("sx").toInt(),0,255);
 p.ix  = (uint8_t)constrain(req->arg("ix").toInt(),0,255);
 p.bri = (uint8_t)constrain(req->arg("bri").toInt(),1,255);
-cfgPending=true; cfgAt=millis();
+serializeConfigToFS();
 req->send(200,"application/json","{\"ok\":true}");
 });
 server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
@@ -1244,7 +1295,6 @@ req->send(200,"application/json", out);
 });
 }
 void loop() override {
-if(cfgPending && (millis()-cfgAt)>600){ cfgPending=false; serializeConfigToFS(); }
 if(bootDone) return;
 unsigned long m = millis();
 if(bootStage==0 && m >1200){ 
