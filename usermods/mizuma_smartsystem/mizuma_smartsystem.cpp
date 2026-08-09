@@ -944,21 +944,22 @@ const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const names=[];
 sides.forEach(function(sd){const s2=d[activeTab+sd];
 names.push(s2&&s2.valid?((allFx[s2.fx]||'Efek')+' - '+(palNamesRaw[s2.pal]||'Palette')):'Belum disimpan');});
-el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+names[1]):names[0];
+el.textContent=(names.length>1&&names[0]!==names[1])?('Kn: '+names[0]+' | Ki: '+names[1]):names[0];
 }).catch(function(){});}
 
 /* ===== Save ===== */
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
-let fx=cur.fx,pl=cur.pal;
-if(isRestrictedTab()){const nm=allFx[fx]||'';if(RESTRICTED_FX.indexOf(nm)<0){const f0=lookup('Solid');if(f0>=0)fx=f0;}pl=0;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const c0=segColors[0]||[255,255,255],c1=segColors[1]||[0,0,0],c2=segColors[2]||[0,0,0];
-const params=new URLSearchParams({fx:fx,pal:pl,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
-sides.forEach(function(sd){fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString()).catch(function(){});
-localStorage.setItem('mzts_'+activeTab+'_'+sd,String(Date.now()));});
-clearDirty();
+const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
+let chain=Promise.resolve();
+sides.forEach(function(sd){
+localStorage.setItem('mzts_'+activeTab+'_'+sd,String(Date.now()));
+chain=chain.then(function(){return fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString()).catch(function(){});});
+});
+chain.then(function(){clearDirty();
 const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));
-renderSavedList();refreshSavedInfo();}
+renderSavedList();refreshSavedInfo();});}
 function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='';
 ['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){
 const ts=localStorage.getItem('mzts_'+t+'_'+s);const row=document.createElement('div');row.className='saved-row';
@@ -1130,6 +1131,7 @@ uint8_t r1=0,g1=0,b1=0;
 uint8_t r2=0,g2=0,b2=0;
 uint8_t sx=128,ix=128,bri=180; };
 PresetSlot pslots[10];
+bool cfgPending=false; unsigned long cfgAt=0;
 uint16_t welcomeDur = 7000;
 int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
 const char* slotKey(int i){ switch(i){
@@ -1225,7 +1227,7 @@ p.b2  = (uint8_t)constrain(req->arg("b2").toInt(),0,255);
 p.sx  = (uint8_t)constrain(req->arg("sx").toInt(),0,255);
 p.ix  = (uint8_t)constrain(req->arg("ix").toInt(),0,255);
 p.bri = (uint8_t)constrain(req->arg("bri").toInt(),1,255);
-serializeConfigToFS();
+cfgPending=true; cfgAt=millis();
 req->send(200,"application/json","{\"ok\":true}");
 });
 server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
@@ -1242,6 +1244,7 @@ req->send(200,"application/json", out);
 });
 }
 void loop() override {
+if(cfgPending && (millis()-cfgAt)>600){ cfgPending=false; serializeConfigToFS(); }
 if(bootDone) return;
 unsigned long m = millis();
 if(bootStage==0 && m >1200){ 
