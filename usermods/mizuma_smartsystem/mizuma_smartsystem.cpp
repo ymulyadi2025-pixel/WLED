@@ -506,6 +506,7 @@ body{display:flex;flex-direction:column;}
 .fx-num{color:var(--tx3);font-size:9px;margin-right:3px;}
 .fx-name{font-weight:700;}
 .param-row{margin-bottom:12px;}
+.param-row input[type=range]{width:100%;}
 .param-label{display:flex;justify-content:space-between;font-size:11px;color:var(--tx2);margin-bottom:5px;}
 .foot-hint{font-size:11px;color:var(--tx3);text-align:center;padding:4px 0;}
 /* Restricted */
@@ -793,8 +794,7 @@ function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0
 if(name.indexOf('* Color 1')===0)return gstr(c0);
 // FIX: Colors 1&2 seharusnya gradient c0 -> c1 (sesuai screenshot WLED asli)
 if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')'; 
-// FIX: WLED asli membuat gradient dari Color 3(Cs) -> Color 2(Bg) -> Color 1(Fx)
-// lihat Segment::loadPalette() case 4: CRGBPalette16(ter,sec,prim) di source WLED
+// FIX: Color Gradient seharusnya smooth c0 -> c1 -> c2
 if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';
 // FIX: Colors Only seharusnya blok tegas (hard stop), bukan gradient halus
 if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';
@@ -850,32 +850,26 @@ const rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';setColor(rgb[0],rg
 const paletteGrid=document.getElementById('paletteGrid');
 const customPalGrid=document.getElementById('customPalGrid');
 function seedGrad(i){return 'linear-gradient(90deg,hsl('+((i*37)%360)+',80%,50%),hsl('+(((i*37)+120)%360)+',80%,50%))';}
-// FIX: ambil data warna palette ASLI dari WLED via /json/palx, bukan tebakan manual.
-// /json/palx dipaginasi oleh WLED (server clamp "page" ke halaman terakhir jika sudah lewat),
-// jadi kita berhenti begitu satu halaman tidak lagi menambah entri baru.
-let palColorData={};
-function loadPaletteColors(cb){
-var page=0;
-function next(){
-fetch('/json/palx?page='+page).then(function(r){return r.json();}).then(function(d){
-var added=false;
-Object.keys(d).forEach(function(k){
-if(k==='m')return; // lewati key metadata jika ada
-if(!(k in palColorData)){palColorData[k]=d[k];added=true;}
-});
-if(added&&page<40){page++;next();}else if(cb)cb();
-}).catch(function(){if(cb)cb();});
-}
-next();
-}
-function paletteGradCss(idx){
-const stops=palColorData[String(idx)];
-if(!stops||!stops.length)return null;
-const parts=stops.map(function(s){return 'rgb('+s[1]+','+s[2]+','+s[3]+') '+((s[0]/255*100).toFixed(1))+'%';});
-return 'linear-gradient(90deg,'+parts.join(',')+')';
-}
+let palXGrad={};
+function normCols(arr){const out=[];if(!arr)return out;
+if(typeof arr[0]==='number'){for(let i=0;i+2<arr.length;i+=3)out.push([arr[i],arr[i+1],arr[i+2]]);return out;}
+for(let i=0;i<arr.length;i++){const c=arr[i];
+if(Array.isArray(c)){if(c.length>=4)out.push([c[1],c[2],c[3]]);else if(c.length>=3)out.push([c[0],c[1],c[2]]);}
+else if(typeof c==='string'){const n=parseInt(c,16);out.push([(n>>16)&255,(n>>8)&255,n&255]);}}
+return out;}
+function gradFromCols(cols){if(!cols||!cols.length)return null;if(cols.length===1)return 'rgb('+cols[0][0]+','+cols[0][1]+','+cols[0][2]+')';
+const parts=cols.map(function(c,i){return 'rgb('+c[0]+','+c[1]+','+c[2]+') '+Math.round(i*100/(cols.length-1))+'%';});
+return 'linear-gradient(90deg,'+parts.join(',')+')';}
+function loadPalX(){fetch('/json/palx').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){
+let map=d;if(map&&map.p&&typeof map.p==='object')map=map.p;
+if(!map||Array.isArray(map))throw 0;
+let got=0;
+Object.keys(map).forEach(function(k){const v=map[k];
+if(Array.isArray(v)){const g=gradFromCols(normCols(v));if(g){palXGrad[parseInt(k,10)||k]=g;got++;}}});
+if(got)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
+}).catch(function(){});}
 function makePalRow(e,grid,numbered,seq){
-const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();row.dataset.palname=e.n;
+const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();
 const grad=palXGrad[e.i]||PAL_GRADS[e.n]||seedGrad(e.i);
 row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';
 row.addEventListener('click',function(){cur.palName=e.n;
@@ -889,39 +883,9 @@ if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}
 if(q&&e.n.toLowerCase().indexOf(q)<0)return;
 makePalRow(e,paletteGrid,true,t);t++;});
 updateStarStrips();}
-/* ===== Patch 2: thumbnail palette asli via /json/palx ===== */
-let palXGrad={};
-function colsToGrad(cols){
-if(!cols||!cols.length)return null;
-const stops=[];
-for(let i=0;i<cols.length;i++){const c=cols[i];let r,g,b,pos=null;
-if(Array.isArray(c)){if(c.length>=4){pos=c[0];r=c[1];g=c[2];b=c[3];}else if(c.length===3){r=c[0];g=c[1];b=c[2];}else continue;}
-else if(typeof c==='string'){const n=parseInt(c,16);r=(n>>16)&255;g=(n>>8)&255;b=n&255;}
-else if(typeof c==='number'){r=(c>>16)&255;g=(c>>8)&255;b=c&255;}
-else continue;
-stops.push({pos:pos,r:r,g:g,b:b});}
-if(!stops.length)return null;
-const n=stops.length;
-const parts=stops.map(function(s,i){const p=(s.pos!=null)?(s.pos/255*100):(i*100/(n-1||1));
-return 'rgb('+s.r+','+s.g+','+s.b+') '+p.toFixed(1)+'%';});
-return 'linear-gradient(90deg,'+parts.join(',')+')';}
-function loadPalX(page){
-fetch('/json/palx'+(page!=null?'?page='+page:'')).then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(d){
-let map=d;if(map&&map.p&&typeof map.p==='object')map=map.p;
-if(!map)throw 0;
-let got=0;
-if(Array.isArray(map)){map.forEach(function(v,idx){if(Array.isArray(v)){const g=colsToGrad(v);if(g){palXGrad[idx]=g;got++;}}});}
-else{Object.keys(map).forEach(function(k){const v=map[k];
-if(Array.isArray(v)){const g=colsToGrad(v);if(g){palXGrad[parseInt(k,10)||k]=g;got++;}}});}
-if(got)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
-if(d&&d.pages!=null&&page!=null&&page+1<d.pages)loadPalX(page+1);
-}).catch(function(){});}
-loadPalX(0);
 fetch('/json/pal').then(function(r){return r.json();}).then(function(names){palNamesRaw=names;
 const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});
-arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');renderColorRow();
-loadPaletteColors(function(){renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());});
-}).catch(function(){});
+arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');renderColorRow();loadPalX();}).catch(function(){});
 document.getElementById('searchBox').addEventListener('input',function(e){renderPaletteRows(e.target.value.toLowerCase());});
 
 /* ===== Effects ===== */
@@ -993,7 +957,7 @@ if(chip)chip.textContent=st&&st.valid?(allFx[st.fx]||'-'):'-';
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const names=[];
 sides.forEach(function(sd){const s2=d[activeTab+sd];
-names.push(s2&&s2.valid?((allFx[s2.fx]||'Efek')+' \u2022 '+(palNamesRaw[s2.pal]||'Palette')):'Belum disimpan');});
+names.push(s2&&s2.valid?((allFx[s2.fx]||'Efek')+' - '+(palNamesRaw[s2.pal]||'Palette')):'Belum disimpan');});
 el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+names[1]):names[0];
 }).catch(function(){});}
 
@@ -1001,7 +965,6 @@ el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const currentBri = document.getElementById('brightSlider').value; // Ambil langsung dari UI
-// FIX: kirim ketiga warna (Fx/Bg/Cs), sebelumnya cuma segColors[0] (Fx) yang tersimpan
 const c0=segColors[0]||[255,255,255],c1=segColors[1]||[0,0,0],c2=segColors[2]||[0,0,0];
 const params=new URLSearchParams({fx:cur.fx,pal:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,bri:cur.bri});
 sides.forEach(function(sd){fetch('/mizuma/preset?slot='+activeTab+sd+'&'+params.toString()).catch(function(){});
@@ -1028,9 +991,7 @@ document.getElementById('mCancel').addEventListener('click',function(){document.
 /* ===== Navigation ===== */
 function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){
 [['Kanan',0],['Kiri',1]].forEach(function(pr){const st=d[tab+pr[0]];
-// FIX: st.col sekarang sudah array 3 warna [[r,g,b],[r1,g1,b1],[r2,g2,b2]] dari backend,
-// jadi dikirim langsung, tidak perlu dibungkus [st.col] lagi (dulu itu jadi array-di-dalam-array salah bentuk).
-if(st&&st.valid){const o={id:pr[1],fx:st.fx,pal:st.pal,sx:st.sx,ix:st.ix,col:st.col};post({seg:[o]});post({bri:st.bri});}});
+if(st&&st.valid){const o={id:pr[1],fx:st.fx,pal:st.pal,sx:st.sx,ix:st.ix,col:Array.isArray(st.col[0])?st.col:[st.col]};post({seg:[o]});post({bri:st.bri});}});
 }).catch(function(){});}
 function refreshColorModeVisibility(){const r=isRestrictedTab();
 document.getElementById('colorToggle').style.display=r?'none':'flex';
@@ -1120,9 +1081,9 @@ String vehiclePlate = "";
 struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
 ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
 struct PresetSlot { bool valid=false; uint8_t fx=0; uint8_t pal=0;
-uint8_t r=255,g=255,b=255;    // Color 1 / Fx
-uint8_t r1=0,g1=0,b1=0;       // Color 2 / Bg  (FIX: sebelumnya tidak pernah tersimpan)
-uint8_t r2=0,g2=0,b2=0;       // Color 3 / Cs  (FIX: sebelumnya tidak pernah tersimpan)
+uint8_t r=255,g=255,b=255;
+uint8_t r1=0,g1=0,b1=0;
+uint8_t r2=0,g2=0,b2=0;
 uint8_t sx=128,ix=128,bri=180; };
 PresetSlot pslots[10];
 uint16_t welcomeDur = 7000;
@@ -1140,9 +1101,7 @@ StaticJsonDocument<512> doc; JsonObject root = doc.to<JsonObject>();
 JsonArray seg = root.createNestedArray("seg"); JsonObject s = seg.createNestedObject();
 s["id"]=segId; s["fx"]=p.fx; s["pal"]=p.pal; s["sx"]=p.sx; s["ix"]=p.ix;
 JsonArray col = s.createNestedArray("col");
-// FIX: kirim ketiga slot warna (Fx, Bg, Cs), sebelumnya cuma Fx sehingga
-// Bg/Cs selalu jatuh ke default firmware (hitam) tiap boot.
-JsonArray c0 = col.createNestedArray(); c0.add(p.r);  c0.add(p.g);  c0.add(p.b);
+JsonArray c0 = col.createNestedArray(); c0.add(p.r); c0.add(p.g); c0.add(p.b);
 JsonArray c1 = col.createNestedArray(); c1.add(p.r1); c1.add(p.g1); c1.add(p.b1);
 JsonArray c2 = col.createNestedArray(); c2.add(p.r2); c2.add(p.g2); c2.add(p.b2);
 deserializeState(root);
@@ -1208,22 +1167,20 @@ int i = slotIdx(slotName);
 if(i < 0){ req->send(400,"application/json","{\"ok\":false}"); return; }
 PresetSlot& p = pslots[i];
 p.valid = true;
-p.fx  = (uint8_t)constrain(req->arg("fx").toInt(),  0, 255);
-p.pal = (uint8_t)constrain(req->arg("pal").toInt(), 0, 255);
-p.r   = (uint8_t)constrain(req->arg("r").toInt(),   0, 255);
-p.g   = (uint8_t)constrain(req->arg("g").toInt(),   0, 255);
-p.b   = (uint8_t)constrain(req->arg("b").toInt(),   0, 255);
-// FIX: simpan juga warna Bg (r1/g1/b1) & Cs (r2/g2/b2). Kalau frontend lama
-// belum kirim param ini, default ke 0 (hitam) via constrain(...,-1,255) trik toInt().
-p.r1  = (uint8_t)constrain(req->arg("r1").toInt(), 0, 255);
-p.g1  = (uint8_t)constrain(req->arg("g1").toInt(), 0, 255);
-p.b1  = (uint8_t)constrain(req->arg("b1").toInt(), 0, 255);
-p.r2  = (uint8_t)constrain(req->arg("r2").toInt(), 0, 255);
-p.g2  = (uint8_t)constrain(req->arg("g2").toInt(), 0, 255);
-p.b2  = (uint8_t)constrain(req->arg("b2").toInt(), 0, 255);
-p.sx  = (uint8_t)constrain(req->arg("sx").toInt(),  0, 255);
-p.ix  = (uint8_t)constrain(req->arg("ix").toInt(),  0, 255);
-p.bri = (uint8_t)constrain(req->arg("bri").toInt(), 0, 255);
+p.fx  = req->arg("fx").toInt();
+p.pal = req->arg("pal").toInt();
+p.r   = req->arg("r").toInt();
+p.g   = req->arg("g").toInt();
+p.b   = req->arg("b").toInt();
+p.r1  = (uint8_t)constrain(req->arg("r1").toInt(),0,255);
+p.g1  = (uint8_t)constrain(req->arg("g1").toInt(),0,255);
+p.b1  = (uint8_t)constrain(req->arg("b1").toInt(),0,255);
+p.r2  = (uint8_t)constrain(req->arg("r2").toInt(),0,255);
+p.g2  = (uint8_t)constrain(req->arg("g2").toInt(),0,255);
+p.b2  = (uint8_t)constrain(req->arg("b2").toInt(),0,255);
+p.sx  = (uint8_t)constrain(req->arg("sx").toInt(),0,255);
+p.ix  = (uint8_t)constrain(req->arg("ix").toInt(),0,255);
+p.bri = (uint8_t)constrain(req->arg("bri").toInt(),1,255);
 serializeConfigToFS();
 req->send(200,"application/json","{\"ok\":true}");
 });
@@ -1231,9 +1188,8 @@ server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req){
 DynamicJsonDocument doc(2048); JsonObject root = doc.to<JsonObject>();
 for(int i=0;i<10;i++){ JsonObject s = root.createNestedObject(slotKey(i));
 s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
-// FIX: sertakan ketiga warna (Fx/Bg/Cs), bukan cuma Fx, sebagai array of arrays [[r,g,b],[r1,g1,b1],[r2,g2,b2]]
 JsonArray c = s.createNestedArray("col");
-JsonArray c0 = c.createNestedArray(); c0.add(pslots[i].r);  c0.add(pslots[i].g);  c0.add(pslots[i].b);
+JsonArray c0 = c.createNestedArray(); c0.add(pslots[i].r); c0.add(pslots[i].g); c0.add(pslots[i].b);
 JsonArray c1 = c.createNestedArray(); c1.add(pslots[i].r1); c1.add(pslots[i].g1); c1.add(pslots[i].b1);
 JsonArray c2 = c.createNestedArray(); c2.add(pslots[i].r2); c2.add(pslots[i].g2); c2.add(pslots[i].b2);
 s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
@@ -1272,7 +1228,6 @@ JsonObject pm = top.createNestedObject("presets");
 for(int i=0;i<10;i++){ JsonObject s = pm.createNestedObject(slotKey(i));
 s["valid"]=pslots[i].valid; s["fx"]=pslots[i].fx; s["pal"]=pslots[i].pal;
 s["r"]=pslots[i].r; s["g"]=pslots[i].g; s["b"]=pslots[i].b;
-// FIX: persist juga warna Bg (r1/g1/b1) & Cs (r2/g2/b2) ke flash
 s["r1"]=pslots[i].r1; s["g1"]=pslots[i].g1; s["b1"]=pslots[i].b1;
 s["r2"]=pslots[i].r2; s["g2"]=pslots[i].g2; s["b2"]=pslots[i].b2;
 s["sx"]=pslots[i].sx; s["ix"]=pslots[i].ix; s["bri"]=pslots[i].bri; }
@@ -1293,7 +1248,6 @@ JsonObject pm = top["presets"];
 if(!pm.isNull()){ for(int i=0;i<10;i++){ JsonObject s = pm[slotKey(i)]; if(s.isNull()) continue;
 pslots[i].valid=s["valid"]|false; pslots[i].fx=s["fx"]|0; pslots[i].pal=s["pal"]|0;
 pslots[i].r=s["r"]|255; pslots[i].g=s["g"]|255; pslots[i].b=s["b"]|255;
-// FIX: baca kembali warna Bg (r1/g1/b1) & Cs (r2/g2/b2); default 0 (hitam) untuk config lama
 pslots[i].r1=s["r1"]|0; pslots[i].g1=s["g1"]|0; pslots[i].b1=s["b1"]|0;
 pslots[i].r2=s["r2"]|0; pslots[i].g2=s["g2"]|0; pslots[i].b2=s["b2"]|0;
 pslots[i].sx=s["sx"]|128; pslots[i].ix=s["ix"]|128; pslots[i].bri=s["bri"]|180; }}
