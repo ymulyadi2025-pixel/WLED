@@ -955,7 +955,6 @@ el.textContent=(names.length>1&&names[0]!==names[1])?('Kn: '+names[0]+' | Ki: '+
 }).catch(function(){});}
 
 /* ===== Save ===== */
-/* ===== Save ===== */
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}
 const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];
 const c0=segColors[0]||[255,255,255],c1=segColors[1]||[0,0,0],c2=segColors[2]||[0,0,0];
