@@ -3016,8 +3016,8 @@ public:
     rem["oliRem_last"] = oliRem.lastServiceEpoch;
     rem["oliRem_int"] = oliRem.intervalDays;
 
-    rem["oliGardon_last"] = oliGardon.lastServiceEpoch;
-    rem["oliGardon_int"] = oliGardon.intervalDays;
+    rem["oliGardan_last"] = oliGardan.lastServiceEpoch;
+    rem["oliGardan_int"] = oliGardan.intervalDays;
 
     rem["cvt_last"] = cvt.lastServiceEpoch;
     rem["cvt_int"] = cvt.intervalDays;
@@ -3081,8 +3081,8 @@ public:
     oliRem.lastServiceEpoch = rem["oliRem_last"] | 0;
     oliRem.intervalDays = rem["oliRem_int"] | 0;
 
-    oliGardon.lastServiceEpoch = rem["oliGardon_last"] | 0;
-    oliGardon.intervalDays = rem["oliGardon_int"] | 0;
+    oliGardan.lastServiceEpoch = rem["oliGardan_last"] | 0;
+    oliGardan.intervalDays = rem["oliGardan_int"] | 0;
 
     cvt.lastServiceEpoch = rem["cvt_last"] | 0;
     cvt.intervalDays = rem["cvt_int"] | 0;
