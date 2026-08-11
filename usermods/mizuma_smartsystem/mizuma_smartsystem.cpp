@@ -1270,8 +1270,8 @@ req->send(200,"application/json",ok?"{\"ok\":true}":"{\"ok\":false}");}
 void handleBri(AsyncWebServerRequest *req){
 if(!req->hasArg("v")){req->send(400,"application/json","{\"ok\":false}");return;}
 savedBri=(uint8_t)constrain(req->arg("v").toInt(),1,255);
-bri=savedBri;
-stateUpdated=true;
+bri = savedBri;
+stateUpdated(CALL_MODE_DIRECT_CHANGE);
 briSavePending=true;briSaveT=millis();
 req->send(200,"application/json","{\"ok\":true}");}
 
@@ -1346,7 +1346,7 @@ String out;serializeJson(doc,out);req->send(200,"application/json",out);});}
 
 void loop() override {
 /* FIX BUG 1: restore brightness + debounced flash save (jalan terus walau bootDone) */
-if(!briRestored&&millis()>800){briRestored=true;bri=savedBri;stateUpdated=true;}
+if(!briRestored && millis()>800){briRestored=true;bri=savedBri;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
 if(briSavePending&&millis()-briSaveT>3000){briSavePending=false;serializeConfigToFS();}
 if(bootDone)return;
 unsigned long m=millis();
