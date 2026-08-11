@@ -2456,8 +2456,9 @@ function initFromState() {
 )rawliteral";
 
 // =====================================================================================================================================
-// BLOK 6 — USERMOD (REVISI FINAL)
-// Ganti seluruh Blok 6 lama dengan blok ini.
+// BLOK 6 — USERMOD (REVISI: memory-efficient page serving)
+// Mengganti renderPage()/renderPlaceholder() berbasis String+replace()
+// dengan beginResponse_P + template processor agar hemat heap.
 // =====================================================================================================================================
 #ifndef USERMOD_ID_MIZUMA_SYSTEM
 #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
@@ -2465,7 +2466,7 @@ function initFromState() {
 
 class MizumaSmartSystem : public Usermod {
 private:
-  String vehicleName = "";
+  String vehicleName  = "";
   String vehicleBrand = "";
   uint16_t vehicleYear = 0;
   String vehiclePlate = "";
@@ -2474,42 +2475,23 @@ private:
     unsigned long lastServiceEpoch = 0;
     uint16_t intervalDays = 0;
   };
-
-  ReminderItem oliMesin;
-  ReminderItem oliRem;
-  ReminderItem oliGardan;
-  ReminderItem cvt;
-  ReminderItem filter;
+  ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
 
   struct PresetSlot {
     bool valid = false;
-
     uint8_t fx = 0;
     uint8_t pal = 0;
-
     uint8_t r = 255, g = 255, b = 255;
     uint8_t r1 = 0, g1 = 0, b1 = 0;
     uint8_t r2 = 0, g2 = 0, b2 = 0;
-
-    uint8_t sx = 128;
-    uint8_t ix = 128;
-
-    uint8_t c1 = 128;
-    uint8_t c2 = 128;
-    uint8_t c3 = 128;
-
-    uint8_t o1 = 0;
-    uint8_t o2 = 0;
-    uint8_t o3 = 0;
+    uint8_t sx = 128, ix = 128, bri = 180;
   };
-
   PresetSlot pslots[10];
 
   uint16_t welcomeDur = 7000;
   int bootStage = 0;
   unsigned long bootT = 0;
   bool bootDone = false;
-  bool factoryChecked = false;
 
   const char* slotKey(int i) {
     switch (i) {
@@ -2533,356 +2515,119 @@ private:
     return -1;
   }
 
-  bool isRestrictedSlot(int idx) {
-    return idx >= 4 && idx <= 9;
-  }
+  void applySlotToSeg(int i, int segId) {
+    PresetSlot &p = pslots[i];
+    if (!p.valid) return;
 
-  PresetSlot defaultSlot(int idx) {
-    PresetSlot p;
-
-    p.valid = true;
-
-    p.fx = 0;
-    p.pal = 0;
-
-    p.r1 = 0; p.g1 = 0; p.b1 = 0;
-    p.r2 = 0; p.g2 = 0; p.b2 = 0;
-
-    p.sx = 128;
-    p.ix = 128;
-
-    p.c1 = 128;
-    p.c2 = 128;
-    p.c3 = 128;
-
-    p.o1 = 0;
-    p.o2 = 0;
-    p.o3 = 0;
-
-    if (idx == 4 || idx == 5 || idx == 8 || idx == 9) {
-      // Sein / Hazard: amber
-      p.r = 255;
-      p.g = 165;
-      p.b = 0;
-    }
-    else if (idx == 6 || idx == 7) {
-      // Rem: merah
-      p.r = 255;
-      p.g = 0;
-      p.b = 0;
-    }
-    else {
-      // Welcoming / Riding fallback
-      p.r = 255;
-      p.g = 255;
-      p.b = 255;
-    }
-
-    return p;
-  }
-
-  void normalizeRestrictedSlot(PresetSlot &p, int idx) {
-    if (!isRestrictedSlot(idx)) return;
-
-    p.pal = 0;
-
-    p.r1 = 0;
-    p.g1 = 0;
-    p.b1 = 0;
-
-    p.r2 = 0;
-    p.g2 = 0;
-    p.b2 = 0;
-
-    if (p.r == 0 && p.g == 0 && p.b == 0) {
-      if (idx == 6 || idx == 7) {
-        p.r = 255;
-        p.g = 0;
-        p.b = 0;
-      } else {
-        p.r = 255;
-        p.g = 165;
-        p.b = 0;
-      }
-    }
-  }
-
-  PresetSlot getEffectiveSlot(int idx) {
-    if (idx < 0 || idx > 9) idx = 2;
-
-    PresetSlot p = pslots[idx].valid ? pslots[idx] : defaultSlot(idx);
-    normalizeRestrictedSlot(p, idx);
-
-    return p;
-  }
-
-  void ensureFactoryPresets() {
-    for (int i = 0; i < 10; i++) {
-      if (!pslots[i].valid) {
-        pslots[i] = defaultSlot(i);
-      }
-    }
-  }
-
-  uint8_t argU8(AsyncWebServerRequest *req, const char* key, uint8_t def) {
-    if (!req->hasArg(key)) return def;
-
-    int v = req->arg(key).toInt();
-    return (uint8_t)constrain(v, 0, 255);
-  }
-
-  void addSegmentFromSlot(JsonArray seg, uint8_t segId, uint8_t slotIdx) {
-    PresetSlot p = getEffectiveSlot(slotIdx);
-
+    StaticJsonDocument<512> doc;
+    JsonObject root = doc.to<JsonObject>();
+    JsonArray seg = root.createNestedArray("seg");
     JsonObject s = seg.createNestedObject();
 
     s["id"] = segId;
-    s["on"] = true;
-
     s["fx"] = p.fx;
     s["pal"] = p.pal;
-
     s["sx"] = p.sx;
     s["ix"] = p.ix;
 
-    s["c1"] = p.c1;
-    s["c2"] = p.c2;
-    s["c3"] = p.c3;
-
-    s["o1"] = p.o1;
-    s["o2"] = p.o2;
-    s["o3"] = p.o3;
-
     JsonArray col = s.createNestedArray("col");
-
-    JsonArray c0 = col.createNestedArray();
-    c0.add(p.r);
-    c0.add(p.g);
-    c0.add(p.b);
-
-    JsonArray c1 = col.createNestedArray();
-    c1.add(p.r1);
-    c1.add(p.g1);
-    c1.add(p.b1);
-
-    JsonArray c2 = col.createNestedArray();
-    c2.add(p.r2);
-    c2.add(p.g2);
-    c2.add(p.b2);
-  }
-
-  void applySingleSlot(uint8_t slotIdx) {
-    uint8_t segId = (slotIdx % 2 == 0) ? 0 : 1;
-
-    StaticJsonDocument<1024> doc;
-    JsonObject root = doc.to<JsonObject>();
-
-    root["on"] = true;
-
-    if (bri == 0) {
-      root["bri"] = 180;
-    }
-
-    JsonArray seg = root.createNestedArray("seg");
-    addSegmentFromSlot(seg, segId, slotIdx);
+    JsonArray c0 = col.createNestedArray(); c0.add(p.r);  c0.add(p.g);  c0.add(p.b);
+    JsonArray c1 = col.createNestedArray(); c1.add(p.r1); c1.add(p.g1); c1.add(p.b1);
+    JsonArray c2 = col.createNestedArray(); c2.add(p.r2); c2.add(p.g2); c2.add(p.b2);
 
     deserializeState(root);
   }
 
-  void applyTwoSlots(uint8_t rightSlot, uint8_t leftSlot) {
-    StaticJsonDocument<2048> doc;
-    JsonObject root = doc.to<JsonObject>();
-
-    root["on"] = true;
-    root["transition"] = 0;
-
-    if (bri == 0) {
-      root["bri"] = 180;
-    }
-
-    JsonArray seg = root.createNestedArray("seg");
-
-    addSegmentFromSlot(seg, 0, rightSlot);
-    addSegmentFromSlot(seg, 1, leftSlot);
-
-    deserializeState(root);
-  }
-
-  int modeBase(const String &mode) {
-    if (mode == "welcoming") return 0;
-    if (mode == "riding") return 2;
-    if (mode == "sein") return 4;
-    if (mode == "rem") return 6;
-    if (mode == "hazard") return 8;
-    return -1;
-  }
-
-  bool applyModeSide(const String &mode, const String &side) {
-    int base = modeBase(mode);
-    if (base < 0) return false;
-
-    if (side == "both") {
-      applyTwoSlots(base, base + 1);
-      return true;
-    }
-
-    if (side == "kanan") {
-      applySingleSlot(base);
-      return true;
-    }
-
-    if (side == "kiri") {
-      applySingleSlot(base + 1);
-      return true;
-    }
-
-    return false;
-  }
-
-  void handlePreset(AsyncWebServerRequest *req) {
-    String slotName = req->arg("slot");
-    int i = slotIdx(slotName);
-
-    if (i < 0) {
-      req->send(400, "application/json", "{\"ok\":false}");
-      return;
-    }
-
-    PresetSlot p;
-
-    p.valid = true;
-
-    p.fx = argU8(req, "fx", 0);
-    p.pal = argU8(req, "pal", 0);
-
-    p.r = argU8(req, "r", 255);
-    p.g = argU8(req, "g", 255);
-    p.b = argU8(req, "b", 255);
-
-    p.r1 = argU8(req, "r1", 0);
-    p.g1 = argU8(req, "g1", 0);
-    p.b1 = argU8(req, "b1", 0);
-
-    p.r2 = argU8(req, "r2", 0);
-    p.g2 = argU8(req, "g2", 0);
-    p.b2 = argU8(req, "b2", 0);
-
-    p.sx = argU8(req, "sx", 128);
-    p.ix = argU8(req, "ix", 128);
-
-    p.c1 = argU8(req, "c1", 128);
-    p.c2 = argU8(req, "c2", 128);
-    p.c3 = argU8(req, "c3", 128);
-
-    p.o1 = req->arg("o1").toInt() ? 1 : 0;
-    p.o2 = req->arg("o2").toInt() ? 1 : 0;
-    p.o3 = req->arg("o3").toInt() ? 1 : 0;
-
-    if (isRestrictedSlot(i)) {
-      p.pal = 0;
-
-      p.r1 = 0;
-      p.g1 = 0;
-      p.b1 = 0;
-
-      p.r2 = 0;
-      p.g2 = 0;
-      p.b2 = 0;
-
-      if (p.r == 0 && p.g == 0 && p.b == 0) {
-        if (i == 6 || i == 7) {
-          p.r = 255;
-          p.g = 0;
-          p.b = 0;
-        } else {
-          p.r = 255;
-          p.g = 165;
-          p.b = 0;
-        }
-      }
-    }
-
-    pslots[i] = p;
-
-    serializeConfigToFS();
-
-    req->send(200, "application/json", "{\"ok\":true}");
-  }
-
-  void handleApply(AsyncWebServerRequest *req) {
-    if (!req->hasArg("mode") || !req->hasArg("side")) {
-      req->send(400, "application/json", "{\"ok\":false}");
-      return;
-    }
-
-    bool ok = applyModeSide(req->arg("mode"), req->arg("side"));
-
-    if (ok) {
-      req->send(200, "application/json", "{\"ok\":true}");
-    } else {
-      req->send(400, "application/json", "{\"ok\":false}");
-    }
-  }
-
-  String renderPage(String html, const char* activeKey) {
-    html.replace("%SHARED_CSS%", FPSTR(MIZUMA_SHARED_CSS));
-    html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
-    html.replace("%HEADER_SCRIPT%", FPSTR(MIZUMA_HEADER_SCRIPT));
-
+  // ------------------------------------------------------------------
+  // Helper: bangun bottom-nav dengan kelas "active" sesuai halaman
+  // ------------------------------------------------------------------
+  String buildNavHtml(const char* activeKey) {
     String navHtml = FPSTR(MIZUMA_BOTTOMNAV_HTML);
-
-    navHtml.replace("__ACTIVE_BERANDA__", strcmp(activeKey, "beranda") == 0 ? "active" : "");
-    navHtml.replace("__ACTIVE_LAMPU__", strcmp(activeKey, "lampu") == 0 ? "active" : "");
-    navHtml.replace("__ACTIVE_SERVIS__", strcmp(activeKey, "servis") == 0 ? "active" : "");
-    navHtml.replace("__ACTIVE_KEAMANAN__", strcmp(activeKey, "keamanan") == 0 ? "active" : "");
+    navHtml.replace("__ACTIVE_BERANDA__",    strcmp(activeKey, "beranda")    == 0 ? "active" : "");
+    navHtml.replace("__ACTIVE_LAMPU__",      strcmp(activeKey, "lampu")      == 0 ? "active" : "");
+    navHtml.replace("__ACTIVE_SERVIS__",     strcmp(activeKey, "servis")     == 0 ? "active" : "");
+    navHtml.replace("__ACTIVE_KEAMANAN__",   strcmp(activeKey, "keamanan")   == 0 ? "active" : "");
     navHtml.replace("__ACTIVE_PENGATURAN__", strcmp(activeKey, "pengaturan") == 0 ? "active" : "");
-
-    html.replace("%BOTTOMNAV%", navHtml);
-
-    html.replace("%VEHICLE_NAME%", vehicleName.length() ? vehicleName : "Motor Anda");
-    html.replace("%VEHICLE_BRAND%", vehicleBrand.length() ? vehicleBrand : "-");
-    html.replace("%VEHICLE_YEAR%", vehicleYear ? String(vehicleYear) : "-");
-    html.replace("%VEHICLE_PLATE%", vehiclePlate.length() ? vehiclePlate : "-");
-
-    return html;
+    return navHtml;
   }
 
-  String renderPlaceholder(const char* title, const char* icon, const char* activeKey) {
-    String html = FPSTR(MIZUMA_PLACEHOLDER_HTML);
+  // ------------------------------------------------------------------
+  // Kirim halaman dari PROGMEM + template processor (hemat heap)
+  // Tidak lagi memakai String html = FPSTR(...) + replace() berantai.
+  // ------------------------------------------------------------------
+  void sendTemplatePage(AsyncWebServerRequest *req, const char* pageTemplate, const char* activeKey) {
+    AsyncWebServerResponse *res = req->beginResponse_P(
+      200, "text/html",
+      (const uint8_t*)pageTemplate, strlen_P(pageTemplate),
+      [this, activeKey](const String& var) -> String {
+        if (var == "SHARED_CSS")     return String(FPSTR(MIZUMA_SHARED_CSS));
+        if (var == "HEADER")         return String(FPSTR(MIZUMA_HEADER_HTML));
+        if (var == "HEADER_SCRIPT")  return String(FPSTR(MIZUMA_HEADER_SCRIPT));
+        if (var == "BOTTOMNAV")      return buildNavHtml(activeKey);
+        if (var == "VEHICLE_NAME")   return vehicleName.length()  ? vehicleName  : String("Motor Anda");
+        if (var == "VEHICLE_BRAND")  return vehicleBrand.length() ? vehicleBrand : String("-");
+        if (var == "VEHICLE_YEAR")   return vehicleYear ? String(vehicleYear) : String("-");
+        if (var == "VEHICLE_PLATE")  return vehiclePlate.length() ? vehiclePlate : String("-");
+        return String();
+      }
+    );
+    req->send(res);
+  }
 
-    html.replace("%PAGE_TITLE%", title);
-    html.replace("%PAGE_ICON%", icon);
+  // ------------------------------------------------------------------
+  // Kirim halaman placeholder (Servis / Keamanan) + template processor
+  // ------------------------------------------------------------------
+  void sendPlaceholderPage(AsyncWebServerRequest *req, const char* title, const char* icon, const char* activeKey) {
+    String pageTitle = String(title);
+    String pageIcon  = String(icon);
 
-    return renderPage(html, activeKey);
+    AsyncWebServerResponse *res = req->beginResponse_P(
+      200, "text/html",
+      (const uint8_t*)MIZUMA_PLACEHOLDER_HTML, strlen_P(MIZUMA_PLACEHOLDER_HTML),
+      [this, activeKey, pageTitle, pageIcon](const String& var) -> String {
+        if (var == "PAGE_TITLE")     return pageTitle;
+        if (var == "PAGE_ICON")      return pageIcon;
+        if (var == "SHARED_CSS")     return String(FPSTR(MIZUMA_SHARED_CSS));
+        if (var == "HEADER")         return String(FPSTR(MIZUMA_HEADER_HTML));
+        if (var == "HEADER_SCRIPT")  return String(FPSTR(MIZUMA_HEADER_SCRIPT));
+        if (var == "BOTTOMNAV")      return buildNavHtml(activeKey);
+        if (var == "VEHICLE_NAME")   return vehicleName.length()  ? vehicleName  : String("Motor Anda");
+        if (var == "VEHICLE_BRAND")  return vehicleBrand.length() ? vehicleBrand : String("-");
+        if (var == "VEHICLE_YEAR")   return vehicleYear ? String(vehicleYear) : String("-");
+        if (var == "VEHICLE_PLATE")  return vehiclePlate.length() ? vehiclePlate : String("-");
+        return String();
+      }
+    );
+    req->send(res);
   }
 
 public:
   void setup() override {
+    apBehavior = AP_BEHAVIOR_ALWAYS;
     DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
+    // ---------- Halaman utama (template processor, hemat heap) ----------
     server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      String html = FPSTR(MIZUMA_HOME_HTML);
-      req->send(200, "text/html", renderPage(html, "beranda"));
+      sendTemplatePage(req, MIZUMA_HOME_HTML, "beranda");
     });
 
     server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      String html = FPSTR(MIZUMA_LED_HTML);
-      req->send(200, "text/html", renderPage(html, "lampu"));
+      sendTemplatePage(req, MIZUMA_LED_HTML, "lampu");
     });
 
     server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      String html = FPSTR(MIZUMA_SETTINGS_HTML);
-      req->send(200, "text/html", renderPage(html, "pengaturan"));
+      sendTemplatePage(req, MIZUMA_SETTINGS_HTML, "pengaturan");
     });
 
     server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      req->send(200, "text/html", renderPlaceholder("Servis", "🛠", "servis"));
+      sendPlaceholderPage(req, "Servis", "🛠", "servis");
     });
 
     server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      req->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "🔒", "keamanan"));
+      sendPlaceholderPage(req, "Keamanan & GPS", "🔒", "keamanan");
     });
 
+    // ---------- Fragment (untuk /led yang inject via JS) ----------
     server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *req) {
       req->send_P(200, "text/html", MIZUMA_HEADER_HTML);
     });
@@ -2895,106 +2640,106 @@ public:
       req->send_P(200, "text/html", MIZUMA_BOTTOMNAV_HTML);
     });
 
+    // ---------- Status koneksi ----------
     server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *req) {
-      bool apOn = (WiFi.getMode() & WIFI_AP) != 0;
+      bool apOn  = (WiFi.softAPgetStationNum() > 0);
       bool staOn = (WiFi.status() == WL_CONNECTED);
+      String staIP = staOn ? WiFi.localIP().toString() : "";
 
-      StaticJsonDocument<256> doc;
+      String json = "{\"ap\":";  json += apOn  ? "true" : "false";
+      json += ",\"sta\":";       json += staOn ? "true" : "false";
+      json += ",\"staIP\":\"";   json += staIP;
+      json += "\",\"ssid\":\"";  json += staOn ? WiFi.SSID() : String("Mizuma Smart System");
+      json += "\"}";
 
-      doc["ap"] = apOn;
-      doc["sta"] = staOn;
-      doc["staIP"] = staOn ? WiFi.localIP().toString() : "";
-      doc["ssid"] = staOn ? WiFi.SSID() : String("Mizuma Smart System");
-
-      String out;
-      serializeJson(doc, out);
-
-      req->send(200, "application/json", out);
+      req->send(200, "application/json", json);
     });
 
+    // ---------- Debug heap (untuk diagnosa memori) ----------
+    server.on("/mizuma/debug", HTTP_GET, [](AsyncWebServerRequest *req) {
+      char buf[192];
+      snprintf(buf, sizeof(buf),
+        "{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u}",
+        (unsigned)ESP.getFreeHeap(),
+        (unsigned)ESP.getMinFreeHeap(),
+        (unsigned)ESP.getMaxAllocHeap()
+      );
+      req->send(200, "application/json", buf);
+    });
+
+    // ---------- Simpan preset ----------
     server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      handlePreset(req);
+      String slotName = req->arg("slot");
+      int i = slotIdx(slotName);
+      if (i < 0) {
+        req->send(400, "application/json", "{\"ok\":false}");
+        return;
+      }
+
+      PresetSlot &p = pslots[i];
+      p.valid = true;
+      p.fx  = req->arg("fx").toInt();
+      p.pal = req->arg("pal").toInt();
+      p.r   = req->arg("r").toInt();
+      p.g   = req->arg("g").toInt();
+      p.b   = req->arg("b").toInt();
+      p.r1  = (uint8_t)constrain(req->arg("r1").toInt(), 0, 255);
+      p.g1  = (uint8_t)constrain(req->arg("g1").toInt(), 0, 255);
+      p.b1  = (uint8_t)constrain(req->arg("b1").toInt(), 0, 255);
+      p.r2  = (uint8_t)constrain(req->arg("r2").toInt(), 0, 255);
+      p.g2  = (uint8_t)constrain(req->arg("g2").toInt(), 0, 255);
+      p.b2  = (uint8_t)constrain(req->arg("b2").toInt(), 0, 255);
+      p.sx  = (uint8_t)constrain(req->arg("sx").toInt(), 0, 255);
+      p.ix  = (uint8_t)constrain(req->arg("ix").toInt(), 0, 255);
+      p.bri = (uint8_t)constrain(req->arg("bri").toInt(), 1, 255);
+
+      serializeConfigToFS();
+      req->send(200, "application/json", "{\"ok\":true}");
     });
 
-    server.on("/mizuma/preset", HTTP_POST, [this](AsyncWebServerRequest *req) {
-      handlePreset(req);
-    });
-
-    server.on("/mizuma/apply", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      handleApply(req);
-    });
-
-    server.on("/mizuma/apply", HTTP_POST, [this](AsyncWebServerRequest *req) {
-      handleApply(req);
-    });
-
+    // ---------- Baca semua preset ----------
     server.on("/mizuma/presets", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      DynamicJsonDocument doc(4096);
+      DynamicJsonDocument doc(2048);
       JsonObject root = doc.to<JsonObject>();
 
       for (int i = 0; i < 10; i++) {
-        PresetSlot p = getEffectiveSlot(i);
-
         JsonObject s = root.createNestedObject(slotKey(i));
-
         s["valid"] = pslots[i].valid;
-
-        s["fx"] = p.fx;
-        s["pal"] = p.pal;
+        s["fx"] = pslots[i].fx;
+        s["pal"] = pslots[i].pal;
 
         JsonArray c = s.createNestedArray("col");
+        JsonArray c0 = c.createNestedArray(); c0.add(pslots[i].r);  c0.add(pslots[i].g);  c0.add(pslots[i].b);
+        JsonArray c1 = c.createNestedArray(); c1.add(pslots[i].r1); c1.add(pslots[i].g1); c1.add(pslots[i].b1);
+        JsonArray c2 = c.createNestedArray(); c2.add(pslots[i].r2); c2.add(pslots[i].g2); c2.add(pslots[i].b2);
 
-        JsonArray c0 = c.createNestedArray();
-        c0.add(p.r);
-        c0.add(p.g);
-        c0.add(p.b);
-
-        JsonArray c1 = c.createNestedArray();
-        c1.add(p.r1);
-        c1.add(p.g1);
-        c1.add(p.b1);
-
-        JsonArray c2 = c.createNestedArray();
-        c2.add(p.r2);
-        c2.add(p.g2);
-        c2.add(p.b2);
-
-        s["sx"] = p.sx;
-        s["ix"] = p.ix;
-
-        s["c1"] = p.c1;
-        s["c2"] = p.c2;
-        s["c3"] = p.c3;
-
-        s["o1"] = p.o1;
-        s["o2"] = p.o2;
-        s["o3"] = p.o3;
+        s["sx"] = pslots[i].sx;
+        s["ix"] = pslots[i].ix;
+        s["bri"] = pslots[i].bri;
       }
 
       String out;
       serializeJson(doc, out);
-
       req->send(200, "application/json", out);
     });
   }
 
   void loop() override {
-    if (!factoryChecked) {
-      factoryChecked = true;
-      ensureFactoryPresets();
-    }
-
     if (bootDone) return;
 
     unsigned long m = millis();
 
     if (bootStage == 0 && m > 1200) {
-      applyModeSide("welcoming", "both");
+      applySlotToSeg(0, 0);
+      applySlotToSeg(1, 1);
+      if (pslots[0].valid) bri = pslots[0].bri;
       bootStage = 1;
       bootT = m;
     }
-    else if (bootStage == 1 && (m - bootT) >= welcomeDur) {
-      applyModeSide("riding", "both");
+    else if (bootStage == 1 && m - bootT >= welcomeDur) {
+      applySlotToSeg(2, 0);
+      applySlotToSeg(3, 1);
+      if (pslots[2].valid) bri = pslots[2].bri;
       bootDone = true;
     }
   }
@@ -3009,54 +2754,22 @@ public:
     vehicle["plate"] = vehiclePlate;
 
     JsonObject rem = top.createNestedObject("reminder");
-
-    rem["oliMesin_last"] = oliMesin.lastServiceEpoch;
-    rem["oliMesin_int"] = oliMesin.intervalDays;
-
-    rem["oliRem_last"] = oliRem.lastServiceEpoch;
-    rem["oliRem_int"] = oliRem.intervalDays;
-
-    rem["oliGardan_last"] = oliGardan.lastServiceEpoch;
-    rem["oliGardan_int"] = oliGardan.intervalDays;
-
-    rem["cvt_last"] = cvt.lastServiceEpoch;
-    rem["cvt_int"] = cvt.intervalDays;
-
-    rem["filter_last"] = filter.lastServiceEpoch;
-    rem["filter_int"] = filter.intervalDays;
+    rem["oliMesin_last"] = oliMesin.lastServiceEpoch;  rem["oliMesin_int"] = oliMesin.intervalDays;
+    rem["oliRem_last"] = oliRem.lastServiceEpoch;      rem["oliRem_int"] = oliRem.intervalDays;
+    rem["oliGardan_last"] = oliGardan.lastServiceEpoch; rem["oliGardan_int"] = oliGardan.intervalDays;
+    rem["cvt_last"] = cvt.lastServiceEpoch;            rem["cvt_int"] = cvt.intervalDays;
+    rem["filter_last"] = filter.lastServiceEpoch;      rem["filter_int"] = filter.intervalDays;
 
     JsonObject pm = top.createNestedObject("presets");
-
     for (int i = 0; i < 10; i++) {
       JsonObject s = pm.createNestedObject(slotKey(i));
-
       s["valid"] = pslots[i].valid;
-
       s["fx"] = pslots[i].fx;
       s["pal"] = pslots[i].pal;
-
-      s["r"] = pslots[i].r;
-      s["g"] = pslots[i].g;
-      s["b"] = pslots[i].b;
-
-      s["r1"] = pslots[i].r1;
-      s["g1"] = pslots[i].g1;
-      s["b1"] = pslots[i].b1;
-
-      s["r2"] = pslots[i].r2;
-      s["g2"] = pslots[i].g2;
-      s["b2"] = pslots[i].b2;
-
-      s["sx"] = pslots[i].sx;
-      s["ix"] = pslots[i].ix;
-
-      s["c1"] = pslots[i].c1;
-      s["c2"] = pslots[i].c2;
-      s["c3"] = pslots[i].c3;
-
-      s["o1"] = pslots[i].o1;
-      s["o2"] = pslots[i].o2;
-      s["o3"] = pslots[i].o3;
+      s["r"] = pslots[i].r;   s["g"] = pslots[i].g;   s["b"] = pslots[i].b;
+      s["r1"] = pslots[i].r1; s["g1"] = pslots[i].g1; s["b1"] = pslots[i].b1;
+      s["r2"] = pslots[i].r2; s["g2"] = pslots[i].g2; s["b2"] = pslots[i].b2;
+      s["sx"] = pslots[i].sx; s["ix"] = pslots[i].ix; s["bri"] = pslots[i].bri;
     }
 
     top["welcomeDur"] = welcomeDur;
@@ -3067,70 +2780,34 @@ public:
     if (top.isNull()) return false;
 
     JsonObject vehicle = top["vehicle"];
-
-    vehicleName = vehicle["name"] | "";
+    vehicleName  = vehicle["name"] | "";
     vehicleBrand = vehicle["brand"] | "";
-    vehicleYear = vehicle["year"] | 0;
+    vehicleYear  = vehicle["year"] | 0;
     vehiclePlate = vehicle["plate"] | "";
 
     JsonObject rem = top["reminder"];
-
-    oliMesin.lastServiceEpoch = rem["oliMesin_last"] | 0;
-    oliMesin.intervalDays = rem["oliMesin_int"] | 0;
-
-    oliRem.lastServiceEpoch = rem["oliRem_last"] | 0;
-    oliRem.intervalDays = rem["oliRem_int"] | 0;
-
-    oliGardan.lastServiceEpoch = rem["oliGardan_last"] | 0;
-    oliGardan.intervalDays = rem["oliGardan_int"] | 0;
-
-    cvt.lastServiceEpoch = rem["cvt_last"] | 0;
-    cvt.intervalDays = rem["cvt_int"] | 0;
-
-    filter.lastServiceEpoch = rem["filter_last"] | 0;
-    filter.intervalDays = rem["filter_int"] | 0;
+    oliMesin.lastServiceEpoch = rem["oliMesin_last"] | 0;  oliMesin.intervalDays = rem["oliMesin_int"] | 0;
+    oliRem.lastServiceEpoch = rem["oliRem_last"] | 0;      oliRem.intervalDays = rem["oliRem_int"] | 0;
+    oliGardan.lastServiceEpoch = rem["oliGardan_last"] | 0; oliGardan.intervalDays = rem["oliGardan_int"] | 0;
+    cvt.lastServiceEpoch = rem["cvt_last"] | 0;            cvt.intervalDays = rem["cvt_int"] | 0;
+    filter.lastServiceEpoch = rem["filter_last"] | 0;      filter.intervalDays = rem["filter_int"] | 0;
 
     JsonObject pm = top["presets"];
-
     if (!pm.isNull()) {
       for (int i = 0; i < 10; i++) {
         JsonObject s = pm[slotKey(i)];
         if (s.isNull()) continue;
-
         pslots[i].valid = s["valid"] | false;
-
         pslots[i].fx = s["fx"] | 0;
         pslots[i].pal = s["pal"] | 0;
-
-        pslots[i].r = s["r"] | 255;
-        pslots[i].g = s["g"] | 255;
-        pslots[i].b = s["b"] | 255;
-
-        pslots[i].r1 = s["r1"] | 0;
-        pslots[i].g1 = s["g1"] | 0;
-        pslots[i].b1 = s["b1"] | 0;
-
-        pslots[i].r2 = s["r2"] | 0;
-        pslots[i].g2 = s["g2"] | 0;
-        pslots[i].b2 = s["b2"] | 0;
-
-        pslots[i].sx = s["sx"] | 128;
-        pslots[i].ix = s["ix"] | 128;
-
-        pslots[i].c1 = s["c1"] | 128;
-        pslots[i].c2 = s["c2"] | 128;
-        pslots[i].c3 = s["c3"] | 128;
-
-        pslots[i].o1 = s["o1"] | 0;
-        pslots[i].o2 = s["o2"] | 0;
-        pslots[i].o3 = s["o3"] | 0;
+        pslots[i].r = s["r"] | 255;   pslots[i].g = s["g"] | 255;   pslots[i].b = s["b"] | 255;
+        pslots[i].r1 = s["r1"] | 0;   pslots[i].g1 = s["g1"] | 0;   pslots[i].b1 = s["b1"] | 0;
+        pslots[i].r2 = s["r2"] | 0;   pslots[i].g2 = s["g2"] | 0;   pslots[i].b2 = s["b2"] | 0;
+        pslots[i].sx = s["sx"] | 128; pslots[i].ix = s["ix"] | 128; pslots[i].bri = s["bri"] | 180;
       }
     }
 
     welcomeDur = top["welcomeDur"] | 7000;
-
-    ensureFactoryPresets();
-
     return true;
   }
 
