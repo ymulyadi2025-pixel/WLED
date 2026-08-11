@@ -154,8 +154,8 @@ const char MIZUMA_HOME_HTML[] PROGMEM = R"rawliteral(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
 <style>
-%SHARED_CSS%
 .container{padding:16px;max-width:520px;margin:0 auto;}
 .greet-card{display:flex;justify-content:space-between;align-items:center;}
 .greet-k{font-size:10px;font-weight:800;letter-spacing:1.6px;color:var(--ac);text-transform:uppercase;}
@@ -223,8 +223,8 @@ const char MIZUMA_HOME_HTML[] PROGMEM = R"rawliteral(
 </div>
 </div>
 %BOTTOMNAV%
+<script src="/mizuma.js"></script>
 <script>
-%HEADER_SCRIPT%
 const h = new Date().getHours();
 let g = 'SELAMAT MALAM';
 if (h >= 4 && h < 11) g = 'SELAMAT PAGI';
@@ -246,8 +246,8 @@ const char MIZUMA_SETTINGS_HTML[] PROGMEM = R"rawliteral(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pengaturan - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
 <style>
-%SHARED_CSS%
 .container { padding:16px; max-width:520px; margin:0 auto; }
 .info-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; font-size:13px; border-bottom:1px solid var(--bd); }
 .info-row:last-child { border-bottom:none; }
@@ -324,8 +324,8 @@ const char MIZUMA_SETTINGS_HTML[] PROGMEM = R"rawliteral(
 </div>
 </div>
 %BOTTOMNAV%
+<script src="/mizuma.js"></script>
 <script>
-%HEADER_SCRIPT%
 var isAPMode = (window.location.hostname === '4.3.2.1');
 document.querySelectorAll('.chip-row .chip').forEach(function(ch){
 ch.addEventListener('click', function(){
@@ -393,7 +393,8 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>%PAGE_TITLE% - Mizuma</title>
 <style>
-%SHARED_CSS%
+<link rel="stylesheet" href="/mizuma.css">
+<style>
 .container { padding:16px; max-width:520px; margin:0 auto; }
 .center-card { text-align:center; padding:40px 20px; }
 .center-card .ci { font-size:40px; margin-bottom:14px; }
@@ -410,7 +411,7 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 </div>
 </div>
 %BOTTOMNAV%
-<script>%HEADER_SCRIPT%</script>
+<script src="/mizuma.js"></script>
 </body>
 </html>
 )rawliteral";
@@ -426,8 +427,8 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lampu - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
 <style>
-%SHARED_CSS%
 html,body{height:100%;overflow:hidden;}
 body{display:flex;flex-direction:column;}
 .freeze{flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--bd);}
@@ -2456,9 +2457,10 @@ function initFromState() {
 )rawliteral";
 
 // =====================================================================================================================================
-// BLOK 6 — USERMOD (REVISI: memory-efficient page serving)
-// Mengganti renderPage()/renderPlaceholder() berbasis String+replace()
-// dengan beginResponse_P + template processor agar hemat heap.
+// BLOK 6 — USERMOD (FINAL: render aman + hemat memori)
+// - /led dikirim langsung send_P (tanpa replace)
+// - CSS & JS shared dipisah ke /mizuma.css dan /mizuma.js
+// - Halaman lain pakai String.replace hanya untuk placeholder kecil
 // =====================================================================================================================================
 #ifndef USERMOD_ID_MIZUMA_SYSTEM
 #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
@@ -2471,10 +2473,7 @@ private:
   uint16_t vehicleYear = 0;
   String vehiclePlate = "";
 
-  struct ReminderItem {
-    unsigned long lastServiceEpoch = 0;
-    uint16_t intervalDays = 0;
-  };
+  struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
   ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
 
   struct PresetSlot {
@@ -2509,9 +2508,7 @@ private:
   }
 
   int slotIdx(const String &k) {
-    for (int i = 0; i < 10; i++) {
-      if (k == slotKey(i)) return i;
-    }
+    for (int i = 0; i < 10; i++) if (k == slotKey(i)) return i;
     return -1;
   }
 
@@ -2539,66 +2536,37 @@ private:
   }
 
   // ------------------------------------------------------------------
-  // Helper: bangun bottom-nav dengan kelas "active" sesuai halaman
+  // Replace umum untuk placeholder KECIL saja (aman, tidak ada % liar)
   // ------------------------------------------------------------------
-  String buildNavHtml(const char* activeKey) {
+  void applyCommonReplacements(String &html, const char* activeKey) {
+    html.replace("%HEADER%", FPSTR(MIZUMA_HEADER_HTML));
+
     String navHtml = FPSTR(MIZUMA_BOTTOMNAV_HTML);
     navHtml.replace("__ACTIVE_BERANDA__",    strcmp(activeKey, "beranda")    == 0 ? "active" : "");
     navHtml.replace("__ACTIVE_LAMPU__",      strcmp(activeKey, "lampu")      == 0 ? "active" : "");
     navHtml.replace("__ACTIVE_SERVIS__",     strcmp(activeKey, "servis")     == 0 ? "active" : "");
     navHtml.replace("__ACTIVE_KEAMANAN__",   strcmp(activeKey, "keamanan")   == 0 ? "active" : "");
     navHtml.replace("__ACTIVE_PENGATURAN__", strcmp(activeKey, "pengaturan") == 0 ? "active" : "");
-    return navHtml;
+    html.replace("%BOTTOMNAV%", navHtml);
+
+    html.replace("%VEHICLE_NAME%",  vehicleName.length()  ? vehicleName  : String("Motor Anda"));
+    html.replace("%VEHICLE_BRAND%", vehicleBrand.length() ? vehicleBrand : String("-"));
+    html.replace("%VEHICLE_YEAR%",  vehicleYear ? String(vehicleYear) : String("-"));
+    html.replace("%VEHICLE_PLATE%", vehiclePlate.length() ? vehiclePlate : String("-"));
   }
 
-  // ------------------------------------------------------------------
-  // Kirim halaman dari PROGMEM + template processor (hemat heap)
-  // Tidak lagi memakai String html = FPSTR(...) + replace() berantai.
-  // ------------------------------------------------------------------
-  void sendTemplatePage(AsyncWebServerRequest *req, const char* pageTemplate, const char* activeKey) {
-    AsyncWebServerResponse *res = req->beginResponse_P(
-      200, "text/html",
-      (const uint8_t*)pageTemplate, strlen_P(pageTemplate),
-      [this, activeKey](const String& var) -> String {
-        if (var == "SHARED_CSS")     return String(FPSTR(MIZUMA_SHARED_CSS));
-        if (var == "HEADER")         return String(FPSTR(MIZUMA_HEADER_HTML));
-        if (var == "HEADER_SCRIPT")  return String(FPSTR(MIZUMA_HEADER_SCRIPT));
-        if (var == "BOTTOMNAV")      return buildNavHtml(activeKey);
-        if (var == "VEHICLE_NAME")   return vehicleName.length()  ? vehicleName  : String("Motor Anda");
-        if (var == "VEHICLE_BRAND")  return vehicleBrand.length() ? vehicleBrand : String("-");
-        if (var == "VEHICLE_YEAR")   return vehicleYear ? String(vehicleYear) : String("-");
-        if (var == "VEHICLE_PLATE")  return vehiclePlate.length() ? vehiclePlate : String("-");
-        return String();
-      }
-    );
-    req->send(res);
+  String renderPage(const char* pageTemplate, const char* activeKey) {
+    String html = FPSTR(pageTemplate);
+    applyCommonReplacements(html, activeKey);
+    return html;
   }
 
-  // ------------------------------------------------------------------
-  // Kirim halaman placeholder (Servis / Keamanan) + template processor
-  // ------------------------------------------------------------------
-  void sendPlaceholderPage(AsyncWebServerRequest *req, const char* title, const char* icon, const char* activeKey) {
-    String pageTitle = String(title);
-    String pageIcon  = String(icon);
-
-    AsyncWebServerResponse *res = req->beginResponse_P(
-      200, "text/html",
-      (const uint8_t*)MIZUMA_PLACEHOLDER_HTML, strlen_P(MIZUMA_PLACEHOLDER_HTML),
-      [this, activeKey, pageTitle, pageIcon](const String& var) -> String {
-        if (var == "PAGE_TITLE")     return pageTitle;
-        if (var == "PAGE_ICON")      return pageIcon;
-        if (var == "SHARED_CSS")     return String(FPSTR(MIZUMA_SHARED_CSS));
-        if (var == "HEADER")         return String(FPSTR(MIZUMA_HEADER_HTML));
-        if (var == "HEADER_SCRIPT")  return String(FPSTR(MIZUMA_HEADER_SCRIPT));
-        if (var == "BOTTOMNAV")      return buildNavHtml(activeKey);
-        if (var == "VEHICLE_NAME")   return vehicleName.length()  ? vehicleName  : String("Motor Anda");
-        if (var == "VEHICLE_BRAND")  return vehicleBrand.length() ? vehicleBrand : String("-");
-        if (var == "VEHICLE_YEAR")   return vehicleYear ? String(vehicleYear) : String("-");
-        if (var == "VEHICLE_PLATE")  return vehiclePlate.length() ? vehiclePlate : String("-");
-        return String();
-      }
-    );
-    req->send(res);
+  String renderPlaceholder(const char* title, const char* icon, const char* activeKey) {
+    String html = FPSTR(MIZUMA_PLACEHOLDER_HTML);
+    html.replace("%PAGE_TITLE%", title);
+    html.replace("%PAGE_ICON%", icon);
+    applyCommonReplacements(html, activeKey);
+    return html;
   }
 
 public:
@@ -2606,28 +2574,42 @@ public:
     apBehavior = AP_BEHAVIOR_ALWAYS;
     DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 
-    // ---------- Halaman utama (template processor, hemat heap) ----------
-    server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      sendTemplatePage(req, MIZUMA_HOME_HTML, "beranda");
+    // ---------- Aset statis: dikirim langsung dari PROGMEM + cache ----------
+    server.on("/mizuma.css", HTTP_GET, [](AsyncWebServerRequest *req) {
+      AsyncWebServerResponse *res = req->beginResponse_P(200, "text/css", MIZUMA_SHARED_CSS);
+      res->addHeader("Cache-Control", "max-age=86400");
+      req->send(res);
     });
 
-    server.on("/led", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      sendTemplatePage(req, MIZUMA_LED_HTML, "lampu");
+    server.on("/mizuma.js", HTTP_GET, [](AsyncWebServerRequest *req) {
+      AsyncWebServerResponse *res = req->beginResponse_P(200, "text/javascript", MIZUMA_HEADER_SCRIPT);
+      res->addHeader("Cache-Control", "max-age=86400");
+      req->send(res);
+    });
+
+    // ---------- Halaman LED: kirim LANGSUNG dari PROGMEM (paling hemat) ----------
+    server.on("/led", HTTP_GET, [](AsyncWebServerRequest *req) {
+      req->send_P(200, "text/html", MIZUMA_LED_HTML);
+    });
+
+    // ---------- Halaman lain: replace kecil saja ----------
+    server.on("/app", HTTP_GET, [this](AsyncWebServerRequest *req) {
+      req->send(200, "text/html", renderPage(MIZUMA_HOME_HTML, "beranda"));
     });
 
     server.on("/pengaturan", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      sendTemplatePage(req, MIZUMA_SETTINGS_HTML, "pengaturan");
+      req->send(200, "text/html", renderPage(MIZUMA_SETTINGS_HTML, "pengaturan"));
     });
 
     server.on("/servis", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      sendPlaceholderPage(req, "Servis", "🛠", "servis");
+      req->send(200, "text/html", renderPlaceholder("Servis", "🛠", "servis"));
     });
 
     server.on("/keamanan", HTTP_GET, [this](AsyncWebServerRequest *req) {
-      sendPlaceholderPage(req, "Keamanan & GPS", "🔒", "keamanan");
+      req->send(200, "text/html", renderPlaceholder("Keamanan & GPS", "🔒", "keamanan"));
     });
 
-    // ---------- Fragment (untuk /led yang inject via JS) ----------
+    // ---------- Fragment untuk /led ----------
     server.on("/mizuma/frag/header", HTTP_GET, [](AsyncWebServerRequest *req) {
       req->send_P(200, "text/html", MIZUMA_HEADER_HTML);
     });
@@ -2640,7 +2622,7 @@ public:
       req->send_P(200, "text/html", MIZUMA_BOTTOMNAV_HTML);
     });
 
-    // ---------- Status koneksi ----------
+    // ---------- Status ----------
     server.on("/mizuma/status", HTTP_GET, [](AsyncWebServerRequest *req) {
       bool apOn  = (WiFi.softAPgetStationNum() > 0);
       bool staOn = (WiFi.status() == WL_CONNECTED);
@@ -2655,7 +2637,7 @@ public:
       req->send(200, "application/json", json);
     });
 
-    // ---------- Debug heap (untuk diagnosa memori) ----------
+    // ---------- Debug heap ----------
     server.on("/mizuma/debug", HTTP_GET, [](AsyncWebServerRequest *req) {
       char buf[192];
       snprintf(buf, sizeof(buf),
@@ -2671,10 +2653,7 @@ public:
     server.on("/mizuma/preset", HTTP_GET, [this](AsyncWebServerRequest *req) {
       String slotName = req->arg("slot");
       int i = slotIdx(slotName);
-      if (i < 0) {
-        req->send(400, "application/json", "{\"ok\":false}");
-        return;
-      }
+      if (i < 0) { req->send(400, "application/json", "{\"ok\":false}"); return; }
 
       PresetSlot &p = pslots[i];
       p.valid = true;
@@ -2754,11 +2733,11 @@ public:
     vehicle["plate"] = vehiclePlate;
 
     JsonObject rem = top.createNestedObject("reminder");
-    rem["oliMesin_last"] = oliMesin.lastServiceEpoch;  rem["oliMesin_int"] = oliMesin.intervalDays;
-    rem["oliRem_last"] = oliRem.lastServiceEpoch;      rem["oliRem_int"] = oliRem.intervalDays;
+    rem["oliMesin_last"] = oliMesin.lastServiceEpoch;   rem["oliMesin_int"] = oliMesin.intervalDays;
+    rem["oliRem_last"] = oliRem.lastServiceEpoch;       rem["oliRem_int"] = oliRem.intervalDays;
     rem["oliGardan_last"] = oliGardan.lastServiceEpoch; rem["oliGardan_int"] = oliGardan.intervalDays;
-    rem["cvt_last"] = cvt.lastServiceEpoch;            rem["cvt_int"] = cvt.intervalDays;
-    rem["filter_last"] = filter.lastServiceEpoch;      rem["filter_int"] = filter.intervalDays;
+    rem["cvt_last"] = cvt.lastServiceEpoch;             rem["cvt_int"] = cvt.intervalDays;
+    rem["filter_last"] = filter.lastServiceEpoch;       rem["filter_int"] = filter.intervalDays;
 
     JsonObject pm = top.createNestedObject("presets");
     for (int i = 0; i < 10; i++) {
@@ -2786,11 +2765,11 @@ public:
     vehiclePlate = vehicle["plate"] | "";
 
     JsonObject rem = top["reminder"];
-    oliMesin.lastServiceEpoch = rem["oliMesin_last"] | 0;  oliMesin.intervalDays = rem["oliMesin_int"] | 0;
-    oliRem.lastServiceEpoch = rem["oliRem_last"] | 0;      oliRem.intervalDays = rem["oliRem_int"] | 0;
+    oliMesin.lastServiceEpoch = rem["oliMesin_last"] | 0;   oliMesin.intervalDays = rem["oliMesin_int"] | 0;
+    oliRem.lastServiceEpoch = rem["oliRem_last"] | 0;       oliRem.intervalDays = rem["oliRem_int"] | 0;
     oliGardan.lastServiceEpoch = rem["oliGardan_last"] | 0; oliGardan.intervalDays = rem["oliGardan_int"] | 0;
-    cvt.lastServiceEpoch = rem["cvt_last"] | 0;            cvt.intervalDays = rem["cvt_int"] | 0;
-    filter.lastServiceEpoch = rem["filter_last"] | 0;      filter.intervalDays = rem["filter_int"] | 0;
+    cvt.lastServiceEpoch = rem["cvt_last"] | 0;             cvt.intervalDays = rem["cvt_int"] | 0;
+    filter.lastServiceEpoch = rem["filter_last"] | 0;       filter.intervalDays = rem["filter_int"] | 0;
 
     JsonObject pm = top["presets"];
     if (!pm.isNull()) {
