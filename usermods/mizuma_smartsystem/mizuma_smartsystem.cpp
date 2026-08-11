@@ -755,6 +755,7 @@ document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.togg
 setSub(activeSub);renderSavedList();updateCtx();
 loadFxData(function(ok){if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}else{initFromState();}});
 function initFromState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){refreshColorModeVisibility();buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
+</script>
 <script>
 (function(){
 function inj(url,cb){fetch(url).then(function(r){return r.text();}).then(cb).catch(function(){});}
