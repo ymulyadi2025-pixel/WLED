@@ -417,7 +417,7 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 
 // ================= AKHIR PART 1/2 — balas "lanjut" untuk PART 2/2 (Blok 5 + Blok 6) =================
 // =====================================================================================================================================
-// BLOK 5 — LED (REVISI FINAL + FIX: brightness permanen & parameter efek independen)
+// BLOK 5 — LED (REVISI: 4 menu kiri, slider berlabel, custom pindah kiri)
 // =====================================================================================================================================
 const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -452,12 +452,12 @@ body{display:flex;flex-direction:column;}
 .i3.mid svg{width:13px;height:13px;stroke:var(--tx2);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;}
 .i3.mid #brightVal{font-size:9.5px;color:var(--tx);width:22px;text-align:right;}
 .body-layout{flex:1;min-height:0;display:flex;}
-.subnav{width:74px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;}
+.subnav{width:86px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;}
 .subnav .nav-btns{flex:1;overflow-y:auto;}
-.subnav button.nav-b{display:block;width:100%;padding:13px 4px;background:none;border:none;color:var(--tx3);font-size:10.5px;text-align:center;border-left:3px solid transparent;}
+.subnav button.nav-b{display:block;width:100%;padding:11px 2px;background:none;border:none;color:var(--tx3);font-size:9.5px;line-height:1.2;text-align:center;border-left:3px solid transparent;}
 .subnav button.nav-b.active{color:var(--tx);border-left-color:var(--ac);background:var(--s2);}
 .subnav .icon{display:flex;justify-content:center;margin-bottom:3px;}
-.subnav .icon svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.subnav .icon svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
 .sub-save{flex-shrink:0;padding:10px 0 12px;border-top:1px solid var(--bd);display:flex;justify-content:center;}
 .sub-save button{position:relative;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--ac),#c46a10);color:#0a0a0a;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(245,165,36,.35);}
 .sub-save button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
@@ -469,9 +469,6 @@ body{display:flex;flex-direction:column;}
 .pane-head{flex-shrink:0;background:var(--bg);padding:9px 12px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:7px;}
 .pane-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;}
 .pane-foot{flex-shrink:0;background:var(--s1);border-top:1px solid var(--bd);padding:12px 14px;max-height:45%;overflow-y:auto;}
-.toggle-pair{display:flex;background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:2px;}
-.toggle-pair button{flex:1;padding:6px 0;background:transparent;border:none;color:var(--tx3);font-size:11px;font-weight:700;border-radius:8px;}
-.toggle-pair button.active{background:var(--s3);color:var(--ac);}
 .mode-row{font-size:10.5px;color:var(--tx2);}
 .mode-row b{color:var(--tx);}
 .search-box{width:100%;padding:8px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-size:12px;}
@@ -482,7 +479,9 @@ body{display:flex;flex-direction:column;}
 .cg-wheel canvas{width:100%;height:auto;border-radius:50%;touch-action:none;display:block;}
 .wled-slider{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
 .wled-slider input{flex:1;min-width:0;}
-.wled-slider .val{font-size:10px;color:var(--tx2);min-width:26px;text-align:right;}
+.wled-slider .val{font-size:10px;color:var(--tx2);min-width:30px;text-align:right;}
+.sl-l{font-size:9px;color:var(--tx3);width:50px;flex-shrink:0;text-transform:uppercase;letter-spacing:.4px;}
+.sat::-webkit-slider-runnable-track{background:var(--satg,linear-gradient(90deg,#fff,#f00))!important;}
 .kelvin::-webkit-slider-runnable-track{background:linear-gradient(90deg,#ff9329,#ffffff,#bcd4ff)!important;}
 .quick-colors{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
 .qc{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.15);cursor:pointer;}
@@ -549,7 +548,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 </div>
 <div class="preview-row">
 <canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
-<button class="live-btn on" id="liveToggle" title="Live preview on/off"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-8 4-16 3-8h4"/></svg></button>
+<button class="live-btn on" id="liveToggle" title="Live preview on/off"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg></button>
 <canvas class="pv-canvas" id="pvKanan" width="48" height="1"></canvas>
 </div>
 <div class="info-row3">
@@ -565,23 +564,16 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div class="body-layout">
 <div class="subnav" id="subnav">
 <div class="nav-btns">
-<button class="nav-b active" data-sub="efek"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>Efek</button>
-<button class="nav-b" data-sub="warna"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span>Pola Warna</button>
-<button class="nav-b" data-sub="simpan"><span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg></span>Simpan</button>
+<button class="nav-b active" data-sub="efek"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>Pilih Efek</button>
+<button class="nav-b" data-sub="template"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span>Warna Template</button>
+<button class="nav-b" data-sub="custom"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg></span>Warna Custom</button>
+<button class="nav-b" data-sub="simpan"><span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg></span>Riwayat Simpan</button>
 </div>
 <div class="sub-save" id="subSave">
 <button id="btnSaveSub"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span class="dotd"></span></button>
 </div>
 </div>
 <div class="right-col">
-<div class="pane-head" id="headWarna" style="display:none;">
-<div class="toggle-pair" id="colorToggle">
-<button data-ct="template" class="active">Template</button>
-<button data-ct="custom">Custom</button>
-</div>
-<div class="mode-row">Mode aktif: <b id="modeAktif">Template</b></div>
-<input class="search-box" id="searchBox" placeholder="Cari palette...">
-</div>
 <div class="pane-head" id="headEfek">
 <div class="fx-head-row">
 <span class="mode-row">Efek tersimpan:</span>
@@ -589,31 +581,35 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <input class="fx-search" id="fxSearch" placeholder="Cari efek...">
 </div>
 </div>
+<div class="pane-head" id="headWarna" style="display:none;">
+<div class="mode-row">Mode aktif: <b id="modeAktif">Template</b></div>
+</div>
+<div class="pane-head" id="headTemplate" style="display:none;">
+<input class="search-box" id="searchBox" placeholder="Cari palette...">
+</div>
 <div class="pane-head" id="headSimpan" style="display:none;">
 <div class="mode-row">Preset tersimpan <b>permanen di ESP32</b> per kombinasi mode × sisi.</div>
 </div>
-<div class="pane-scroll" id="scrollWarna" style="display:none;">
-<div id="ctCustom" style="display:none;">
+<div class="pane-scroll" id="scrollEfek"><div class="fx-grid" id="fxGrid"></div></div>
+<div class="pane-scroll" id="scrollTemplate" style="display:none;"><div class="palette-list" id="paletteGrid"></div></div>
+<div class="pane-scroll" id="scrollCustom" style="display:none;">
 <div class="custom-grid">
 <div class="cg-wheel"><canvas id="colorWheel" width="220" height="220"></canvas></div>
 <div class="cg-side">
-<div class="wled-slider"><input type="range" min="0" max="100" value="100" id="satSlider"><span class="val" id="satVal">100</span></div>
-<div class="wled-slider"><input type="range" class="kelvin" min="2000" max="10000" step="50" value="6500" id="kelvinSlider"><span class="val" id="kelvinVal">6500</span></div>
+<div class="wled-slider"><span class="sl-l">Saturasi</span><input type="range" min="0" max="100" value="100" id="satSlider" class="sat"><span class="val" id="satVal">100</span></div>
+<div class="wled-slider"><span class="sl-l">Kelvin</span><input type="range" class="kelvin" min="2000" max="10000" step="50" value="6500" id="kelvinSlider"><span class="val" id="kelvinVal">6500</span></div>
 <div class="quick-colors" id="quickColors"></div>
 <div class="crow" id="colorRow"></div>
 </div>
 </div>
-<div class="sec-title">Warna Custom</div>
+<div class="sec-title">Palette Custom (*)</div>
 <div class="palette-list" id="customPalGrid"></div>
 </div>
-<div id="ctTemplate"><div class="palette-list" id="paletteGrid"></div></div>
-<div id="ctRestricted" style="display:none;">
+<div class="pane-scroll" id="scrollRestricted" style="display:none;">
 <div class="restricted-swatches" id="restrictedGrid"></div>
 <div class="cg-wheel" style="max-width:200px;margin:0 auto;"><canvas id="wheelR" width="220" height="220"></canvas></div>
 <div class="restricted-note">Area abu-abu dibatasi otomatis sesuai regulasi lampu sinyal</div>
 </div>
-</div>
-<div class="pane-scroll" id="scrollEfek"><div class="fx-grid" id="fxGrid"></div></div>
 <div class="pane-scroll" id="scrollSimpan" style="display:none;">
 <div class="card"><div class="card-title">Status Simpan</div><div id="savedList"></div></div>
 </div>
@@ -638,7 +634,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <div id="mzN"></div>
 <script>
 let activeTab=localStorage.getItem('mzActiveTab')||'riding';
-let activeSide='both',activeSub='efek',currentCT='template';
+let activeSide='both',activeSub='efek';
 let dirty=false,pendingAction=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
 let cur={fx:0,pal:0,col:null,palName:'',params:{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}};
@@ -646,7 +642,7 @@ let fxParamsCache={};
 function paramsFor(i){if(!fxParamsCache[i])fxParamsCache[i]={sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0};return fxParamsCache[i];}
 cur.params=paramsFor(0);
 let wHue=0,wSat=1,liveEnabled=true;
-let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0,slotCount=1;
+let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0;
 const LIVE_CO=[2,0,1],SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
 const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
@@ -664,7 +660,7 @@ function markDirty(){dirty=true;document.getElementById('subSave').classList.add
 function clearDirty(){dirty=false;document.getElementById('subSave').classList.remove('dirty');}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(function(){t.style.opacity='0';},1800);}
 function paintRange(el){const min=+el.min||0,max=+el.max||255;el.style.setProperty('--p',(((+el.value-min)/(max-min))*100)+'%');}
-document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin'))paintRange(e.target);});
+document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin')&&!e.target.classList.contains('sat'))paintRange(e.target);});
 const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
 let segR={start:0,stop:48},segL={start:48,stop:96};
 function drawLive(flat){const cR=pvR.getContext('2d'),cL=pvL.getContext('2d');for(let i=0;i<48;i++){const k=(segR.start+i)*3,k2=(segL.start+i)*3;cR.fillStyle=(flat.length>=k+3)?'rgb('+flat[k+LIVE_CO[0]]+','+flat[k+LIVE_CO[1]]+','+flat[k+LIVE_CO[2]]+')':'#000';cL.fillStyle=(flat.length>=k2+3)?'rgb('+flat[k2+LIVE_CO[0]]+','+flat[k2+LIVE_CO[1]]+','+flat[k2+LIVE_CO[2]]+')':'#000';cR.fillRect(i,0,1,1);cL.fillRect(i,0,1,1);}}
@@ -683,8 +679,9 @@ function clampHue(h,r){if(!r)return h;if(r[0]<=r[1])return h<r[0]?r[0]:(h>r[1]?r
 const wheelImgs={};
 function buildWheelImg(cv,rule){const ctx=cv.getContext('2d'),wr=cv.width/2,img=ctx.createImageData(cv.width,cv.height);for(let y=0;y<cv.height;y++){for(let x=0;x<cv.width;x++){const dx=x-wr,dy=y-wr,d=Math.sqrt(dx*dx+dy*dy),idx=(y*cv.width+x)*4;if(d<=wr){const raw=Math.atan2(dy,dx)*180/Math.PI+180,hue=clampHue(raw,rule),sat=d/wr;if(rule&&!hueOk(raw,rule)){img.data[idx]=40;img.data[idx+1]=40;img.data[idx+2]=40;}else{const rgb=hsvToRgb(hue,sat,1);img.data[idx]=rgb[0];img.data[idx+1]=rgb[1];img.data[idx+2]=rgb[2];}img.data[idx+3]=255;}else{img.data[idx+3]=0;}}}wheelImgs[cv.id]={img:img};ctx.putImageData(img,0,0);}
 function paintWheel(cv,hue,sat){const e=wheelImgs[cv.id];if(!e)return;const ctx=cv.getContext('2d');ctx.putImageData(e.img,0,0);const wr=cv.width/2,th=(hue-180)*Math.PI/180,r=sat*(wr-2),x=wr+Math.cos(th)*r,y=wr+Math.sin(th)*r;ctx.beginPath();ctx.arc(x,y,6,0,6.2832);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(x,y,8,0,6.2832);ctx.strokeStyle='rgba(0,0,0,.65)';ctx.lineWidth=1.5;ctx.stroke();}
-const wheel=document.getElementById('colorWheel');buildWheelImg(wheel,null);paintWheel(wheel,wHue,wSat);
-function wheelPick(e){const rect=wheel.getBoundingClientRect(),wr=wheel.width/2,x=(e.clientX-rect.left)*(wheel.width/rect.width),y=(e.clientY-rect.top)*(wheel.height/rect.height),dx=x-wr,dy=y-wr,d=Math.sqrt(dx*dx+dy*dy);if(d>wr)return;wHue=Math.atan2(dy,dx)*180/Math.PI+180;wSat=Math.min(1,d/wr);document.getElementById('satSlider').value=Math.round(wSat*100);document.getElementById('satVal').textContent=Math.round(wSat*100);paintRange(document.getElementById('satSlider'));paintWheel(wheel,wHue,wSat);const rgb=hsvToRgb(wHue,wSat,1);setColor(rgb[0],rgb[1],rgb[2],false);}
+function updateSatGrad(){const el=document.getElementById('satSlider');if(el)el.style.setProperty('--satg','linear-gradient(90deg,#fff,hsl('+Math.round(wHue)+',100%,50%))');}
+const wheel=document.getElementById('colorWheel');buildWheelImg(wheel,null);paintWheel(wheel,wHue,wSat);updateSatGrad();
+function wheelPick(e){const rect=wheel.getBoundingClientRect(),wr=wheel.width/2,x=(e.clientX-rect.left)*(wheel.width/rect.width),y=(e.clientY-rect.top)*(wheel.height/rect.height),dx=x-wr,dy=y-wr,d=Math.sqrt(dx*dx+dy*dy);if(d>wr)return;wHue=Math.atan2(dy,dx)*180/Math.PI+180;wSat=Math.min(1,d/wr);document.getElementById('satSlider').value=Math.round(wSat*100);document.getElementById('satVal').textContent=Math.round(wSat*100);updateSatGrad();paintWheel(wheel,wHue,wSat);const rgb=hsvToRgb(wHue,wSat,1);setColor(rgb[0],rgb[1],rgb[2],false);}
 let dragging=false;
 wheel.addEventListener('pointerdown',function(e){dragging=true;wheel.setPointerCapture(e.pointerId);wheelPick(e);});
 wheel.addEventListener('pointermove',function(e){if(dragging)wheelPick(e);});
@@ -694,7 +691,7 @@ function kelvinToRgb(k){k/=100;let r,g,b;if(k<=66){r=255;g=99.47*Math.log(k)-161
 document.getElementById('kelvinSlider').addEventListener('input',function(e){document.getElementById('kelvinVal').textContent=e.target.value;const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
 function isStarPal(){const n=palNamesRaw[cur.pal]||'';return n.charAt(0)==='*';}
 function normalizeRestrictedState(forceDefault){if(!isRestrictedTab())return;colorTarget=0;cur.pal=0;cur.palName=palNamesRaw[0]||'Default';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;const defNum=parseInt(colors[0].h,16);const defRgb=[(defNum>>16)&255,(defNum>>8)&255,defNum&255];const current=segColors[0]||[0,0,0];const hsv=rgb2hsv(current[0],current[1],current[2]);if(forceDefault||!hueOk(hsv[0],HUE_RULES[activeTab])||(current[0]===0&&current[1]===0&&current[2]===0)){segColors[0]=defRgb;restrictedName=colors[0].n;}segColors[1]=[0,0,0];segColors[2]=[0,0,0];}
-function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}if(isRestrictedTab()){colorTarget=0;cur.pal=0;segColors[0]=[r,g,b];segColors[1]=[0,0,0];segColors[2]=[0,0,0];}else{segColors[colorTarget]=[r,g,b];}const cols=[segColors[0]||[255,255,255],segColors[1]||[0,0,0],segColors[2]||[0,0,0]];if(!isRestrictedTab()&&currentCT==='custom'&&!isStarPal()){cur.pal=0;cur.palName=palNamesRaw[0]||'Default';}const segs=segIds().map(function(id){return{id:id,col:cols,pal:isRestrictedTab()?0:cur.pal};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();renderColorRow();}
+function sendColor(r,g,b,silent){if(activeSide===''){toast('Pilih sisi dulu');return;}if(isRestrictedTab()){colorTarget=0;cur.pal=0;segColors[0]=[r,g,b];segColors[1]=[0,0,0];segColors[2]=[0,0,0];}else{segColors[colorTarget]=[r,g,b];}const cols=[segColors[0]||[255,255,255],segColors[1]||[0,0,0],segColors[2]||[0,0,0]];const segs=segIds().map(function(id){return{id:id,col:cols,pal:isRestrictedTab()?0:cur.pal};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();renderColorRow();}
 function sendPalette(i){if(activeSide===''){toast('Pilih sisi dulu');return;}if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();renderColorRow();}
 function sendEffect(i){if(activeSide===''){toast('Pilih sisi dulu');return;}if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}return o;});post({seg:segs});if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();}
 const sendParamD=debounce(function(k,v){if(activeSide==='')return;const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
@@ -703,9 +700,10 @@ function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
 function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0,c2=segColors[2]||c1;if(name.indexOf('* Color 1')===0)return gstr(c0);if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')';if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';return null;}
 function updateStarStrips(){document.querySelectorAll('#customPalGrid .pal-row').forEach(function(row){const g2=starGrad(row.dataset.palname||'');if(g2)row.querySelector('.pstrip').style.background=g2;});}
-function renderColorRow(){const box=document.getElementById('colorRow');if(!box)return;box.innerHTML='';const star=isStarPal(),ps=isPSFx();const mk=function(label,idx){const b=document.createElement('button');b.className='crow-btn'+(colorTarget===idx?' active':'');b.textContent=label;b.style.background=gstr(segColors[idx]||[128,128,128]);b.addEventListener('click',function(){colorTarget=idx;renderColorRow();});box.appendChild(b);};if(!(ps&&!star))mk('Fx',0);mk('Bg',1);if(star&&slotCount>=3)mk('3',2);if(star&&slotCount<3){const p=document.createElement('button');p.className='crow-btn';p.textContent='+';p.addEventListener('click',function(){slotCount=3;while(segColors.length<3)segColors.push(segColors[segColors.length-1]||[255,255,255]);if(activeSide!==''){post({seg:segIds().map(function(id){return{id:id,col:segColors};})});markDirty();}renderColorRow();});box.appendChild(p);}updateStarStrips();}
+function paletteSlots(){const n=palNamesRaw[cur.pal]||'';if(n.charAt(0)!=='*')return 2;if(n.indexOf('Gradient')>=0||n.indexOf('Only')>=0)return 3;return 2;}
+function renderColorRow(){const box=document.getElementById('colorRow');if(!box)return;box.innerHTML='';const star=isStarPal(),ps=isPSFx(),slots=paletteSlots();if(colorTarget>=slots)colorTarget=0;const mk=function(label,idx){const b=document.createElement('button');b.className='crow-btn'+(colorTarget===idx?' active':'');b.textContent=label;b.style.background=gstr(segColors[idx]||[128,128,128]);b.addEventListener('click',function(){colorTarget=idx;renderColorRow();});box.appendChild(b);};if(!(ps&&!star))mk('Fx',0);mk('Bg',1);if(star&&slots>=3)mk('3',2);updateStarStrips();}
 (function(){const box=document.getElementById('quickColors');QUICK_COLORS.forEach(function(h){const d=document.createElement('div');d.className='qc';d.style.background='#'+h;d.addEventListener('click',function(){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255,false);});box.appendChild(d);});const r=document.createElement('div');r.className='qc';r.style.background='conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';r.style.position='relative';r.innerHTML='<span style="position:absolute;inset:5px;border-radius:50%;background:var(--bg);color:var(--tx);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;">R</span>';r.addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});box.appendChild(r);})();
-function setColor(r,g,b,silent){const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];document.getElementById('satSlider').value=Math.round(wSat*100);document.getElementById('satVal').textContent=Math.round(wSat*100);paintRange(document.getElementById('satSlider'));paintWheel(wheel,wHue,wSat);sendColor(r,g,b,silent);updateModeAktif();}
+function setColor(r,g,b,silent){const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];document.getElementById('satSlider').value=Math.round(wSat*100);document.getElementById('satVal').textContent=Math.round(wSat*100);updateSatGrad();paintWheel(wheel,wHue,wSat);sendColor(r,g,b,silent);updateModeAktif();}
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});grid.appendChild(d);});buildWheelImg(document.getElementById('wheelR'),HUE_RULES[activeTab]);restrictedName=colors[0].n;}
 document.getElementById('wheelR').addEventListener('pointerdown',function(e){const cv=document.getElementById('wheelR'),rect=cv.getBoundingClientRect(),wr=cv.width/2,x=(e.clientX-rect.left)*(cv.width/rect.width),y=(e.clientY-rect.top)*(cv.height/rect.height),dx=x-wr,dy=y-wr;if(Math.sqrt(dx*dx+dy*dy)>wr)return;const h=clampHue(Math.atan2(dy,dx)*180/Math.PI+180,HUE_RULES[activeTab]),sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/wr),rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';setColor(rgb[0],rgb[1],rgb[2],false);updateModeAktif();});
 const paletteGrid=document.getElementById('paletteGrid'),customPalGrid=document.getElementById('customPalGrid');
@@ -729,9 +727,23 @@ function loadFxData(cb){Promise.all([fetch('/json/eff').then(function(r){return 
 function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
 function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua','':'Pilih sisi'}[activeSide];}
 function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
-function subLabel(){return{warna:'Pola Warna',efek:'Efek',simpan:'Simpan'}[activeSub];}
+function subLabel(){return{efek:'Pilih Efek',template:'Warna Template',custom:'Warna Custom',simpan:'Riwayat Simpan'}[activeSub];}
 function updateCtx(){document.getElementById('ctxInfo').textContent=subLabel()+' \u2014 '+sideLabel();}
-function updateModeAktif(){if(isRestrictedTab()){document.getElementById('modeAktif').textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';return;}if(currentCT==='custom'){document.getElementById('modeAktif').textContent='Custom';}else{document.getElementById('modeAktif').textContent='Template \u2014 '+(cur.palName||'-');}}
+function updateModeAktif(){const el=document.getElementById('modeAktif');if(isRestrictedTab()){el.textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';}else if(activeSub==='custom'){el.textContent='Custom \u2014 warna manual';}else{el.textContent='Template \u2014 '+(cur.palName||'-');}}
+function refreshRestricted(){if(isRestrictedTab()){buildRestricted();normalizeRestrictedState(false);}}
+function setSub(k){activeSub=k;const r=isRestrictedTab();
+document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
+document.getElementById('headWarna').style.display=(k==='template'||k==='custom')?'flex':'none';
+document.getElementById('headTemplate').style.display=(k==='template'&&!r)?'flex':'none';
+document.getElementById('headSimpan').style.display=k==='simpan'?'flex':'none';
+document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';
+document.getElementById('scrollTemplate').style.display=(k==='template'&&!r)?'block':'none';
+document.getElementById('scrollCustom').style.display=(k==='custom'&&!r)?'block':'none';
+document.getElementById('scrollRestricted').style.display=((k==='template'||k==='custom')&&r)?'block':'none';
+document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';
+document.getElementById('footEfek').style.display=k==='efek'?'block':'none';
+if(k==='simpan')renderSavedList();
+updateModeAktif();}
 function refreshSavedInfo(){const el=document.getElementById('savedInfo'),chip=document.getElementById('fxSavedName');if(!allFx.length)return;fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){const first=activeSide==='kiri'?'Kiri':'Kanan';const st=d[activeTab+first];if(chip)chip.textContent=st&&st.valid?(allFx[st.fx]||'-'):'-';const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];const names=[];sides.forEach(function(sd){const s2=d[activeTab+sd];if(!s2||!s2.valid){names.push('Default');return;}const fxName=allFx[s2.fx]||'Efek';if(activeTab==='sein'||activeTab==='rem'||activeTab==='hazard'){names.push(fxName+' - Terbatas');}else{names.push(fxName+' - '+(palNamesRaw[s2.pal]||'Palette'));}});el.textContent=(names.length>1&&names[0]!==names[1])?('Ki: '+names[0]+' | Kn: '+names[1]):names[0];}).catch(function(){});}
 function doSave(){if(activeSide===''){toast('Pilih sisi dulu');return;}if(isRestrictedTab())normalizeRestrictedState(false);const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];const c0=segColors[0]||[255,255,255],c1=isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),c2=isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0]);const params=new URLSearchParams({fx:cur.fx,pal:isRestrictedTab()?0:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,c1:cur.params.c1!=null?cur.params.c1:128,c2:cur.params.c2!=null?cur.params.c2:128,c3:cur.params.c3!=null?cur.params.c3:128,o1:cur.params.o1!=null?cur.params.o1:0,o2:cur.params.o2!=null?cur.params.o2:0,o3:cur.params.o3!=null?cur.params.o3:0});sides.forEach(function(sd){fetch('/mizuma/preset?slot='+encodeURIComponent(activeTab+sd)+'&'+params.toString(),{method:'POST'}).catch(function(){});});clearDirty();const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));renderSavedList();refreshSavedInfo();}
 function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='Memuat...';fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){box.innerHTML='';['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){const st=d[t+s];const row=document.createElement('div');row.className='saved-row';const on=!!(st&&st.valid);const txt=on?'Tersimpan':'Default';row.innerHTML='<span class="sk">'+cap(t)+' \u2014 '+s+'</span><span class="st'+(on?' on':'')+'">'+txt+'</span>';box.appendChild(row);});});}).catch(function(){box.innerHTML='Gagal memuat status.';});}
@@ -740,21 +752,18 @@ function showModal(action){pendingAction=action;document.getElementById('modalCt
 document.getElementById('mSave').addEventListener('click',function(){doSave();document.getElementById('saveModal').style.display='none';if(pendingAction)pendingAction();pendingAction=null;});
 document.getElementById('mDiscard').addEventListener('click',function(){clearDirty();document.getElementById('saveModal').style.display='none';if(pendingAction)pendingAction();pendingAction=null;});
 document.getElementById('mCancel').addEventListener('click',function(){document.getElementById('saveModal').style.display='none';pendingAction=null;});
-function updateControlsFromPreset(tab,st){if(!st)return;cur.fx=st.fx!=null?st.fx:0;cur.pal=(tab==='sein'||tab==='rem'||tab==='hazard')?0:(st.pal!=null?st.pal:0);const np=paramsFor(cur.fx);np.sx=st.sx!=null?st.sx:128;np.ix=st.ix!=null?st.ix:128;np.c1=st.c1!=null?st.c1:128;np.c2=st.c2!=null?st.c2:128;np.c3=st.c3!=null?st.c3:128;np.o1=st.o1!=null?st.o1:0;np.o2=st.o2!=null?st.o2:0;np.o3=st.o3!=null?st.o3:0;cur.params=np;if(st.col&&st.col.length){const cols=Array.isArray(st.col[0])?st.col:[st.col];for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}slotCount=cols.length;}if(isRestrictedTab()){normalizeRestrictedState(false);}else{const pName=palNamesRaw[cur.pal]||'';cur.palName=pName;currentCT=(pName.charAt(0)==='*')?'custom':'template';document.querySelectorAll('#colorToggle button').forEach(function(b){b.classList.toggle('active',b.dataset.ct===currentCT);});}refreshColorModeVisibility();renderColorRow();renderParams(cur.fx);const fxName=allFx[cur.fx]||'';if(fxName){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);});}document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}
-function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){const uiSide=activeSide==='kiri'?'Kiri':'Kanan';const st=d[tab+uiSide];updateControlsFromPreset(tab,st);if(activeSide!==''){fetch('/mizuma/apply?mode='+encodeURIComponent(tab)+'&side='+encodeURIComponent(activeSide),{method:'POST'}).catch(function(){});}updateCtx();refreshSavedInfo();}).catch(function(){});}
-function refreshColorModeVisibility(){const r=isRestrictedTab();document.getElementById('colorToggle').style.display=r?'none':'flex';document.getElementById('ctCustom').style.display=(!r&&currentCT==='custom')?'block':'none';document.getElementById('ctTemplate').style.display=(!r&&currentCT==='template')?'block':'none';document.getElementById('ctRestricted').style.display=r?'block':'none';document.getElementById('searchBox').style.display=(!r&&currentCT==='template')?'block':'none';if(r){buildRestricted();normalizeRestrictedState(false);}updateModeAktif();}
-function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});refreshColorModeVisibility();if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateCtx();refreshSavedInfo();}
+function updateControlsFromPreset(tab,st){if(!st)return;cur.fx=st.fx!=null?st.fx:0;cur.pal=(tab==='sein'||tab==='rem'||tab==='hazard')?0:(st.pal!=null?st.pal:0);const np=paramsFor(cur.fx);np.sx=st.sx!=null?st.sx:128;np.ix=st.ix!=null?st.ix:128;np.c1=st.c1!=null?st.c1:128;np.c2=st.c2!=null?st.c2:128;np.c3=st.c3!=null?st.c3:128;np.o1=st.o1!=null?st.o1:0;np.o2=st.o2!=null?st.o2:0;np.o3=st.o3!=null?st.o3:0;cur.params=np;if(st.col&&st.col.length){const cols=Array.isArray(st.col[0])?st.col:[st.col];for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}if(cols.length>=3&&isStarPal())colorTarget=Math.min(colorTarget,2);}const pName=palNamesRaw[cur.pal]||'';cur.palName=pName;refreshRestricted();renderColorRow();renderParams(cur.fx);const fxName=allFx[cur.fx]||'';if(fxName){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);});}document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}
+function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){const uiSide=activeSide==='kiri'?'Kiri':'Kanan';const st=d[tab+uiSide];updateControlsFromPreset(tab,st);if(activeSide!==''){fetch('/mizuma/apply?mode='+encodeURIComponent(tab)+'&side='+encodeURIComponent(activeSide),{method:'POST'}).catch(function(){});}setSub(activeSub);updateCtx();refreshSavedInfo();}).catch(function(){});}
+function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});refreshRestricted();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateCtx();refreshSavedInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});updateCtx();applySaved(activeTab);}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
 document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn||btn.dataset.side===undefined)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
-function setSub(k){activeSub=k;document.getElementById('headWarna').style.display=k==='warna'?'flex':'none';document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';document.getElementById('headSimpan').style.display=k==='simpan'?'flex':'none';document.getElementById('scrollWarna').style.display=k==='warna'?'block':'none';document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';document.getElementById('footEfek').style.display=k==='efek'?'block':'none';if(k==='simpan')renderSavedList();}
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
-document.getElementById('colorToggle').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;document.querySelectorAll('#colorToggle button').forEach(function(b){b.classList.remove('active');});e.target.classList.add('active');currentCT=e.target.dataset.ct;refreshColorModeVisibility();});
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
 setSub(activeSub);renderSavedList();updateCtx();
 loadFxData(function(ok){if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}else{initFromState();}});
-function initFromState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){refreshColorModeVisibility();buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
+function initFromState(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}}} }).catch(function(){}).then(function(){refreshRestricted();setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin')&&!el.classList.contains('sat'))paintRange(el);});updateSatGrad();setTimeout(function(){applySaved(activeTab);},400);});}
 </script>
 <script>
 (function(){
@@ -771,73 +780,73 @@ inj('/mizuma/frag/script',function(t){eval(t);});
 // =====================================================================================================================================
 // BLOK 6 — FINAL v3 (konsolidasi + FIX: brightness permanen via /mizuma/bri)
 // =====================================================================================================================================
-#ifndef USERMOD_ID_MIZUMA_SYSTEM
-#define USERMOD_ID_MIZUMA_SYSTEM 0x9001
-#endif
-class MizumaSmartSystem : public Usermod {
-private:
-String vehicleName = "";
-String vehicleBrand = "";
-uint16_t vehicleYear = 0;
-String vehiclePlate = "";
-struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
-ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
-struct PresetSlot {
-bool valid = false;
-uint8_t fx = 0; uint8_t pal = 0;
-uint8_t r = 255, g = 255, b = 255;
-uint8_t r1 = 0, g1 = 0, b1 = 0;
-uint8_t r2 = 0, g2 = 0, b2 = 0;
-uint8_t sx = 128, ix = 128;
-uint8_t c1 = 128, c2 = 128, c3 = 128;
-uint8_t o1 = 0, o2 = 0, o3 = 0;
-uint8_t bri = 180;
-};
-PresetSlot pslots[10];
-uint16_t welcomeDur = 7000;
-int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
-
-/* FIX BUG 1: brightness permanen */
-uint8_t savedBri = 180;
-bool briRestored = false;
-bool briSavePending = false;
-unsigned long briSaveT = 0;
-
-const char* slotKey(int i){
-switch(i){
-case 0: return "welcomingKanan"; case 1: return "welcomingKiri";
-case 2: return "ridingKanan";    case 3: return "ridingKiri";
-case 4: return "seinKanan";      case 5: return "seinKiri";
-case 6: return "remKanan";       case 7: return "remKiri";
-case 8: return "hazardKanan";    default: return "hazardKiri";}}
-int slotIdx(const String &k){for(int i=0;i<10;i++)if(k==slotKey(i))return i;return -1;}
-bool isRestrictedSlot(int i){return i>=4&&i<=9;}
-PresetSlot defaultSlot(int idx){
-PresetSlot p;p.valid=true;p.fx=0;p.pal=0;
-p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
-p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
-if(idx==4||idx==5||idx==8||idx==9){p.r=255;p.g=165;p.b=0;}
-else if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}
-else{p.r=255;p.g=255;p.b=255;}
-return p;}
-void normalizeRestrictedSlot(PresetSlot &p,int idx){
-if(!isRestrictedSlot(idx))return;
-p.pal=0;p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
-if(p.r==0&&p.g==0&&p.b==0){if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}else{p.r=255;p.g=165;p.b=0;}}}
-PresetSlot getEffectiveSlot(int idx){
-if(idx<0||idx>9)idx=2;
-PresetSlot p=pslots[idx].valid?pslots[idx]:defaultSlot(idx);
-normalizeRestrictedSlot(p,idx);
-return p;}
-uint8_t argU8(AsyncWebServerRequest *req,const char *key,uint8_t def){
-if(!req->hasArg(key))return def;
-return (uint8_t)constrain(req->arg(key).toInt(),0,255);}
-
-void addSegmentFromSlot(JsonArray seg,uint8_t segId,uint8_t slotIdx){
-PresetSlot p=getEffectiveSlot(slotIdx);
-JsonObject s=seg.createNestedObject();
-s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["sx"]=p.sx;s["ix"]=p.ix;
-s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
+    #ifndef USERMOD_ID_MIZUMA_SYSTEM
+    #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
+    #endif
+    class MizumaSmartSystem : public Usermod {
+    private:
+    String vehicleName = "";
+    String vehicleBrand = "";
+    uint16_t vehicleYear = 0;
+    String vehiclePlate = "";
+    struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
+    ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
+    struct PresetSlot {
+    bool valid = false;
+    uint8_t fx = 0; uint8_t pal = 0;
+    uint8_t r = 255, g = 255, b = 255;
+    uint8_t r1 = 0, g1 = 0, b1 = 0;
+    uint8_t r2 = 0, g2 = 0, b2 = 0;
+    uint8_t sx = 128, ix = 128;
+    uint8_t c1 = 128, c2 = 128, c3 = 128;
+    uint8_t o1 = 0, o2 = 0, o3 = 0;
+    uint8_t bri = 180;
+    };
+    PresetSlot pslots[10];
+    uint16_t welcomeDur = 7000;
+    int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
+    
+    /* FIX BUG 1: brightness permanen */
+    uint8_t savedBri = 180;
+    bool briRestored = false;
+    bool briSavePending = false;
+    unsigned long briSaveT = 0;
+    
+    const char* slotKey(int i){
+    switch(i){
+    case 0: return "welcomingKanan"; case 1: return "welcomingKiri";
+    case 2: return "ridingKanan";    case 3: return "ridingKiri";
+    case 4: return "seinKanan";      case 5: return "seinKiri";
+    case 6: return "remKanan";       case 7: return "remKiri";
+    case 8: return "hazardKanan";    default: return "hazardKiri";}}
+    int slotIdx(const String &k){for(int i=0;i<10;i++)if(k==slotKey(i))return i;return -1;}
+    bool isRestrictedSlot(int i){return i>=4&&i<=9;}
+    PresetSlot defaultSlot(int idx){
+    PresetSlot p;p.valid=true;p.fx=0;p.pal=0;
+    p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
+    p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
+    if(idx==4||idx==5||idx==8||idx==9){p.r=255;p.g=165;p.b=0;}
+    else if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}
+    else{p.r=255;p.g=255;p.b=255;}
+    return p;}
+    void normalizeRestrictedSlot(PresetSlot &p,int idx){
+    if(!isRestrictedSlot(idx))return;
+    p.pal=0;p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
+    if(p.r==0&&p.g==0&&p.b==0){if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}else{p.r=255;p.g=165;p.b=0;}}}
+    PresetSlot getEffectiveSlot(int idx){
+    if(idx<0||idx>9)idx=2;
+    PresetSlot p=pslots[idx].valid?pslots[idx]:defaultSlot(idx);
+    normalizeRestrictedSlot(p,idx);
+    return p;}
+    uint8_t argU8(AsyncWebServerRequest *req,const char *key,uint8_t def){
+    if(!req->hasArg(key))return def;
+    return (uint8_t)constrain(req->arg(key).toInt(),0,255);}
+    
+    void addSegmentFromSlot(JsonArray seg,uint8_t segId,uint8_t slotIdx){
+    PresetSlot p=getEffectiveSlot(slotIdx);
+    JsonObject s=seg.createNestedObject();
+    s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["sx"]=p.sx;s["ix"]=p.ix;
+    s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
 JsonArray col=s.createNestedArray("col");
 JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
 JsonArray c1=col.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
@@ -971,13 +980,33 @@ s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;s["bri"]=p.bri;}
 String out;serializeJson(doc,out);req->send(200,"application/json",out);});}
 
 void loop() override {
-/* FIX BUG 1: restore brightness + debounced flash save (jalan terus walau bootDone) */
-if(!briRestored && millis()>800){briRestored=true;bri=savedBri;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
-if(briSavePending&&millis()-briSaveT>3000){briSavePending=false;serializeConfigToFS();}
-if(bootDone)return;
-unsigned long m=millis();
-if(bootStage==0&&m>1200){applyModeSide("welcoming","both");bootStage=1;bootT=m;}
-else if(bootStage==1&&m-bootT>=welcomeDur){applyModeSide("riding","both");bootDone=true;}}
+  // 1. Restore brightness SEKETIKA saat daya masuk (tanpa delay 800ms)
+  if (!briRestored) {
+    briRestored = true;
+    bri = savedBri;
+    stateUpdated(CALL_MODE_DIRECT_CHANGE);
+  }
+  
+  // 2. Debounced save ke flash (jika ada perubahan brightness dari UI)
+  if (briSavePending && millis() - briSaveT > 3000) {
+    briSavePending = false;
+    serializeConfigToFS();
+  }
+
+  if (bootDone) return;
+  unsigned long m = millis();
+
+  // 3. Welcoming LANGSUNG berjalan pada tick pertama (tanpa delay 1200ms)
+  if (bootStage == 0) {
+    applyModeSide("welcoming", "both");
+    bootStage = 1;
+    bootT = m;
+  }
+  else if (bootStage == 1 && m - bootT >= welcomeDur) {
+    applyModeSide("riding", "both");
+    bootDone = true;
+  }
+}
 
 void addToConfig(JsonObject &root) override {
 JsonObject top=root.createNestedObject("Mizuma");
