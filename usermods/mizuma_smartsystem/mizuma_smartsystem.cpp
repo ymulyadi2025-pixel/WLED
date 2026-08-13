@@ -417,7 +417,8 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 
 // ================= AKHIR PART 1/2 — balas "lanjut" untuk PART 2/2 (Blok 5 + Blok 6) =================
 // =====================================================================================================================================
-// BLOK 5 — LED (REVISI V2 GEMINI: Thumbnail WLED Asli, Default Palette #1 + Alphabet, Slot FX/BG/3 Center, Compact 1-Screen Custom)
+// =====================================================================================================================================
+// BLOK 5 — LED (REVISI V2: Thumbnail WLED Asli, Default Palette #1 + Alphabet, Slot FX/BG/3 Center, Compact 1-Screen Custom)
 // =====================================================================================================================================
 const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -935,7 +936,6 @@ inj('/mizuma/frag/script',function(t){eval(t);});
 </body>
 </html>
 )rawliteral";
-
 
 // =====================================================================================================================================
 // BLOK 6 — FINAL v3 (konsolidasi + FIX: brightness permanen via /mizuma/bri)
