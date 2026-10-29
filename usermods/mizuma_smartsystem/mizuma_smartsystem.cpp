@@ -1,5 +1,5 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — FINAL ASSEMBLY — PART 1/2
+// MIZUMA SMARTSYSTEM — FINAL ASSEMBLY — REVISI R2 (preview Peek, thumbnail palette, metadata efek, perbaikan backend)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
@@ -639,9 +639,9 @@ let activeTab=localStorage.getItem('mzActiveTab')||'riding';
 let activeSide='both',activeSub='efek';
 let dirty=false,pendingAction=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
-let cur={fx:0,pal:0,col:null,palName:'',params:{sx:128,ix:128,c1:128,c2:128,c3:16,o1:0,o2:0,o3:0}};
-let fxParamsCache={};
-function paramsFor(i){if(!fxParamsCache[i])fxParamsCache[i]={sx:128,ix:128,c1:128,c2:128,c3:16,o1:0,o2:0,o3:0};return fxParamsCache[i];}
+let cur={fx:0,pal:0,col:null,palName:'',params:{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}};
+let fxParamsCache={},fxPalCache={};
+function paramsFor(i){if(!fxParamsCache[i]){const d=fxData.length?fxDefs(i):{};const g=function(k,df){return d[k]!=null?d[k]:df;};const p={sx:g('sx',128),ix:g('ix',128),c1:g('c1',128),c2:g('c2',128),c3:g('c3',128),o1:g('o1',0),o2:g('o2',0),o3:g('o3',0)};if(!fxData.length)return p;fxParamsCache[i]=p;}return fxParamsCache[i];}
 cur.params=paramsFor(0);
 let wHue=0,wSat=1,wVal=1,liveEnabled=true;
 let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0,slotCount=1;
@@ -651,9 +651,12 @@ const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'
 const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
 const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
 const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
+const HIDE_AUDIO_FX=true; /* sembunyikan efek audio-reaktif (flag v/f) karena tidak ada mikrofon */
 const QUICK_COLORS=['FF0000','FFA500','FFD200','FFFFFF','000000','0000FF','00FF00'];
-/* ID efek dan palette selalu diambil dari API firmware WLED. */
-/* Palette swatches are sourced from WLED /json/palx, not hand-authored gradients. */
+/* Pairing efek->palette default (meniru perilaku UI WLED asli; bisa diperluas) */
+const FX_PAL_DEFAULTS={'Fire 2012':'Fire','Fireworks 1D':'Rainbow','Fireworks':'Rainbow','Noise 1':'Pastel','Noise':'Pastel','Pride':'Pride','Aurora':'Aurora','Pacifica':'Pacifica'};
+function palIdByName(n){return palNamesRaw.findIndex(function(x){return x===n;});}
+/* PAL_GRADS (gradient karangan manual) dihapus: thumbnail kini 100% dari /json/palx */
 function post(o){fetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(function(){});}
 function debounce(fn,ms){let t;return function(){const a=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,a);},ms);};}
 function segIds(){if(activeSide==='kanan')return[SEG_K];if(activeSide==='kiri')return[SEG_L];return[SEG_K,SEG_L];}
@@ -664,124 +667,26 @@ function clearDirty(){dirty=false;document.getElementById('subSave').classList.r
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(function(){t.style.opacity='0';},1800);}
 function paintRange(el){const min=+el.min||0,max=+el.max||255;el.style.setProperty('--p',(((+el.value-min)/(max-min))*100)+'%');}
 document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin'))paintRange(e.target);});
-/* ===== LIVE PREVIEW — kompatibel dengan stream Peek WLED ===== */
+/* ===== LIVE PREVIEW ===== */
 const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
-let segR={start:0,stop:48},segL={start:48,stop:96};
-let totalLedCount=0,liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
-const PEEK_MAGIC=0x4c; // 'L' — header resmi WLED live LED stream
-function applyPeekTopology(state,info){
-  const segs=(state&&Array.isArray(state.seg))?state.seg:[];
-  function bounds(s,fallbackStart,fallbackStop){
-    const a=(s&&Number.isFinite(Number(s.start)))?Number(s.start):fallbackStart;
-    let b=(s&&Number.isFinite(Number(s.stop)))?Number(s.stop):fallbackStop;
-    if(b<=a)b=fallbackStop>a?fallbackStop:a+1;
-    return {start:Math.max(0,a),stop:Math.max(Math.max(0,a)+1,b)};
-  }
-  segR=bounds(segs[0],0,48);
-  segL=bounds(segs[1],48,96);
-  if(info&&info.leds&&Number(info.leds.count)>0)totalLedCount=Number(info.leds.count);
-  else totalLedCount=Math.max(totalLedCount,segR.stop,segL.stop);
-}
-function drawPeekPixels(rgb,pixelCount){
-  if(!rgb||pixelCount<1)return;
-  const sourceCount=totalLedCount>0?totalLedCount:pixelCount;
-  function drawSegment(canvas,seg){
-    const ctx=canvas.getContext('2d');
-    const start=Math.max(0,Math.floor(seg.start));
-    const stop=Math.max(start+1,Math.floor(seg.stop));
-    const length=stop-start;
-    const width=canvas.width;
-    for(let x=0;x<width;x++){
-      const led=start+Math.min(length-1,Math.floor(((x+0.5)/width)*length));
-      // WLED may downsample long strips; scale logical LED index to received samples.
-      const sample=Math.max(0,Math.min(pixelCount-1,Math.floor(led*pixelCount/sourceCount)));
-      const p=sample*3;
-      ctx.fillStyle='rgb('+rgb[p]+','+rgb[p+1]+','+rgb[p+2]+')';
-      ctx.fillRect(x,0,1,canvas.height);
-    }
-  }
-  drawSegment(pvR,segR);
-  drawSegment(pvL,segL);
-}
-function parsePeekBinary(buffer){
-  const bytes=new Uint8Array(buffer);
-  if(bytes.length<5||bytes[0]!==PEEK_MAGIC)return null;
-  const version=bytes[1];
-  let offset=2,limit=bytes.length;
-  if(version===1){
-    offset=2; // L, version, then RGB triplets
-  }else if(version===2){
-    if(bytes.length<4)return null;
-    const width=bytes[2],height=bytes[3];
-    if(!width||!height)return null;
-    offset=4;
-    limit=Math.min(bytes.length,offset+(width*height*3));
-  }else return null;
-  const usable=limit-offset;
-  const pixelCount=Math.floor(usable/3);
-  if(pixelCount<1)return null;
-  // Copy only RGB payload; WLED Peek order is RGB, so do not rotate channels.
-  return {rgb:bytes.subarray(offset,offset+pixelCount*3),count:pixelCount};
-}
-function parseLegacyLiveJson(text){
-  // Compatibility for non-stock custom builds that still expose JSON live frames.
-  try{
-    const j=JSON.parse(text);
-    const leds=j.leds||(j.state&&j.state.leds);
-    if(!Array.isArray(leds))return null;
-    if(leds.length&&Array.isArray(leds[0])){
-      const rgb=new Uint8Array(leds.length*3);
-      for(let i=0;i<leds.length;i++){
-        rgb[i*3]=Number(leds[i][0])||0;
-        rgb[i*3+1]=Number(leds[i][1])||0;
-        rgb[i*3+2]=Number(leds[i][2])||0;
-      }
-      return {rgb:rgb,count:leds.length};
-    }
-    if(leds.length>=3&&leds.length%3===0)return {rgb:new Uint8Array(leds),count:leds.length/3};
-  }catch(e){}
-  return null;
-}
-function mzConnectLive(){
-  if(!liveEnabled||mzWS)return;
-  if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}
-  const scheme=window.location.protocol==='https:'?'wss://':'ws://';
-  try{mzWS=new WebSocket(scheme+window.location.host+'/ws');}catch(e){mzWSRetry=setTimeout(mzConnectLive,3000);return;}
-  mzWS.binaryType='arraybuffer';
-  mzWS.onopen=function(){if(liveEnabled){try{mzWS.send(JSON.stringify({lv:true}));}catch(e){}}};
-  mzWS.onmessage=function(evt){
-    if(!liveEnabled)return;
-    const now=performance.now();
-    if(now-lastDraw<33)return;
-    let frame=null;
-    if(evt.data instanceof ArrayBuffer)frame=parsePeekBinary(evt.data);
-    else if(typeof evt.data==='string'){
-      // WebSocket also broadcasts ordinary WLED JSON state messages.
-      try{
-        const msg=JSON.parse(evt.data);
-        if(msg.state||msg.info){applyPeekTopology(msg.state||msg,msg.info||null);return;}
-      }catch(e){}
-      frame=parseLegacyLiveJson(evt.data);
-    }
-    if(!frame)return;
-    lastDraw=now;liveOk=true;
-    drawPeekPixels(frame.rgb,frame.count);
-  };
-  mzWS.onclose=function(){liveOk=false;mzWS=null;if(liveEnabled&&!document.hidden)mzWSRetry=setTimeout(mzConnectLive,2000);};
-  mzWS.onerror=function(){try{if(mzWS)mzWS.close();}catch(e){}};
-}
-fetch('/json/state').then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(j){applyPeekTopology(j,null);}).catch(function(){});
-fetch('/json/info').then(function(r){if(!r.ok)throw 0;return r.json();}).then(function(j){if(j.leds&&Number(j.leds.count)>0)totalLedCount=Number(j.leds.count);}).catch(function(){});
+let segR={start:0,stop:48},segL={start:48,stop:96},ledTotal=0;
+function captureSegs(j){const s=j&&j.seg;if(!s||!s.length)return;if(s[0]&&s[0].stop>0)segR={start:s[0].start||0,stop:s[0].stop};if(s.length>1&&s[1]&&s[1].stop>0)segL={start:s[1].start||0,stop:s[1].stop};if(segL.start<segR.stop&&segL.start>segR.start)segR.stop=segL.start;}
+/* Frame WS Peek WLED: byte0='L'(76), byte1=versi (1: data mulai idx 2 | 2: matriks, data mulai idx 4), lalu RGB per LED (sudah diskala brightness) */
+function paintStrip(cv,sg,flat,off,cnt,step){const len=Math.max(1,sg.stop-sg.start);if(cv.width!==len)cv.width=len;const ctx=cv.getContext('2d'),img=ctx.createImageData(len,1);for(let i=0;i<len;i++){let px=Math.floor((sg.start+i)/step);if(px>=cnt)px=cnt-1;const k=off+px*3,o=i*4;img.data[o]=flat[k];img.data[o+1]=flat[k+1];img.data[o+2]=flat[k+2];img.data[o+3]=255;}ctx.putImageData(img,0,0);}
+function drawLive(flat,raw){let off=0;if(!raw&&flat[0]===76&&(flat[1]===1||flat[1]===2))off=(flat[1]===2)?4:2;const cnt=Math.floor((flat.length-off)/3);if(cnt<1)return;const step=(ledTotal>cnt)?ledTotal/cnt:1;paintStrip(pvR,segR,flat,off,cnt,step);paintStrip(pvL,segL,flat,off,cnt,step);}
+fetch('/json/state').then(function(r){return r.json();}).then(captureSegs).catch(function(){});
+fetch('/json/info').then(function(r){return r.json();}).then(function(j){if(j&&j.leds&&j.leds.count)ledTotal=j.leds.count;}).catch(function(){});
+let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
+function mzLiveCmd(on){try{if(mzWS&&mzWS.readyState===1)mzWS.send('{"lv":'+(on?'true':'false')+'}');}catch(e){}}
+function mzConnectLive(){if(mzWS||document.hidden)return;if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}try{mzWS=new WebSocket('ws://'+window.location.host+'/ws');}catch(e){mzWS=null;mzWSRetry=setTimeout(mzConnectLive,3000);return;}mzWS.binaryType='arraybuffer';mzWS.onopen=function(){if(liveEnabled)mzLiveCmd(true);};mzWS.onmessage=function(evt){if(!liveEnabled||!(evt.data instanceof ArrayBuffer))return;const now=performance.now();if(now-lastDraw<33)return;lastDraw=now;const flat=new Uint8Array(evt.data);if(flat.length<3)return;liveOk=true;drawLive(flat,false);};mzWS.onclose=function(){liveOk=false;mzWS=null;if(!document.hidden)mzWSRetry=setTimeout(mzConnectLive,2000);};mzWS.onerror=function(){try{mzWS.close();}catch(e){}};}
 mzConnectLive();
-window.addEventListener('beforeunload',function(){if(mzWS){try{mzWS.send(JSON.stringify({lv:false}));mzWS.close();}catch(e){}}if(mzWSRetry)clearTimeout(mzWSRetry);});
-// No fake static-colour fallback: when Peek is unavailable, the preview does not pretend to animate.
-document.getElementById('liveToggle').addEventListener('click',function(){
-  liveEnabled=!liveEnabled;
-  this.classList.toggle('on',liveEnabled);
-  pvR.classList.toggle('off',!liveEnabled);pvL.classList.toggle('off',!liveEnabled);
-  if(mzWS&&mzWS.readyState===WebSocket.OPEN){try{mzWS.send(JSON.stringify({lv:liveEnabled}));}catch(e){}}
-  else if(liveEnabled)mzConnectLive();
-});
+document.addEventListener('visibilitychange',function(){if(document.hidden){mzLiveCmd(false);if(mzWS){try{mzWS.close();}catch(e){}}}else{mzConnectLive();}});
+window.addEventListener('beforeunload',function(){mzLiveCmd(false);if(mzWS)try{mzWS.close();}catch(e){}});
+/* Fallback bila WS Peek tidak aktif (mis. klien lain mengambil Peek): /json/live, lalu warna solid */
+function pollSolid(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);const s=j.seg||[];const f=function(cv,seg){if(!seg)return;const c=(seg.col&&seg.col[0])?seg.col[0]:[20,20,20];const ctx=cv.getContext('2d');ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';ctx.fillRect(0,0,cv.width,1);};f(pvR,s[0]);f(pvL,s[1]||s[0]);}).catch(function(){});}
+function pollState(){if(!liveEnabled||document.hidden)return;fetch('/json/live').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(j){const Ls=j&&j.leds;if(!Array.isArray(Ls)||!Ls.length||typeof Ls[0]!=='string')throw 0;const flat=new Uint8Array(Ls.length*3);for(let i=0;i<Ls.length;i++){const n=parseInt(String(Ls[i]).replace('#',''),16)||0;flat[i*3]=(n>>16)&255;flat[i*3+1]=(n>>8)&255;flat[i*3+2]=n&255;}drawLive(flat,true);}).catch(pollSolid);}
+setInterval(function(){if(liveOk&&performance.now()-lastDraw>3000)liveOk=false;if(!liveOk)pollState();},1000);
+document.getElementById('liveToggle').addEventListener('click',function(){liveEnabled=!liveEnabled;this.classList.toggle('on',liveEnabled);pvR.classList.toggle('off',!liveEnabled);pvL.classList.toggle('off',!liveEnabled);mzLiveCmd(liveEnabled);});
 /* ===== COLOR MATH ===== */
 function hsvToRgb(h,s,v){const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r,g,b;if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
 function rgb2hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d){if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}return[h,(mx?d/mx:0),mx];}
@@ -803,175 +708,59 @@ document.getElementById('kelvinSlider').addEventListener('input',function(e){doc
 function isStarPal(){const n=palNamesRaw[cur.pal]||'';return n.charAt(0)==='*';}
 function normalizeRestrictedState(forceDefault){if(!isRestrictedTab())return;colorTarget=0;cur.pal=0;cur.palName=palNamesRaw[0]||'Default';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;const defNum=parseInt(colors[0].h,16);const defRgb=[(defNum>>16)&255,(defNum>>8)&255,defNum&255];const current=segColors[0]||[0,0,0];const hsv=rgb2hsv(current[0],current[1],current[2]);if(forceDefault||!hueOk(hsv[0],HUE_RULES[activeTab])||(current[0]===0&&current[1]===0&&current[2]===0)){segColors[0]=defRgb;restrictedName=colors[0].n;}segColors[1]=[0,0,0];segColors[2]=[0,0,0];}
 function sendColor(r,g,b,silent){if(isRestrictedTab()){colorTarget=0;cur.pal=0;segColors[0]=[r,g,b];segColors[1]=[0,0,0];segColors[2]=[0,0,0];}else{segColors[colorTarget]=[r,g,b];}const cols=[segColors[0]||[255,255,255],segColors[1]||[0,0,0],segColors[2]||[0,0,0]];const segs=segIds().map(function(id){return{id:id,col:cols,pal:isRestrictedTab()?0:cur.pal};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();renderColorRow();updateSideInfo();}
-function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;markDirty();renderColorRow();updateSideInfo();}
-function sendEffect(i){if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);const defs=effectDefaults(i);Object.keys(defs).forEach(function(k){if(k==='pal'){if(!isRestrictedTab()){cur.pal=defs[k];cur.palName=palNamesRaw[defs[k]]||('Palette '+defs[k]);}}else{cur.params[k]=defs[k];}});const palToSend=cur.pal;const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});post({seg:segs});if(isRestrictedTab()){cur.pal=0;cur.palName=palNamesRaw[0]||'Default';}markDirty();renderColorRow();updateSideInfo();}
+function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;fxPalCache[cur.fx]=i;markDirty();renderColorRow();updateSideInfo();}
+function sendEffect(i){if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);let palToSend=cur.pal;if(!isRestrictedTab()){let pi=-1;if(fxPalCache[i]!=null)pi=fxPalCache[i];else{const df=fxDefs(i);if(df.pal!=null)pi=df.pal;else{const nm=allFx[i]||'';if(FX_PAL_DEFAULTS[nm])pi=palIdByName(FX_PAL_DEFAULTS[nm]);}}if(pi>=0&&pi<palNamesRaw.length){cur.pal=pi;cur.palName=palNamesRaw[pi];palToSend=pi;document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}}const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});post({seg:segs});if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();updateSideInfo();}
 const sendParamD=debounce(function(k,v){const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
 const sendBriD=debounce(function(v){post({bri:v});fetch('/mizuma/bri?v='+v,{method:'POST'}).catch(function(){});},80);
 /* ===== SIDE INFO (kiri/kanan dari state device) ===== */
-function updateSideInfo(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNamesRaw[s.pal]||'Palette');};document.getElementById('ctxInfo').textContent=nm(j.seg[1]||j.seg[0]);document.getElementById('savedInfo').textContent=nm(j.seg[0]);}).catch(function(){});}
+function updateSideInfo(){fetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNamesRaw[s.pal]||'Palette');};document.getElementById('ctxInfo').textContent=nm(j.seg[1]||j.seg[0]);document.getElementById('savedInfo').textContent=nm(j.seg[0]);}).catch(function(){});}
 /* ===== FX / BG / CS ===== */
 function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
-function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0,c2=segColors[2]||c1;if(name.indexOf('* Color 1')===0)return gstr(c0);if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')';if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';return null;}
-function updateStarStrips(){document.querySelectorAll('#customPalGrid .pal-row').forEach(function(row){const g2=starGrad(row.dataset.palname||'');if(g2)row.querySelector('.pstrip').style.background=g2;});}
 function renderColorRow(){const box=document.getElementById('colorRow');if(!box)return;box.innerHTML='';const star=isStarPal(),ps=isPSFx();const mk=function(label,idx){const b=document.createElement('button');b.className='crow-btn'+(colorTarget===idx?' active':'');b.textContent=label;b.style.background=gstr(segColors[idx]||[128,128,128]);b.addEventListener('click',function(){colorTarget=idx;renderColorRow();});box.appendChild(b);};if(!(ps&&!star))mk('Fx',0);mk('Bg',1);if(star&&slotCount>=3)mk('3',2);updateStarStrips();}
 (function(){const box=document.getElementById('quickColors');QUICK_COLORS.forEach(function(h){const d=document.createElement('div');d.className='qc';d.style.background='#'+h;d.addEventListener('click',function(){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255,false);});box.appendChild(d);});const r=document.createElement('div');r.className='qc';r.style.background='conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';r.style.position='relative';r.innerHTML='<span style="position:absolute;inset:5px;border-radius:50%;background:var(--bg);color:var(--tx);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;">R</span>';r.addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});box.appendChild(r);})();
 function setColor(r,g,b,silent){const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];wVal=hv[2];document.getElementById('valSlider').value=Math.round(wVal*100);paintRange(document.getElementById('valSlider'));paintWheel(wheel,wHue,wSat);sendColor(r,g,b,silent);updateModeAktif();}
 /* ===== RESTRICTED ===== */
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});grid.appendChild(d);});buildWheelImg(document.getElementById('wheelR'),HUE_RULES[activeTab]);restrictedName=colors[0].n;}
 document.getElementById('wheelR').addEventListener('pointerdown',function(e){const cv=document.getElementById('wheelR'),rect=cv.getBoundingClientRect(),wr=cv.width/2,x=(e.clientX-rect.left)*(cv.width/rect.width),y=(e.clientY-rect.top)*(cv.height/rect.height),dx=x-wr,dy=y-wr;if(Math.sqrt(dx*dx+dy*dy)>wr)return;const h=clampHue(Math.atan2(dy,dx)*180/Math.PI+180,HUE_RULES[activeTab]),sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/wr),rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';setColor(rgb[0],rgb[1],rgb[2],false);updateModeAktif();});
-/* ===== PALETTES — warna bersumber dari WLED /json/palx (termasuk halaman berikutnya) ===== */
+/* ===== PALETTES ===== */
 const paletteGrid=document.getElementById('paletteGrid'),customPalGrid=document.getElementById('customPalGrid');
-let palXGrad={};
-function clampByte(n){n=Number(n);return Number.isFinite(n)?Math.max(0,Math.min(255,Math.round(n))):0;}
-function hexToRgb(value){
-  let h=String(value||'').trim().replace(/^#/,'');
-  if(h.length===8)h=h.slice(2); // tolerate AARRGGBB responses
-  if(h.length===3)h=h.split('').map(function(c){return c+c;}).join('');
-  if(!/^[0-9a-f]{6}$/i.test(h))return null;
-  const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255];
-}
-function parsePaletteStops(value){
-  const stops=[];
-  if(!Array.isArray(value))return stops;
-  if(value.length===0)return stops;
-  if(typeof value[0]==='number'){
-    const nums=value.map(Number);
-    const validBytes=nums.every(function(n){return Number.isFinite(n)&&n>=0&&n<=255;});
-    // WLED may encode stops as [position,R,G,B,...]; require monotonic positions to avoid
-    // mistaking an ordinary flat RGB sample list for positioned stops.
-    let fourTuple=validBytes&&nums.length>=8&&nums.length%4===0;
-    if(fourTuple){let previous=-1;for(let i=0;i<nums.length;i+=4){if(nums[i]<previous){fourTuple=false;break;}previous=nums[i];}}
-    if(fourTuple){for(let i=0;i+3<nums.length;i+=4)stops.push({p:nums[i],c:[clampByte(nums[i+1]),clampByte(nums[i+2]),clampByte(nums[i+3])]});}
-    else if(nums.length%3===0&&validBytes){for(let i=0;i+2<nums.length;i+=3)stops.push({p:(stops.length/(nums.length/3-1||1))*255,c:[clampByte(nums[i]),clampByte(nums[i+1]),clampByte(nums[i+2])]});}
-    else if(nums.length%2===0){
-      let packed=true,previous=-1;for(let i=0;i<nums.length;i+=2){if(nums[i]<0||nums[i]>255||nums[i]<previous||nums[i+1]<=255){packed=false;break;}previous=nums[i];}
-      if(packed){for(let i=0;i+1<nums.length;i+=2){const n=nums[i+1]>>>0;stops.push({p:nums[i],c:[(n>>16)&255,(n>>8)&255,n&255]});}}
-      else{for(let i=0;i<nums.length;i++){const n=nums[i]>>>0;stops.push({p:(i/(nums.length-1||1))*255,c:[(n>>16)&255,(n>>8)&255,n&255]});}}
-    }else{for(let i=0;i<nums.length;i++){const n=nums[i]>>>0;stops.push({p:(i/(nums.length-1||1))*255,c:[(n>>16)&255,(n>>8)&255,n&255]});}}
-    return stops;
-  }
-  value.forEach(function(item,index){
-    if(Array.isArray(item)){
-      if(item.length>=4){stops.push({p:clampByte(item[0]),c:[clampByte(item[1]),clampByte(item[2]),clampByte(item[3])]});}
-      else if(item.length===2&&Array.isArray(item[1])&&item[1].length>=3){stops.push({p:clampByte(item[0]),c:[clampByte(item[1][0]),clampByte(item[1][1]),clampByte(item[1][2])]});}
-      else if(item.length>=3){stops.push({p:(index/(value.length-1||1))*255,c:[clampByte(item[0]),clampByte(item[1]),clampByte(item[2])]});}
-    }else if(item&&typeof item==='object'){
-      const pos=item.p!=null?item.p:(item.pos!=null?item.pos:(item.position!=null?item.position:null));
-      if(item.r!=null&&item.g!=null&&item.b!=null)stops.push({p:pos==null?(index/(value.length-1||1))*255:clampByte(pos),c:[clampByte(item.r),clampByte(item.g),clampByte(item.b)]});
-      else if(item.color!=null){const rgb=hexToRgb(item.color);if(rgb)stops.push({p:pos==null?(index/(value.length-1||1))*255:clampByte(pos),c:rgb});}
-    }else if(typeof item==='string'){
-      const rgb=hexToRgb(item);if(rgb)stops.push({p:(index/(value.length-1||1))*255,c:rgb});
-    }
-  });
-  return stops;
-}
-function gradFromStops(stops){
-  if(!stops||!stops.length)return null;
-  if(stops.length===1)return 'rgb('+stops[0].c.join(',')+')';
-  const points=stops.slice().sort(function(a,b){return a.p-b.p;}).map(function(s){return 'rgb('+s.c.join(',')+') '+(Math.max(0,Math.min(255,s.p))/255*100).toFixed(2)+'%';});
-  return 'linear-gradient(90deg,'+points.join(',')+')';
-}
-function applyPalXResponse(data){
-  if(!data||typeof data!=='object')return 0;
-  const map=(data.p&&typeof data.p==='object')?data.p:data;
-  let count=0;
-  if(Array.isArray(map)){
-    map.forEach(function(v,i){const g=gradFromStops(parsePaletteStops(v));if(g){palXGrad[i]=g;count++;}});
-  }else{
-    Object.keys(map).forEach(function(key){
-      if(!/^\d+$/.test(key))return;
-      const g=gradFromStops(parsePaletteStops(map[key]));
-      if(g){palXGrad[Number(key)]=g;count++;}
-    });
-  }
-  return count;
-}
-async function loadPalX(){
-  palXGrad={};let page=0,maxPage=0,got=0;
-  // WLED 16+ paginates /json/palx and returns the highest page in key "m".
-  // Fetch sequentially to avoid putting unnecessary load on the ESP32/ESP8266.
-  for(page=0;page<64;page++){
-    let response;
-    try{response=await fetch('/json/palx?page='+page);if(!response.ok)throw new Error('palx HTTP '+response.status);}
-    catch(err){if(page===0){try{response=await fetch('/json/palx');if(!response.ok)throw err;}catch(e){break;}}else break;}
-    let data;try{data=await response.json();}catch(e){break;}
-    got+=applyPalXResponse(data);
-    const m=Number(data&&data.m);
-    if(Number.isFinite(m)&&m>=0)maxPage=Math.max(maxPage,m);
-    if(page>=maxPage)break;
-  }
-  renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());
-}
-function makePalRow(e,grid,numbered,seq){
-  const row=document.createElement('div');
-  row.className='pal-row'+(cur.palName===e.n?' active':'');
-  row.dataset.name=e.n.toLowerCase();row.dataset.palname=e.n;
-  const radio=document.createElement('span');radio.className='pradio';
-  const num=document.createElement('span');num.className='pnum';num.textContent=numbered?(seq+1):'';
-  const name=document.createElement('span');name.className='pname';name.textContent=e.n;
-  const strip=document.createElement('span');strip.className='pstrip';
-  // No invented gradients: if this firmware has no preview endpoint, show a neutral placeholder.
-  strip.style.background=palXGrad[e.i]||'#242424';
-  strip.title=palXGrad[e.i]?'Preview palette dari WLED':'Preview warna tidak tersedia dari firmware ini';
-  row.appendChild(radio);row.appendChild(num);row.appendChild(name);row.appendChild(strip);
-  row.addEventListener('click',function(){
-    cur.palName=e.n;
-    document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});
-    row.classList.add('active');sendPalette(e.i);updateModeAktif();
-  });
-  grid.appendChild(row);
-}
-function renderPaletteRows(q){
-  paletteGrid.innerHTML='';customPalGrid.innerHTML='';let t=0;
-  palList.forEach(function(e){
-    if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}
-    if(q&&e.n.toLowerCase().indexOf(q)<0)return;
-    makePalRow(e,paletteGrid,true,t);t++;
-  });
-  updateStarStrips();
-}
-async function loadPaletteCatalog(){
-  try{
-    const palRes=await fetch('/json/pal');if(!palRes.ok)throw new Error('pal');
-    const names=await palRes.json();palNamesRaw=Array.isArray(names)?names.slice():[];
-    let info={};try{const ir=await fetch('/json/info');if(ir.ok)info=await ir.json();}catch(e){}
-    const arr=[];
-    palNamesRaw.forEach(function(n,i){if(n!=='r')arr.push({n:String(n),i:i});});
-    // WLED 16+ custom palettes use IDs 200 downward; usermod palettes use 255 downward.
-    const customCount=Math.max(0,Math.min(129,Number(info.cpalcount)||0));
-    for(let i=0;i<customCount;i++){
-      const id=200-i,n='~ Custom '+i+' ~';
-      palNamesRaw[id]=n;arr.push({n:n,i:id});
-    }
-    const um=Array.isArray(info.umpalnames)?info.umpalnames:[];
-    um.forEach(function(n,i){const id=255-i;palNamesRaw[id]=String(n);arr.push({n:String(n),i:id});});
-    palList=arr;renderPaletteRows('');renderColorRow();updateSideInfo();
-    await loadPalX();
-  }catch(e){paletteGrid.innerHTML='<div class="foot-hint">Daftar palette WLED gagal dimuat.</div>';}
-}
-loadPaletteCatalog();
+/* Thumbnail palette = data /json/palx (sama dengan UI stock). Entri: [pos,r,g,b] | 'r' (acak) | 'c1'..'c3' (warna segmen) */
+let palRaw={},palSlot={},palRand={},palTry=0;
+function palGrad(id){const d=palRaw[id];if(!d||!d.length)return null;const st=[];for(let j=0;j<d.length;j++){const e=d[j];let c,idx=false;if(Array.isArray(e)){idx=e[0]/255*100;c=[e[1],e[2],e[3]];}else if(e==='r'){const key=id+'_'+j;c=palRand[key]||(palRand[key]=[Math.random()*255|0,Math.random()*255|0,Math.random()*255|0]);}else{c=segColors[(parseInt(String(e).charAt(1),10)||1)-1]||[0,0,0];}const rgb='rgb('+c[0]+','+c[1]+','+c[2]+')';st.push(idx===false?rgb:rgb+' '+idx+'%');}if(st.length===1)st.push(st[0]);return 'linear-gradient(90deg,'+st.join(',')+')';}
+function refreshPalStrips(all){document.querySelectorAll('.pal-row').forEach(function(row){const id=parseInt(row.dataset.pid,10);if(isNaN(id))return;if(!all&&!palSlot[id])return;const g=palGrad(id);if(g)row.querySelector('.pstrip').style.background=g;});}
+function updateStarStrips(){refreshPalStrips(false);}
+function loadPalX(page){page=page||0;fetch('/json/palx?page='+page).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){const map=d&&d.p;if(!map||typeof map!=='object')throw 0;Object.keys(map).forEach(function(k){const v=map[k];if(Array.isArray(v)){const id=parseInt(k,10);palRaw[id]=v;palSlot[id]=v.some(function(x){return typeof x==='string'&&x!=='r';});}});palTry=0;refreshPalStrips(true);if(typeof d.m==='number'&&page<d.m)loadPalX(page+1);}).catch(function(){if(palTry++<4)setTimeout(function(){loadPalX(page);},1500);});}
+function makePalRow(e,grid,numbered,seq){const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();row.dataset.palname=e.n;row.dataset.pid=e.i;const grad=palGrad(e.i)||'var(--s3)';row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';row.addEventListener('click',function(){cur.palName=e.n;document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});row.classList.add('active');sendPalette(e.i);updateModeAktif();});grid.appendChild(row);}
+function renderPaletteRows(q){paletteGrid.innerHTML='';customPalGrid.innerHTML='';let t=0;palList.forEach(function(e){if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}if(q&&e.n.toLowerCase().indexOf(q)<0)return;makePalRow(e,paletteGrid,true,t);t++;});updateStarStrips();}
+fetch('/json/pal').then(function(r){return r.json();}).then(function(names){palNamesRaw=names;const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});arr.sort(function(a,b){if(a.i===0)return -1;if(b.i===0)return 1;const sa=a.n.charAt(0)==='*',sb=b.n.charAt(0)==='*';if(sa&&sb)return a.i-b.i;return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');renderColorRow();loadPalX();updateSideInfo();}).catch(function(){});
 document.getElementById('searchBox').addEventListener('input',function(e){renderPaletteRows(e.target.value.toLowerCase());});
 /* ===== EFFECTS ===== */
+/* metadata efek WLED: "slider;warna;palette;flags;default" (sama seperti UI stock) */
+function isRsvd(n){const t=(n||'').toLowerCase();return t===''||t==='rsvd'||t==='-';}
+function fxPart(i,k){const m=(fxData[i]||'').split(';');return m.length>k?m[k]:null;}
+function fxFlags(i){return fxPart(i,3)||'';}
+function fxUsesPal(i){const p=fxPart(i,2);return p===null?true:p!=='';}
+function fxDefs(i){const d={},s=fxPart(i,4);if(s)s.split(',').forEach(function(kv){const p=kv.split('=');if(p.length===2){const v=parseInt(p[1],10);if(!isNaN(v))d[p[0].trim()]=v;}});return d;}
+function fxOk(i,name){if(isRsvd(name))return false;const t=name.toLowerCase();if(name.indexOf('2D')===0||FX_BLACKLIST.indexOf(t)>=0)return false;const f=fxFlags(i);if(f.indexOf('2')>=0&&f.indexOf('1')<0&&f.indexOf('0')<0)return false;if(HIDE_AUDIO_FX&&(f.indexOf('v')>=0||f.indexOf('f')>=0))return false;return true;}
 function lookupExact(n){const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase()===t;});}
 function lookup(n){const i=lookupExact(n);if(i>=0)return i;const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
-function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return e.name.indexOf('2D')!==0&&FX_BLACKLIST.indexOf(e.name.toLowerCase())<0;});if(activeTab==='welcoming')return WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
+function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return fxOk(e.idx,e.name);});if(activeTab==='welcoming')return WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0&&!isRsvd(allFx[i]);}).map(function(i){return{name:allFx[i],idx:i};});return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
 function parseFxData(meta){const parts=(meta||'').split(';'),labels=(parts[0]||'').split(','),def=['Speed','Intensity','Custom 1','Custom 2','Custom 3'],keys=['sx','ix','c1','c2','c3'],sl=[];for(let i=0;i<5;i++){let l=labels[i];if(l===undefined||l==='')continue;if(l==='!')l=def[i];sl.push({key:keys[i],label:l});}const tg=[];for(let i=0;i<3;i++){let l=labels[5+i];if(l===undefined||l==='')continue;if(l==='!')l='Opsi '+(i+1);tg.push({key:['o1','o2','o3'][i],label:l});}return{sl:sl,tg:tg};}
-function effectDefaults(idx){const parts=(fxData[idx]||'').split(';'),raw=parts[4]||'',out={};raw.split(',').forEach(function(pair){const bits=pair.split('=');if(bits.length!==2)return;const key=bits[0].trim(),value=Number(bits[1]);if(Number.isFinite(value)&&['sx','ix','c1','c2','c3','o1','o2','o3','pal'].indexOf(key)>=0)out[key]=value;});return out;}
-function renderParams(idx){const box=document.getElementById('fxParams');box.innerHTML='';const p=parseFxData(fxData[idx]||'');const iv=function(k){return cur.params[k]!=null?cur.params[k]:(k==='c3'?16:128);};p.sl.forEach(function(s){const v=iv(s.key);const max=s.key==='c3'?31:255;const safeV=Math.min(max,Math.max(0,v));const row=document.createElement('div');row.className='param-row';row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>'+safeV+'</span></div><input type="range" min="0" max="'+max+'" value="'+safeV+'">';const inp=row.querySelector('input');inp.addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});box.appendChild(row);paintRange(inp);});p.tg.forEach(function(s){const on0=cur.params[s.key]===1;const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm'+(on0?' primary':'')+'" data-on="'+(on0?'1':'0')+'">'+(on0?'On':'Off')+'</button>';const b=row.querySelector('button');b.addEventListener('click',function(){const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});box.appendChild(row);});document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
-function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}curList=listForTab().slice().sort(function(a,b){return a.name.localeCompare(b.name);});curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item';el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});grid.appendChild(el);});updateCtx();}
+function renderParams(idx){const box=document.getElementById('fxParams');box.innerHTML='';const p=parseFxData(fxData[idx]||'');const iv=function(k){return cur.params[k]!=null?cur.params[k]:128;};p.sl.forEach(function(s){const v=iv(s.key);const row=document.createElement('div');row.className='param-row';row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>'+v+'</span></div><input type="range" min="0" max="255" value="'+v+'">';const inp=row.querySelector('input');inp.addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});box.appendChild(row);paintRange(inp);});p.tg.forEach(function(s){const on0=cur.params[s.key]===1;const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm'+(on0?' primary':'')+'" data-on="'+(on0?'1':'0')+'">'+(on0?'On':'Off')+'</button>';const b=row.querySelector('button');b.addEventListener('click',function(){const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});box.appendChild(row);});document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
+function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}curList=listForTab().slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;return a.name.localeCompare(b.name);});curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item';el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});grid.appendChild(el);});updateCtx();}
 document.getElementById('fxSearch').addEventListener('input',function(e){const q=e.target.value.toLowerCase();document.querySelectorAll('#fxGrid .fx-item').forEach(function(el){el.style.display=el.querySelector('.fx-name').textContent.toLowerCase().indexOf(q)>=0?'':'none';});});
 function loadFxData(cb){Promise.all([fetch('/json/eff').then(function(r){return r.json();}),fetch('/json/fxdata').then(function(r){return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];cb(true);}).catch(function(){cb(false);});}
-function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=Math.min(31,Math.max(0,s.c3));if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
+function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
 /* ===== LABELS & CONTEXT ===== */
 function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua'}[activeSide];}
 function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
 function subLabel(){return{template:'Warna Template',custom:'Warna Custom',efek:'Pilih Efek',simpan:'Riwayat Simpan'}[activeSub];}
 function updateCtx(){document.getElementById('fxSavedName')?0:0;}
-function updateModeAktif(){if(isRestrictedTab()){document.getElementById('modeAktif').textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';return;}if(activeSub==='custom'){document.getElementById('modeAktif').textContent='Custom \u2014 warna manual';}else{document.getElementById('modeAktif').textContent='Template \u2014 '+(cur.palName||'-');}}
+function updateModeAktif(){if(isRestrictedTab()){document.getElementById('modeAktif').textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';return;}if(activeSub==='custom'){document.getElementById('modeAktif').textContent='Custom \u2014 warna manual';}else{document.getElementById('modeAktif').textContent='Template \u2014 '+(cur.palName||'-')+(fxUsesPal(cur.fx)?'':' (efek ini tidak memakai palette)');}}
 function refreshSavedInfo(){updateSideInfo();}
 /* ===== SAVE ===== */
-function doSave(){if(isRestrictedTab())normalizeRestrictedState(false);const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];const c0=segColors[0]||[255,255,255],c1=isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),c2=isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0]);const params=new URLSearchParams({fx:cur.fx,pal:isRestrictedTab()?0:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,c1:cur.params.c1!=null?cur.params.c1:128,c2:cur.params.c2!=null?cur.params.c2:128,c3:cur.params.c3!=null?cur.params.c3:16,o1:cur.params.o1!=null?cur.params.o1:0,o2:cur.params.o2!=null?cur.params.o2:0,o3:cur.params.o3!=null?cur.params.o3:0});sides.forEach(function(sd){fetch('/mizuma/preset?slot='+encodeURIComponent(activeTab+sd)+'&'+params.toString(),{method:'POST'}).catch(function(){});});clearDirty();const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));renderSavedList();refreshSavedInfo();}
+function doSave(){if(isRestrictedTab())normalizeRestrictedState(false);const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];const c0=segColors[0]||[255,255,255],c1=isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),c2=isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0]);const params=new URLSearchParams({fx:cur.fx,pal:isRestrictedTab()?0:cur.pal,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,c1:cur.params.c1!=null?cur.params.c1:128,c2:cur.params.c2!=null?cur.params.c2:128,c3:cur.params.c3!=null?cur.params.c3:128,o1:cur.params.o1!=null?cur.params.o1:0,o2:cur.params.o2!=null?cur.params.o2:0,o3:cur.params.o3!=null?cur.params.o3:0});sides.forEach(function(sd){fetch('/mizuma/preset?slot='+encodeURIComponent(activeTab+sd)+'&'+params.toString(),{method:'POST'}).catch(function(){});});clearDirty();const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));renderSavedList();refreshSavedInfo();}
 function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='Memuat...';fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){box.innerHTML='';['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){const st=d[t+s];const row=document.createElement('div');row.className='saved-row';const on=!!(st&&st.valid);const txt=on?'Tersimpan':'Default';row.innerHTML='<span class="sk">'+cap(t)+' \u2014 '+s+'</span><span class="st'+(on?' on':'')+'">'+txt+'</span>';box.appendChild(row);});});}).catch(function(){box.innerHTML='Gagal memuat status.';});}
 document.getElementById('btnSaveSub').addEventListener('click',doSave);
 /* ===== MODAL ===== */
@@ -980,7 +769,7 @@ document.getElementById('mSave').addEventListener('click',function(){doSave();do
 document.getElementById('mDiscard').addEventListener('click',function(){clearDirty();document.getElementById('saveModal').style.display='none';if(pendingAction)pendingAction();pendingAction=null;});
 document.getElementById('mCancel').addEventListener('click',function(){document.getElementById('saveModal').style.display='none';pendingAction=null;});
 /* ===== PRESET APPLY & UI UPDATE ===== */
-function updateControlsFromPreset(tab,st){if(!st)return;cur.fx=st.fx!=null?st.fx:0;cur.pal=(tab==='sein'||tab==='rem'||tab==='hazard')?0:(st.pal!=null?st.pal:0);const np=paramsFor(cur.fx);np.sx=st.sx!=null?st.sx:128;np.ix=st.ix!=null?st.ix:128;np.c1=st.c1!=null?st.c1:128;np.c2=st.c2!=null?st.c2:128;np.c3=st.c3!=null?Math.min(31,Math.max(0,st.c3)):16;np.o1=st.o1!=null?st.o1:0;np.o2=st.o2!=null?st.o2:0;np.o3=st.o3!=null?st.o3:0;cur.params=np;if(st.col&&st.col.length){const cols=Array.isArray(st.col[0])?st.col:[st.col];for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}slotCount=cols.length;}const pName=palNamesRaw[cur.pal]||'';cur.palName=pName;if(isRestrictedTab())normalizeRestrictedState(false);renderColorRow();renderParams(cur.fx);const fxName=allFx[cur.fx]||'';if(fxName){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);});}document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}
+function updateControlsFromPreset(tab,st){if(!st)return;cur.fx=st.fx!=null?st.fx:0;cur.pal=(tab==='sein'||tab==='rem'||tab==='hazard')?0:(st.pal!=null?st.pal:0);const np=paramsFor(cur.fx);np.sx=st.sx!=null?st.sx:128;np.ix=st.ix!=null?st.ix:128;np.c1=st.c1!=null?st.c1:128;np.c2=st.c2!=null?st.c2:128;np.c3=st.c3!=null?st.c3:128;np.o1=st.o1!=null?st.o1:0;np.o2=st.o2!=null?st.o2:0;np.o3=st.o3!=null?st.o3:0;cur.params=np;if(st.col&&st.col.length){const cols=Array.isArray(st.col[0])?st.col:[st.col];for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}slotCount=cols.length;}const pName=palNamesRaw[cur.pal]||'';cur.palName=pName;if(isRestrictedTab())normalizeRestrictedState(false);renderColorRow();renderParams(cur.fx);const fxName=allFx[cur.fx]||'';if(fxName){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);});}document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}
 function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){const uiSide=activeSide==='kiri'?'Kiri':'Kanan';const st=d[tab+uiSide];updateControlsFromPreset(tab,st);if(activeSide!==''){fetch('/mizuma/apply?mode='+encodeURIComponent(tab)+'&side='+encodeURIComponent(activeSide),{method:'POST'}).catch(function(){});}
 /* FOKUS SISI: matikan sisi yang tidak diedit */
 if(activeSide==='kanan'){post({seg:[{id:SEG_L,on:false}]});}
@@ -1016,9 +805,10 @@ function initFromState(){fetch('/json/state').then(function(r){return r.json();}
 <script>
 (function(){
 function inj(url,cb){fetch(url).then(function(r){return r.text();}).then(cb).catch(function(){});}
-inj('/mizuma/frag/header',function(t){const el=document.getElementById('mzH');if(el)el.outerHTML=t;});
-inj('/mizuma/frag/nav',function(t){const el=document.getElementById('mzN');if(el)el.outerHTML=t;const a=document.querySelector('.bottomnav a[href="/led"]');if(a)a.classList.add('active');});
-inj('/mizuma/frag/script',function(t){eval(t);});
+inj('/mizuma/frag/header',function(t){const el=document.getElementById('mzH');if(el)el.outerHTML=t;
+inj('/mizuma/frag/nav',function(t2){const el2=document.getElementById('mzN');if(el2)el2.outerHTML=t2;const a=document.querySelector('.bottomnav a[href="/led"]');if(a)a.classList.add('active');
+inj('/mizuma/frag/script',function(t3){eval(t3);});});});
+window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{navigator.sendBeacon('/json/state',new Blob([JSON.stringify({seg:[{id:SEG_K,on:true},{id:SEG_L,on:true}]})],{type:'application/json'}));}catch(e){}});
 })();
 </script>
 </body>
@@ -1047,7 +837,7 @@ inj('/mizuma/frag/script',function(t){eval(t);});
     uint8_t r1 = 0, g1 = 0, b1 = 0;
     uint8_t r2 = 0, g2 = 0, b2 = 0;
     uint8_t sx = 128, ix = 128;
-    uint8_t c1 = 128, c2 = 128, c3 = 16;
+    uint8_t c1 = 128, c2 = 128, c3 = 128;
     uint8_t o1 = 0, o2 = 0, o3 = 0;
     uint8_t bri = 180;
     };
@@ -1058,8 +848,9 @@ inj('/mizuma/frag/script',function(t){eval(t);});
     /* FIX BUG 1: brightness permanen */
     uint8_t savedBri = 180;
     bool briRestored = false;
-    bool briSavePending = false;
-    unsigned long briSaveT = 0;
+    bool cfgSavePending = false;
+    unsigned long cfgSaveT = 0;
+    void queueSave(){cfgSavePending=true;cfgSaveT=millis();}
     
     const char* slotKey(int i){
     switch(i){
@@ -1073,7 +864,7 @@ inj('/mizuma/frag/script',function(t){eval(t);});
     PresetSlot defaultSlot(int idx){
     PresetSlot p;p.valid=true;p.fx=0;p.pal=0;
     p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
-    p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=16;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
+    p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
     if(idx==4||idx==5||idx==8||idx==9){p.r=255;p.g=165;p.b=0;}
     else if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}
     else{p.r=255;p.g=255;p.b=255;}
@@ -1124,6 +915,14 @@ if(side=="kanan"){applySingleSlot(base);return true;}
 if(side=="kiri"){applySingleSlot(base+1);return true;}
 return false;}
 
+String jsonEscape(const String &s){
+String o;o.reserve(s.length()+4);
+for(size_t k=0;k<s.length();k++){char c=s[k];
+if(c=='"'||c=='\\'){o+='\\';o+=c;}
+else if((uint8_t)c<0x20){o+=' ';}
+else o+=c;}
+return o;}
+
 void handlePreset(AsyncWebServerRequest *req){
 String slotName=req->arg("slot");
 int i=slotIdx(slotName);
@@ -1134,7 +933,7 @@ p.r=argU8(req,"r",255);p.g=argU8(req,"g",255);p.b=argU8(req,"b",255);
 p.r1=argU8(req,"r1",0);p.g1=argU8(req,"g1",0);p.b1=argU8(req,"b1",0);
 p.r2=argU8(req,"r2",0);p.g2=argU8(req,"g2",0);p.b2=argU8(req,"b2",0);
 p.sx=argU8(req,"sx",128);p.ix=argU8(req,"ix",128);
-p.c1=argU8(req,"c1",128);p.c2=argU8(req,"c2",128);p.c3=req->hasArg("c3")?(uint8_t)constrain(req->arg("c3").toInt(),0,31):16;
+p.c1=argU8(req,"c1",128);p.c2=argU8(req,"c2",128);p.c3=argU8(req,"c3",128);
 p.o1=req->hasArg("o1")?(req->arg("o1").toInt()?1:0):0;
 p.o2=req->hasArg("o2")?(req->arg("o2").toInt()?1:0):0;
 p.o3=req->hasArg("o3")?(req->arg("o3").toInt()?1:0):0;
@@ -1142,7 +941,7 @@ p.bri=argU8(req,"bri",180);if(p.bri==0)p.bri=180;
 if(isRestrictedSlot(i)){p.pal=0;p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
 if(p.r==0&&p.g==0&&p.b==0){if(i==6||i==7){p.r=255;p.g=0;p.b=0;}else{p.r=255;p.g=165;p.b=0;}}}
 pslots[i]=p;
-serializeConfigToFS();
+queueSave();
 req->send(200,"application/json","{\"ok\":true}");}
 
 void handleApply(AsyncWebServerRequest *req){
@@ -1156,7 +955,7 @@ if(!req->hasArg("v")){req->send(400,"application/json","{\"ok\":false}");return;
 savedBri=(uint8_t)constrain(req->arg("v").toInt(),1,255);
 bri = savedBri;
 stateUpdated(CALL_MODE_DIRECT_CHANGE);
-briSavePending=true;briSaveT=millis();
+queueSave();
 req->send(200,"application/json","{\"ok\":true}");}
 
 void applyCommonReplacements(String &html,const char* activeKey){
@@ -1197,13 +996,14 @@ server.on("/keamanan",HTTP_GET,[this](AsyncWebServerRequest *req){req->send(200,
 server.on("/mizuma/frag/header",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/html",MIZUMA_HEADER_HTML);});
 server.on("/mizuma/frag/script",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/javascript",MIZUMA_HEADER_SCRIPT);});
 server.on("/mizuma/frag/nav",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/html",MIZUMA_BOTTOMNAV_HTML);});
-server.on("/mizuma/status",HTTP_GET,[](AsyncWebServerRequest *req){
+server.on("/mizuma/status",HTTP_GET,[this](AsyncWebServerRequest *req){
 bool apOn=(WiFi.softAPgetStationNum()>0);bool staOn=(WiFi.status()==WL_CONNECTED);
-String staIP=staOn?WiFi.localIP().toString():"";
+String staIP=staOn?WiFi.localIP().toString():String("");
+String ssid=staOn?WiFi.SSID():String("Mizuma Smart System");
 String json="{\"ap\":";json+=apOn?"true":"false";
 json+=",\"sta\":";json+=staOn?"true":"false";
-json+=",\"staIP\":\"";json+=staIP;json+="\"";
-json+=",\"ssid\":\"";json+=staOn?WiFi.SSID():String("Mizuma Smart System");
+json+=",\"staIP\":\"";json+=staIP;
+json+="\",\"ssid\":\"";json+=jsonEscape(ssid);
 json+="\"}";req->send(200,"application/json",json);});
 server.on("/mizuma/debug",HTTP_GET,[](AsyncWebServerRequest *req){
 char buf[192];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u}",
@@ -1216,21 +1016,18 @@ server.on("/mizuma/apply",HTTP_POST,[this](AsyncWebServerRequest *req){handleApp
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
-DynamicJsonDocument doc(4096);JsonObject root=doc.to<JsonObject>();
-for(int i=0;i<10;i++){PresetSlot p=getEffectiveSlot(i);
-JsonObject s=root.createNestedObject(slotKey(i));
-s["valid"]=pslots[i].valid;s["fx"]=p.fx;s["pal"]=p.pal;
-JsonArray c=s.createNestedArray("col");
-JsonArray c0=c.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
-JsonArray c1=c.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
-JsonArray c2=c.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);
-s["sx"]=p.sx;s["ix"]=p.ix;s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;
-s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;s["bri"]=p.bri;}
-String out;serializeJson(doc,out);req->send(200,"application/json",out);});}
+String out;out.reserve(2600);out+="{";
+for(int i=0;i<10;i++){PresetSlot p=getEffectiveSlot(i);char buf[340];
+snprintf(buf,sizeof(buf),"%s\"%s\":{\"valid\":%s,\"fx\":%u,\"pal\":%u,\"col\":[[%u,%u,%u],[%u,%u,%u],[%u,%u,%u]],\"sx\":%u,\"ix\":%u,\"c1\":%u,\"c2\":%u,\"c3\":%u,\"o1\":%u,\"o2\":%u,\"o3\":%u,\"bri\":%u}",
+i?",":"",slotKey(i),pslots[i].valid?"true":"false",(unsigned)p.fx,(unsigned)p.pal,
+(unsigned)p.r,(unsigned)p.g,(unsigned)p.b,(unsigned)p.r1,(unsigned)p.g1,(unsigned)p.b1,(unsigned)p.r2,(unsigned)p.g2,(unsigned)p.b2,
+(unsigned)p.sx,(unsigned)p.ix,(unsigned)p.c1,(unsigned)p.c2,(unsigned)p.c3,(unsigned)p.o1,(unsigned)p.o2,(unsigned)p.o3,(unsigned)p.bri);
+out+=buf;}
+out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
   if(!briRestored){briRestored=true;bri=savedBri;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
-  if(briSavePending&&millis()-briSaveT>3000){briSavePending=false;serializeConfigToFS();}
+  if(cfgSavePending&&millis()-cfgSaveT>1500){cfgSavePending=false;serializeConfigToFS();}
   if(bootDone)return;
   unsigned long m=millis();
   if(bootStage==0){applyModeSide("welcoming","both");bootStage=1;bootT=m;}
@@ -1277,7 +1074,7 @@ pslots[i].r=s["r"]|255;pslots[i].g=s["g"]|255;pslots[i].b=s["b"]|255;
 pslots[i].r1=s["r1"]|0;pslots[i].g1=s["g1"]|0;pslots[i].b1=s["b1"]|0;
 pslots[i].r2=s["r2"]|0;pslots[i].g2=s["g2"]|0;pslots[i].b2=s["b2"]|0;
 pslots[i].sx=s["sx"]|128;pslots[i].ix=s["ix"]|128;
-pslots[i].c1=s["c1"]|128;pslots[i].c2=s["c2"]|128;pslots[i].c3=(uint8_t)constrain((int)(s["c3"]|16),0,31);
+pslots[i].c1=s["c1"]|128;pslots[i].c2=s["c2"]|128;pslots[i].c3=s["c3"]|128;
 pslots[i].o1=s["o1"]|0;pslots[i].o2=s["o2"]|0;pslots[i].o3=s["o3"]|0;
 pslots[i].bri=s["bri"]|180;}}
 welcomeDur = 7000; // dikunci 7 detik (abaikan nilai lama yg tersimpan)
