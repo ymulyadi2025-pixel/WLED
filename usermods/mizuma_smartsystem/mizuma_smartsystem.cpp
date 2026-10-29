@@ -477,16 +477,21 @@ body{display:flex;flex-direction:column;}
 .fx-chip{font-size:10.5px;font-weight:700;color:var(--ac);background:var(--ac-dim);padding:4px 10px;border-radius:14px;white-space:nowrap;max-width:42%;overflow:hidden;text-overflow:ellipsis;}
 .fx-search{flex:1;min-width:0;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-size:11px;}
 .custom-grid{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:stretch;margin-bottom:10px;}
-.cg-wheel canvas{width:100%;max-width:250px;height:auto;border-radius:50%;touch-action:none;display:block;}
-.cg-vsl{display:flex;gap:16px;align-items:stretch;justify-content:center;padding:6px 4px 16px;}
+.cg-wheel canvas{width:100%;max-width:190px;height:auto;border-radius:50%;touch-action:none;display:block;}
+.cg-vsl{display:flex;gap:12px;align-items:stretch;justify-content:center;padding:6px 4px 12px;}
 .vsl{position:relative;width:30px;}
-.vsl input{position:absolute;top:50%;left:50%;width:190px;height:24px;transform:translate(-50%,-50%) rotate(-90deg);}
+.vsl input{position:absolute;top:50%;left:50%;width:150px;height:20px;transform:translate(-50%,-50%) rotate(-90deg);}
 .vsl-l{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--tx3);font-weight:800;}
 .quick-colors{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
 .qc{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.15);cursor:pointer;}
-.crow{display:flex;gap:8px;flex-wrap:wrap;}
-.crow-btn{width:42px;height:42px;border-radius:50%;border:2px solid var(--bd2);color:#fff;font-size:13px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.7);}
-.crow-btn.active{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-dim);}
+.crow{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+.crow-btn{
+  width:48px;height:48px;border-radius:50%;border:2px solid var(--bd2);color:#fff;font-size:13px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.7);
+  display:flex;align-items:center;justify-content:center;position:relative;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);
+  transition:transform .12s,var(--ease);
+}
+.crow-btn.active{border-color:var(--ac);box-shadow:0 6px 18px rgba(0,0,0,.45), 0 0 0 6px var(--ac-dim);}
+.crow-btn .slot-label{position:absolute;bottom:-16px;font-size:10px;color:var(--tx3);font-weight:700;}
 .palette-list{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
 .pal-row{position:relative;display:flex;align-items:center;gap:6px;background:var(--s1);border:1px solid var(--bd);border-radius:11px;padding:8px 6px 12px;overflow:hidden;}
 .pal-row .pradio{width:12px;height:12px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;}
@@ -593,7 +598,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 </div>
 <div class="pane-scroll" id="scrollCustom" style="display:none;">
 <div class="custom-grid">
-<div class="cg-wheel"><canvas id="colorWheel" width="220" height="220"></canvas></div>
+<div class="cg-wheel"><canvas id="colorWheel" width="180" height="180"></canvas></div>
 <div class="cg-vsl">
 <div class="vsl"><input type="range" min="0" max="100" value="100" id="valSlider"><span class="vsl-l">V</span></div>
 <div class="vsl"><input type="range" min="2000" max="10000" step="50" value="6500" id="kelvinSlider"><span class="vsl-l">K</span></div>
@@ -601,12 +606,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 </div>
 <div class="quick-colors" id="quickColors"></div>
 <div class="crow" id="colorRow"></div>
+<div class="color-legend" style="text-align:center;font-size:12px;color:var(--tx2);margin-top:8px;">
+  fx = warna efek &nbsp;&middot;&nbsp; bg = warna background &nbsp;&middot;&nbsp; 3 = warna tambahan
+</div>
 <div class="sec-title">Palette Custom (*)</div>
 <div class="palette-list" id="customPalGrid"></div>
 </div>
 <div class="pane-scroll" id="scrollRestricted" style="display:none;">
 <div class="restricted-swatches" id="restrictedGrid"></div>
-<div class="cg-wheel" style="max-width:200px;margin:0 auto;"><canvas id="wheelR" width="220" height="220"></canvas></div>
+<div class="cg-wheel" style="max-width:200px;margin:0 auto;"><canvas id="wheelR" width="180" height="180"></canvas></div>
 <div class="restricted-note">Area abu-abu dibatasi otomatis sesuai regulasi lampu sinyal</div>
 </div>
 <div class="pane-scroll" id="scrollEfek">
@@ -710,22 +718,86 @@ function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
 function starGrad(name){const c0=segColors[0]||[255,255,255],c1=segColors[1]||c0,c2=segColors[2]||c1;if(name.indexOf('* Color 1')===0)return gstr(c0);if(name.indexOf('* Colors 1&2')===0)return 'linear-gradient(90deg,'+gstr(c0)+','+gstr(c1)+')';if(name.indexOf('* Color Gradient')===0)return 'linear-gradient(90deg,'+gstr(c2)+','+gstr(c1)+','+gstr(c0)+')';if(name.indexOf('* Colors Only')===0)return 'linear-gradient(90deg,'+gstr(c0)+' 0 33%,'+gstr(c1)+' 33% 66%,'+gstr(c2)+' 66% 100%)';return null;}
 function updateStarStrips(){document.querySelectorAll('#customPalGrid .pal-row').forEach(function(row){const g2=starGrad(row.dataset.palname||'');if(g2)row.querySelector('.pstrip').style.background=g2;});}
-function renderColorRow(){const box=document.getElementById('colorRow');if(!box)return;box.innerHTML='';const star=isStarPal(),ps=isPSFx();const mk=function(label,idx){const b=document.createElement('button');b.className='crow-btn'+(colorTarget===idx?' active':'');b.textContent=label;b.style.background=gstr(segColors[idx]||[128,128,128]);b.addEventListener('click',function(){colorTarget=idx;renderColorRow();});box.appendChild(b);};if(!(ps&&!star))mk('Fx',0);mk('Bg',1);if(star&&slotCount>=3)mk('3',2);updateStarStrips();}
+const btn = document.createElement('button');
+btn.className = 'crow-btn' + (active?' active':'');
+btn.style.background = labelColor; // set warna
+btn.addEventListener('click',function(){ /* set target */ });
+const lbl = document.createElement('div'); lbl.className='slot-label'; lbl.textContent = labelShort; // 'fx' / 'bg' / '3'
+btn.appendChild(lbl);
+box.appendChild(btn);
 (function(){const box=document.getElementById('quickColors');QUICK_COLORS.forEach(function(h){const d=document.createElement('div');d.className='qc';d.style.background='#'+h;d.addEventListener('click',function(){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255,false);});box.appendChild(d);});const r=document.createElement('div');r.className='qc';r.style.background='conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';r.style.position='relative';r.innerHTML='<span style="position:absolute;inset:5px;border-radius:50%;background:var(--bg);color:var(--tx);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;">R</span>';r.addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});box.appendChild(r);})();
 function setColor(r,g,b,silent){const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];wVal=hv[2];document.getElementById('valSlider').value=Math.round(wVal*100);paintRange(document.getElementById('valSlider'));paintWheel(wheel,wHue,wSat);sendColor(r,g,b,silent);updateModeAktif();}
 /* ===== RESTRICTED ===== */
 function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});grid.appendChild(d);});buildWheelImg(document.getElementById('wheelR'),HUE_RULES[activeTab]);restrictedName=colors[0].n;}
 document.getElementById('wheelR').addEventListener('pointerdown',function(e){const cv=document.getElementById('wheelR'),rect=cv.getBoundingClientRect(),wr=cv.width/2,x=(e.clientX-rect.left)*(cv.width/rect.width),y=(e.clientY-rect.top)*(cv.height/rect.height),dx=x-wr,dy=y-wr;if(Math.sqrt(dx*dx+dy*dy)>wr)return;const h=clampHue(Math.atan2(dy,dx)*180/Math.PI+180,HUE_RULES[activeTab]),sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/wr),rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';setColor(rgb[0],rgb[1],rgb[2],false);updateModeAktif();});
 /* ===== PALETTES ===== */
-const paletteGrid=document.getElementById('paletteGrid'),customPalGrid=document.getElementById('customPalGrid');
-function seedGrad(i){return 'linear-gradient(90deg,hsl('+((i*37)%360)+',80%,50%),hsl('+(((i*37)+120)%360)+',80%,50%))';}
+// palettes: gunakan palx (warna) bila tersedia, fallback ke seedGrad
+const paletteGrid=document.getElementById('paletteGrid'), customPalGrid=document.getElementById('customPalGrid');
+function seedGrad(i){ return 'linear-gradient(90deg,hsl('+((i*37)%360)+',80%,50%),hsl('+(((i*37)+120)%360)+',80%,50%))'; }
 let palXGrad={};
+function loadPalX(){
+  fetch('/json/palx').then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+  .then(function(d){
+    let map=d; if(map && map.p && typeof map.p==='object') map=map.p;
+    // palList sudah terisi dengan {n,i} dari fetch('/json/pal')
+    palList.forEach(function(p){
+      const name=p.n;
+      let cols=null;
+      if(map && map[name]) cols = normCols(map[name]);
+      palXGrad[name] = cols ? gradFromCols(cols) : seedGrad(p.i);
+    });
+    renderPaletteRows('');
+  }).catch(function(){
+    // fallback: isi palXGrad pakai seed
+    palList.forEach(function(p){ palXGrad[p.n] = seedGrad(p.i); });
+    renderPaletteRows('');
+  });
+}
+
+fetch('/json/pal').then(function(r){ return r.json(); }).then(function(names){
+  palNamesRaw = names;
+  const arr = [];
+  names.forEach(function(n,i){ if(n !== 'r') arr.push({ n:n, i:i }); });
+  // urutkan alphabet, tapi pastikan 'Default' (atau nama palette default) berada di depan
+  arr.sort(function(a,b){
+    const an=a.n.toLowerCase(), bn=b.n.toLowerCase();
+    if(an==='default') return -1;
+    if(bn==='default') return 1;
+    return an < bn ? -1 : (an > bn ? 1 : 0);
+  });
+  palList = arr.map(function(e){ return { n: e.n, i: e.i }; });
+  // set seed grad sementara, lalu coba load actual palx colors
+  palList.forEach(function(p){ palXGrad[p.n] = seedGrad(p.i); });
+  loadPalX();
+  // kick render (jika ada searchBox)
+  if(document.getElementById('searchBox')) document.getElementById('searchBox').dispatchEvent(new Event('input'));
+});
 function normCols(arr){const out=[];if(!arr)return out;if(typeof arr[0]==='number'){for(let i=0;i+2<arr.length;i+=3)out.push([arr[i],arr[i+1],arr[i+2]]);return out;}for(let i=0;i<arr.length;i++){const c=arr[i];if(Array.isArray(c)){if(c.length>=4)out.push([c[1],c[2],c[3]]);else if(c.length>=3)out.push([c[0],c[1],c[2]]);}else if(typeof c==='string'){const n=parseInt(c,16);out.push([(n>>16)&255,(n>>8)&255,n&255]);}}return out;}
 function gradFromCols(cols){if(!cols||!cols.length)return null;if(cols.length===1)return 'rgb('+cols[0][0]+','+cols[0][1]+','+cols[0][2]+')';const parts=cols.map(function(c,i){return 'rgb('+c[0]+','+c[1]+','+c[2]+') '+Math.round(i*100/(cols.length-1))+'%';});return 'linear-gradient(90deg,'+parts.join(',')+')';}
-function loadPalX(){fetch('/json/palx').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){let map=d;if(map&&map.p&&typeof map.p==='object')map=map.p;if(!map||Array.isArray(map))throw 0;let got=0;Object.keys(map).forEach(function(k){const v=map[k];if(Array.isArray(v)){const g=gradFromCols(normCols(v));if(g){palXGrad[parseInt(k,10)||k]=g;got++;}}});if(got)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());}).catch(function(){});}
-function makePalRow(e,grid,numbered,seq){const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();row.dataset.palname=e.n;const grad=palXGrad[e.i]||PAL_GRADS[e.n]||seedGrad(e.i);row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';row.addEventListener('click',function(){cur.palName=e.n;document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});row.classList.add('active');sendPalette(e.i);updateModeAktif();});grid.appendChild(row);}
+function makePalRow(e, grid, numbered, seq){
+  const row = document.createElement('div');
+  row.className = 'pal-row' + (cur.palName === e.n ? ' active' : '');
+  row.dataset.name = e.n.toLowerCase();
+  row.dataset.palname = e.n;
+
+  const pnum = document.createElement('div'); pnum.className = 'pnum'; pnum.textContent = numbered ? (seq+1) : '';
+  const pname = document.createElement('div'); pname.className = 'pname'; pname.textContent = e.n;
+  const pstrip = document.createElement('div'); pstrip.className = 'pstrip';
+
+  // gunakan palXGrad (nilai CSS) bila ada, fallback ke seedGrad
+  pstrip.style.background = palXGrad[e.n] || seedGrad(e.i);
+
+  row.appendChild(pnum);
+  row.appendChild(pname);
+  row.appendChild(pstrip);
+
+  row.addEventListener('click', function(){
+    if(!isRestrictedTab()) sendPalette(e.i);
+  });
+
+  grid.appendChild(row);
+}
 function renderPaletteRows(q){paletteGrid.innerHTML='';customPalGrid.innerHTML='';let t=0;palList.forEach(function(e){if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}if(q&&e.n.toLowerCase().indexOf(q)<0)return;makePalRow(e,paletteGrid,true,t);t++;});updateStarStrips();}
-fetch('/json/pal').then(function(r){return r.json();}).then(function(names){palNamesRaw=names;const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});arr.sort(function(a,b){return a.n.localeCompare(b.n);});palList=arr;renderPaletteRows('');renderColorRow();loadPalX();updateSideInfo();}).catch(function(){});
 document.getElementById('searchBox').addEventListener('input',function(e){renderPaletteRows(e.target.value.toLowerCase());});
 /* ===== EFFECTS ===== */
 function lookupExact(n){const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase()===t;});}
