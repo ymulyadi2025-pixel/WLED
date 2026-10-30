@@ -4,7 +4,7 @@
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
-#include "mizuma_welcome.h"   // 45 mode welcoming (W01..W45)
+#include "mizuma_welcome.h"   // 55 efek custom khusus tab Welcoming (MZ01..MZ05 + W01..W50)
 extern void serializeConfigToFS();
 
 // WLED 16.0.1 defines these preset helpers in presets.cpp but does not
@@ -658,11 +658,30 @@ let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0,slotCount=1;
 const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
 const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
+/* Filter default milik tab asli dipertahankan. Katalog khusus hanya berlaku di tab Welcoming. */
 const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
 const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
 const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
-const MZW_RE=/^W\d\d /; /* efek Welcoming Mizuma W01..W45 */
-const HIDE_AUDIO_FX=true; /* sembunyikan efek audio-reaktif (flag v/f) karena tidak ada mikrofon */
+const MZW_RE=/^(?:MZ\d\d|W\d\d) /; /* seluruh efek custom: MZ01..MZ05 + W01..W50 */
+const HIDE_AUDIO_FX=true; /* perilaku asli Riding: sembunyikan efek audio-reaktif */
+/* Whitelist 15 efek native ini hanya ditambahkan pada tab Welcoming (posisi 56..70). */
+const MIZUMA_NATIVE_FX=[
+  {match:'Bouncing Balls',label:'Bouncing Balls'},
+  {match:'Chase Rainbow',label:'Chase Rainbow'},
+  {match:'Colortwinkles',label:'Colortwinkles'},
+  {match:'Dissolve',label:'Dissolve'},
+  {match:'Drip',label:'Drip'},
+  {match:'Fireworks 1D',label:'Fireworks 1D'},
+  {match:'PacMan',label:'Pacman'},
+  {match:'PS 1D Balance',label:'PS 1D Balance'},
+  {match:'PS Spray 1D',label:'PS Spray 1D'},
+  {match:'PS Starburst',label:'PS Starburst'},
+  {match:'Shimmer',label:'Shimmer'},
+  {match:'Sinelon Dual',label:'Sinelon Dual'},
+  {match:'Sweep',label:'Sweep'},
+  {match:'Tetrix',label:'Tetrix'},
+  {match:'Wavesins',label:'Wavesins'}
+];
 const QUICK_COLORS=['FF0000','FFA500','FFD200','FFFFFF','000000','0000FF','00FF00'];
 /* Pairing efek->palette default (meniru perilaku UI WLED asli; bisa diperluas) */
 const FX_PAL_DEFAULTS={'Fire 2012':'Fire','Fireworks 1D':'Rainbow','Fireworks':'Rainbow','Noise 1':'Pastel','Noise':'Pastel','Pride':'Pride','Aurora':'Aurora','Pacifica':'Pacifica'};
@@ -759,18 +778,35 @@ window.addEventListener('focus',function(){loadPalettes(false);});
 document.getElementById('searchBox').addEventListener('input',function(e){renderPaletteRows(e.target.value.toLowerCase());});
 /* ===== EFFECTS ===== */
 /* metadata efek WLED: "slider;warna;palette;flags;default" (sama seperti UI stock) */
-function isRsvd(n){const t=(n||'').toLowerCase();return t===''||t==='rsvd'||t==='-';}
 function fxPart(i,k){const m=(fxData[i]||'').split(';');return m.length>k?m[k]:null;}
-function fxFlags(i){return fxPart(i,3)||'';}
 function fxUsesPal(i){const p=fxPart(i,2);return p===null?true:p!=='';}
 function fxDefs(i){const d={},s=fxPart(i,4);if(s)s.split(',').forEach(function(kv){const p=kv.split('=');if(p.length===2){const v=parseInt(p[1],10);if(!isNaN(v))d[p[0].trim()]=v;}});return d;}
+function isRsvd(n){const t=(n||'').toLowerCase();return t===''||t==='rsvd'||t==='-';}
+function fxFlags(i){return fxPart(i,3)||'';}
 function fxOk(i,name){if(isRsvd(name)||MZW_RE.test(name))return false;const t=name.toLowerCase();if(name.indexOf('2D')===0||FX_BLACKLIST.indexOf(t)>=0)return false;const f=fxFlags(i);if(f.indexOf('2')>=0&&f.indexOf('1')<0&&f.indexOf('0')<0)return false;if(HIDE_AUDIO_FX&&(f.indexOf('v')>=0||f.indexOf('f')>=0))return false;return true;}
 function lookupExact(n){const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase()===t;});}
 function lookup(n){const i=lookupExact(n);if(i>=0)return i;const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
-function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return fxOk(e.idx,e.name);});if(activeTab==='welcoming'){const w=allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return MZW_RE.test(e.name);});const o=WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0&&!isRsvd(allFx[i])&&!MZW_RE.test(allFx[i]);}).map(function(i){return{name:allFx[i],idx:i};});return w.concat(o);}return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
+function mzwOrder(name){const m=/^(MZ|W)(\d\d) /.exec(name);if(!m)return 999;return m[1]==='MZ'?parseInt(m[2],10):(5+parseInt(m[2],10));}
+/* Katalog 1..70 hanya untuk Welcoming. idx selalu ID asli WLED, bukan nomor urut tampilan. */
+function listForTab(){
+  if(activeTab==='welcoming'){
+    const custom=allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return MZW_RE.test(e.name);});
+    custom.sort(function(a,b){return mzwOrder(a.name)-mzwOrder(b.name);});
+    const native=[];
+    MIZUMA_NATIVE_FX.forEach(function(spec){
+      const idx=lookupExact(spec.match);
+      if(idx>=0)native.push({name:spec.label,idx:idx});
+      else console.warn('[Mizuma] Efek native tidak ditemukan pada firmware:',spec.match);
+    });
+    return custom.concat(native);
+  }
+  /* Riding, Sein, Rem, dan Hazard kembali memakai penyaringan bawaan versi sebelumnya. */
+  if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return fxOk(e.idx,e.name);});
+  return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});
+}
 function parseFxData(meta){const parts=(meta||'').split(';'),labels=(parts[0]||'').split(','),def=['Speed','Intensity','Custom 1','Custom 2','Custom 3'],keys=['sx','ix','c1','c2','c3'],sl=[];for(let i=0;i<5;i++){let l=labels[i];if(l===undefined||l==='')continue;if(l==='!')l=def[i];sl.push({key:keys[i],label:l});}const tg=[];for(let i=0;i<3;i++){let l=labels[5+i];if(l===undefined||l==='')continue;if(l==='!')l='Opsi '+(i+1);tg.push({key:['o1','o2','o3'][i],label:l});}return{sl:sl,tg:tg};}
 function renderParams(idx){const box=document.getElementById('fxParams');box.innerHTML='';const p=parseFxData(fxData[idx]||'');const iv=function(k){return cur.params[k]!=null?cur.params[k]:128;};p.sl.forEach(function(s){const v=iv(s.key);const row=document.createElement('div');row.className='param-row';row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>'+v+'</span></div><input type="range" min="0" max="255" value="'+v+'">';const inp=row.querySelector('input');inp.addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});box.appendChild(row);paintRange(inp);});p.tg.forEach(function(s){const on0=cur.params[s.key]===1;const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm'+(on0?' primary':'')+'" data-on="'+(on0?'1':'0')+'">'+(on0?'On':'Off')+'</button>';const b=row.querySelector('button');b.addEventListener('click',function(){const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});box.appendChild(row);});document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
-function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}curList=listForTab().slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;const wa=MZW_RE.test(a.name),wb=MZW_RE.test(b.name);if(wa!==wb)return wa?-1:1;return a.name.localeCompare(b.name);});curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item';el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});grid.appendChild(el);});updateCtx();}
+function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}curList=listForTab();if(activeTab!=='welcoming'){curList=curList.slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;const wa=MZW_RE.test(a.name),wb=MZW_RE.test(b.name);if(wa!==wb)return wa?-1:1;return a.name.localeCompare(b.name);});} /* Welcoming mempertahankan urutan katalog 1..70; tab lain mempertahankan sorting lama. */curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item';el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});grid.appendChild(el);});updateCtx();}
 document.getElementById('fxSearch').addEventListener('input',function(e){const q=e.target.value.toLowerCase();document.querySelectorAll('#fxGrid .fx-item').forEach(function(el){el.style.display=el.querySelector('.fx-name').textContent.toLowerCase().indexOf(q)>=0?'':'none';});});
 function loadFxData(cb){Promise.all([jfetch('/json/eff').then(function(r){return r.json();}),jfetch('/json/fxdata').then(function(r){return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];cb(true);}).catch(function(){cb(false);});}
 function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
@@ -869,7 +905,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     int bootStage = 0;
     uint32_t bootT = 0;
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
-    uint8_t  welcomeFxCount = 0;             // jumlah efek W01..W45 yang berhasil terdaftar (harus 45)
+    uint8_t  welcomeFxCount = 0;             // jumlah efek custom MZ01..MZ05 + W01..W50 (harus 55)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
 
@@ -1064,10 +1100,10 @@ public:
 void setup() override {
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 tSetupMs=millis();
-{ // efek harus terdaftar SEBELUM preset boot dibaca (id efek ada di dalam preset)
+{ // 55 efek Mizuma harus terdaftar SEBELUM preset boot dibaca (ID ada di dalam preset)
   uint8_t nfx=mizumaRegisterWelcomeEffects(); welcomeFxCount=nfx;
   if(nfx<MZW_COUNT){DEBUG_PRINTF_P(PSTR("[Mizuma] PERINGATAN: slot efek WLED penuh, hanya %u/%u mode welcoming terdaftar. Tambahkan -D WLED_DISABLE_2D\n"),(unsigned)nfx,(unsigned)MZW_COUNT);}
-  DEBUG_PRINTF_P(PSTR("[Mizuma] %u efek welcoming terdaftar\n"),(unsigned)nfx);
+  DEBUG_PRINTF_P(PSTR("[Mizuma] %u/55 efek custom Mizuma terdaftar\n"),(unsigned)nfx);
 }
 startWelcomeSequence();
 apBehavior=AP_BEHAVIOR_ALWAYS;
