@@ -1,94 +1,11 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — REVISI R7 (Mizuma Signature Welcome FX + Startup Scheduler; palette/UI dipertahankan)
+// MIZUMA SMARTSYSTEM — REVISI R6 (Native WLED Boot Preset + Mizuma Startup Scheduler; palette/UI dipertahankan)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
+#include "mizuma_welcome.h"   // 45 mode welcoming (W01..W45)
 extern void serializeConfigToFS();
-
-// --------------------------------------------------------------------------------------------------------------------------------------
-// Mizuma Signature Welcome — custom WLED effect (WLED 16.0.1 user-FX API)
-// Uses each segment's currently selected WLED palette. No per-frame heap allocation.
-// Timeline: Awakening -> Twin Flow (segment start/inner edge to outer edge) -> Ignite -> steady palette fill.
-// --------------------------------------------------------------------------------------------------------------------------------------
-static uint8_t MIZUMA_SIGNATURE_WELCOME_FX_ID = 0;
-
-static void mode_mizuma_signature_welcome() {
-  const uint16_t len = SEGLEN;
-  if (len == 0) return;
-
-  // WLED resets SEGENV.call on effect initialization. strip.now is shared by all segments.
-  if (SEGENV.call == 0) SEGENV.step = strip.now;
-
-  // Higher Speed means a shorter sequence. At the default 180 the intro is about 4.76 s.
-  const uint32_t introMs     = 6200UL - ((uint32_t)SEGMENT.speed * 8UL);
-  const uint32_t awakeningMs = (introMs * 18UL) / 100UL;
-  const uint32_t flowMs      = (introMs * 42UL) / 100UL;
-  const uint32_t igniteMs    = introMs - awakeningMs - flowMs;
-  const uint32_t elapsed     = (uint32_t)(strip.now - SEGENV.step);
-
-  // Intensity controls the trailing glow length relative to the segment size.
-  uint16_t tailPixels = 2U + (uint16_t)(((uint32_t)(len - 1U) * SEGMENT.intensity) / 765UL);
-  if (tailPixels > len) tailPixels = len;
-  uint32_t tailQ = ((uint32_t)tailPixels * 65535UL) / len;
-  if (tailQ < 1024UL) tailQ = 1024UL;
-  uint32_t headQ = tailQ / 4UL;
-  if (headQ < 1024UL) headQ = 1024UL;
-
-  uint8_t phase = 3; // final phase is a steady, full-palette output
-  uint32_t progress = 65535UL;
-  if (elapsed < awakeningMs) {
-    phase = 0;
-  } else if (elapsed < awakeningMs + flowMs) {
-    phase = 1;
-    progress = ((elapsed - awakeningMs) * 65535UL) / (flowMs ? flowMs : 1UL);
-  } else if (elapsed < introMs) {
-    phase = 2;
-    progress = ((elapsed - awakeningMs - flowMs) * 65535UL) / (igniteMs ? igniteMs : 1UL);
-  }
-
-  for (uint16_t i = 0; i < len; i++) {
-    // WLED resolves the palette chosen for this segment (including Default/Color 1).
-    const uint32_t paletteColor = SEGMENT.color_from_palette(i, true, false, 0);
-    const uint32_t pixelQ = (len > 1U) ? (((uint32_t)i * 65535UL) / (len - 1U)) : 65535UL;
-    uint8_t level = 255;
-
-    if (phase == 0) {
-      // Awakening: the complete segment gently rises from a faint glow.
-      const uint32_t p = (elapsed * 255UL) / (awakeningMs ? awakeningMs : 1UL);
-      level = (uint8_t)(8UL + (46UL * p) / 255UL);
-    } else if (phase == 1) {
-      // Twin Flow: one bright head travels from local segment start to its outer end.
-      if (pixelQ <= progress) {
-        const uint32_t behind = progress - pixelQ;
-        if (behind >= tailQ) level = 34;
-        else level = (uint8_t)(68UL + (187UL * (tailQ - behind)) / tailQ);
-      } else {
-        const uint32_t ahead = pixelQ - progress;
-        if (ahead >= headQ) level = 8;
-        else level = (uint8_t)(8UL + (34UL * (headQ - ahead)) / headQ);
-      }
-    } else if (phase == 2) {
-      // Ignite: the sweep front brightens; pixels behind it remain fully illuminated.
-      const uint32_t igniteFrontQ = headQ * 2UL;
-      if (pixelQ <= progress) level = 255;
-      else {
-        const uint32_t ahead = pixelQ - progress;
-        if (ahead >= igniteFrontQ) level = 24;
-        else level = (uint8_t)(24UL + (190UL * (igniteFrontQ - ahead)) / igniteFrontQ);
-      }
-    } else {
-      // Signature Glow: hold all LEDs steadily at full palette brightness until Riding.
-      level = 255;
-    }
-
-    SEGMENT.setPixelColor(i, color_fade(paletteColor, level));
-  }
-}
-
-// Effect parameters: WLED Speed + Flow Width (Intensity); palette selector enabled.
-static const char _data_FX_MODE_MIZUMA_SIGNATURE_WELCOME[] PROGMEM =
-  "Mizuma Signature Welcome@!,Flow Width;;!;;sx=180,ix=128";
 
 // WLED 16.0.1 defines these preset helpers in presets.cpp but does not
 // publish their prototypes through wled.h. They have external linkage.
@@ -742,8 +659,9 @@ const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
 const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
 const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
-const WELCOMING_NAMES=['Mizuma Signature Welcome','Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
+const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
 const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
+const MZW_RE=/^W\d\d /; /* efek Welcoming Mizuma W01..W45 */
 const HIDE_AUDIO_FX=true; /* sembunyikan efek audio-reaktif (flag v/f) karena tidak ada mikrofon */
 const QUICK_COLORS=['FF0000','FFA500','FFD200','FFFFFF','000000','0000FF','00FF00'];
 /* Pairing efek->palette default (meniru perilaku UI WLED asli; bisa diperluas) */
@@ -846,13 +764,13 @@ function fxPart(i,k){const m=(fxData[i]||'').split(';');return m.length>k?m[k]:n
 function fxFlags(i){return fxPart(i,3)||'';}
 function fxUsesPal(i){const p=fxPart(i,2);return p===null?true:p!=='';}
 function fxDefs(i){const d={},s=fxPart(i,4);if(s)s.split(',').forEach(function(kv){const p=kv.split('=');if(p.length===2){const v=parseInt(p[1],10);if(!isNaN(v))d[p[0].trim()]=v;}});return d;}
-function fxOk(i,name){if(isRsvd(name))return false;const t=name.toLowerCase();if(name.indexOf('2D')===0||FX_BLACKLIST.indexOf(t)>=0)return false;const f=fxFlags(i);if(f.indexOf('2')>=0&&f.indexOf('1')<0&&f.indexOf('0')<0)return false;if(HIDE_AUDIO_FX&&(f.indexOf('v')>=0||f.indexOf('f')>=0))return false;return true;}
+function fxOk(i,name){if(isRsvd(name)||MZW_RE.test(name))return false;const t=name.toLowerCase();if(name.indexOf('2D')===0||FX_BLACKLIST.indexOf(t)>=0)return false;const f=fxFlags(i);if(f.indexOf('2')>=0&&f.indexOf('1')<0&&f.indexOf('0')<0)return false;if(HIDE_AUDIO_FX&&(f.indexOf('v')>=0||f.indexOf('f')>=0))return false;return true;}
 function lookupExact(n){const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase()===t;});}
 function lookup(n){const i=lookupExact(n);if(i>=0)return i;const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
-function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return fxOk(e.idx,e.name);});if(activeTab==='welcoming')return WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0&&!isRsvd(allFx[i]);}).map(function(i){return{name:allFx[i],idx:i};});return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
+function listForTab(){if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return fxOk(e.idx,e.name);});if(activeTab==='welcoming'){const w=allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return MZW_RE.test(e.name);});const o=WELCOMING_NAMES.map(lookup).filter(function(i){return i>=0&&!isRsvd(allFx[i])&&!MZW_RE.test(allFx[i]);}).map(function(i){return{name:allFx[i],idx:i};});return w.concat(o);}return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});}
 function parseFxData(meta){const parts=(meta||'').split(';'),labels=(parts[0]||'').split(','),def=['Speed','Intensity','Custom 1','Custom 2','Custom 3'],keys=['sx','ix','c1','c2','c3'],sl=[];for(let i=0;i<5;i++){let l=labels[i];if(l===undefined||l==='')continue;if(l==='!')l=def[i];sl.push({key:keys[i],label:l});}const tg=[];for(let i=0;i<3;i++){let l=labels[5+i];if(l===undefined||l==='')continue;if(l==='!')l='Opsi '+(i+1);tg.push({key:['o1','o2','o3'][i],label:l});}return{sl:sl,tg:tg};}
 function renderParams(idx){const box=document.getElementById('fxParams');box.innerHTML='';const p=parseFxData(fxData[idx]||'');const iv=function(k){return cur.params[k]!=null?cur.params[k]:128;};p.sl.forEach(function(s){const v=iv(s.key);const row=document.createElement('div');row.className='param-row';row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>'+v+'</span></div><input type="range" min="0" max="255" value="'+v+'">';const inp=row.querySelector('input');inp.addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});box.appendChild(row);paintRange(inp);});p.tg.forEach(function(s){const on0=cur.params[s.key]===1;const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm'+(on0?' primary':'')+'" data-on="'+(on0?'1':'0')+'">'+(on0?'On':'Off')+'</button>';const b=row.querySelector('button');b.addEventListener('click',function(){const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});box.appendChild(row);});document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
-function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}curList=listForTab().slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;return a.name.localeCompare(b.name);});curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item';el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});grid.appendChild(el);});updateCtx();}
+function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}curList=listForTab().slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;const wa=MZW_RE.test(a.name),wb=MZW_RE.test(b.name);if(wa!==wb)return wa?-1:1;return a.name.localeCompare(b.name);});curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item';el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;sendEffect(e.idx);renderParams(e.idx);updateCtx();});grid.appendChild(el);});updateCtx();}
 document.getElementById('fxSearch').addEventListener('input',function(e){const q=e.target.value.toLowerCase();document.querySelectorAll('#fxGrid .fx-item').forEach(function(el){el.style.display=el.querySelector('.fx-name').textContent.toLowerCase().indexOf(q)>=0?'':'none';});});
 function loadFxData(cb){Promise.all([jfetch('/json/eff').then(function(r){return r.json();}),jfetch('/json/fxdata').then(function(r){return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];cb(true);}).catch(function(){cb(false);});}
 function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
@@ -950,7 +868,9 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     uint16_t welcomeDur = 7000;
     int bootStage = 0;
     uint32_t bootT = 0;
+    uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
     bool bootDone = false;
+    bool usingNativeWelcomePreset = false;
 
     /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
        Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
@@ -969,9 +889,10 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     int slotIdx(const String &k){for(int i=0;i<10;i++)if(k==slotKey(i))return i;return -1;}
     bool isRestrictedSlot(int i){return i>=4&&i<=9;}
     PresetSlot defaultSlot(int idx){
-    PresetSlot p;p.valid=true;p.fx=((idx==0||idx==1)&&MIZUMA_SIGNATURE_WELCOME_FX_ID)?MIZUMA_SIGNATURE_WELCOME_FX_ID:0;p.pal=0;
+    PresetSlot p;p.valid=true;p.fx=0;p.pal=0;
+    if(idx<=1){int wf=mizumaFindEffectId("W45 ");if(wf>0)p.fx=(uint8_t)wf;}   // default Welcoming = Finale Welcome
     p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
-    p.sx=(idx==0||idx==1)?180:128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
+    p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
     if(idx==4||idx==5||idx==8||idx==9){p.r=255;p.g=165;p.b=0;}
     else if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}
     else{p.r=255;p.g=255;p.b=255;}
@@ -1066,32 +987,56 @@ queueSave();
 req->send(200,"application/json","{\"ok\":true}");}
 
 /*
- * Startup R7:
- * - Consume a pending WLED boot preset before the Wi-Fi startup path.
- * - Then apply the persistent Mizuma Welcoming slots as the single source of truth.
- * - New installs default to Mizuma Signature Welcome; an already-saved user choice is preserved.
- * - No HTTP/Wi-Fi dependency and no palette UI/storage changes.
+ * Startup R6:
+ * - beginStrip() WLED sudah mengantrekan bootPreset melalui applyPreset().
+ * - Jika Boot Preset native bernama "Mizuma Welcoming", konsumsi antrean itu
+ *   di sini memakai handler preset bawaan WLED, lalu render sebelum Wi-Fi.
+ * - Jika belum ada / namanya berbeda, gunakan slot Welcoming Mizuma sebagai
+ *   fallback. Boot preset lain tidak dibiarkan menimpa fallback.
+ * - Tidak ada ketergantungan Wi-Fi/HTTP dan tidak mengubah sistem palette.
  */
 void startWelcomeSequence(){
+  usingNativeWelcomePreset = false;
+
   if (bootPreset > 0) {
-    // beginStrip() may have queued the native WLED boot preset; finish it before override.
+    String nativeName;
+    const bool presetReadable = getPresetName(bootPreset, nativeName);
+
+    // beginStrip() telah memanggil applyPreset(bootPreset, CALL_MODE_INIT).
+    // handlePresets() menyelesaikan state tersebut sekarang, sebelum Wi-Fi.
     handlePresets();
+
+    if (presetReadable && nativeName == "Mizuma Welcoming") {
+      usingNativeWelcomePreset = true;
+      DEBUG_PRINTLN(F("[Mizuma] Native WLED Welcome preset loaded."));
+    } else {
+      DEBUG_PRINTLN(F("[Mizuma] Native boot preset bukan 'Mizuma Welcoming'; memakai fallback slot Mizuma."));
+    }
   }
 
-  bri = savedBri ? savedBri : 180;
-  applyModeSide("welcoming", "both");
+  if (!usingNativeWelcomePreset) {
+    // beginStrip() mengawali WLED dengan bri=0 pada mode tertentu.
+    // Pulihkan brightness Mizuma hanya untuk fallback; native preset memiliki
+    // brightness sendiri sehingga tidak ditimpa.
+    bri = savedBri ? savedBri : 180;
+    applyModeSide("welcoming", "both");
+  }
 
-  // Schedule the first frame before WLED proceeds through network startup.
+  // Paksa frame awal dijadwalkan sebelum WLED meneruskan startup jaringan.
+  // Tunggu hanya sebentar agar transfer frame sebelumnya tidak bertabrakan.
   strip.trigger();
   const uint32_t renderWaitStart = millis();
   while (strip.isUpdating() && (uint32_t)(millis() - renderWaitStart) < 40U) {
     delay(1);
   }
-  if (!strip.isUpdating()) strip.service();
+  if (!strip.isUpdating()) {
+    strip.service();
+  }
 
   bootStage = 1;
   bootDone = false;
-  bootT = millis();
+  bootT = millis(); // awal durasi dihitung sesudah render frame Welcome dijadwalkan
+  tWelcomeMs = bootT;
 }
 
 void applyCommonReplacements(String &html,const char* activeKey){
@@ -1116,17 +1061,12 @@ applyCommonReplacements(html,activeKey);return html;}
 
 public:
 void setup() override {
-// Register the custom effect before applying the saved Welcoming preset.
-// WLED returns 255 when its effect table has no free slot; never store that sentinel as an FX ID.
-const uint8_t signatureFxId = strip.addEffect(255, &mode_mizuma_signature_welcome, _data_FX_MODE_MIZUMA_SIGNATURE_WELCOME);
-if (signatureFxId != 255) {
-  MIZUMA_SIGNATURE_WELCOME_FX_ID = signatureFxId;
-  DEBUG_PRINTF("[Mizuma] Signature Welcome FX registered at ID %u\n", (unsigned)signatureFxId);
-} else {
-  MIZUMA_SIGNATURE_WELCOME_FX_ID = 0;
-  DEBUG_PRINTLN(F("[Mizuma] Signature Welcome FX registration failed: WLED effect table is full."));
-}
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
+tSetupMs=millis();
+{ // efek harus terdaftar SEBELUM preset boot dibaca (id efek ada di dalam preset)
+  uint8_t nfx=mizumaRegisterWelcomeEffects(); (void)nfx;
+  DEBUG_PRINTF_P(PSTR("[Mizuma] %u efek welcoming terdaftar\n"),(unsigned)nfx);
+}
 startWelcomeSequence();
 apBehavior=AP_BEHAVIOR_ALWAYS;
 DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
@@ -1153,9 +1093,9 @@ json+=",\"sta\":";json+=staOn?"true":"false";
 json+=",\"staIP\":\"";json+=staIP;
 json+="\",\"ssid\":\"";json+=jsonEscape(ssid);
 json+="\"}";req->send(200,"application/json",json);});
-server.on("/mizuma/debug",HTTP_GET,[](AsyncWebServerRequest *req){
-char buf[192];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u}",
-(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap());
+server.on("/mizuma/debug",HTTP_GET,[this](AsyncWebServerRequest *req){
+char buf[256];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u}",
+(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis());
 req->send(200,"application/json",buf);});
 server.on("/mizuma/preset",HTTP_GET,[this](AsyncWebServerRequest *req){handlePreset(req);});
 server.on("/mizuma/preset",HTTP_POST,[this](AsyncWebServerRequest *req){handlePreset(req);});
