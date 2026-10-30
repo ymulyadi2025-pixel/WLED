@@ -188,7 +188,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
 // =====================================================================================================
 #if !defined(MZW_HOST) && defined(SEGENV)
 
-static uint16_t mzwRun(uint8_t mode) {
+static void mzwRun(uint8_t mode) {
   const uint16_t n = SEGLEN;
   if (SEGENV.call == 0) SEGENV.step = strip.now;                  // titik nol animasi
   const uint32_t T = mzwPeriod(SEGMENT.speed);
@@ -200,9 +200,14 @@ static uint16_t mzwRun(uint8_t mode) {
     const uint32_t fg = SEGMENT.color_from_palette(p.pos, false, true, 0, 255);
     SEGMENT.setPixelColor(i, p.v == 255 ? fg : (p.v == 0 ? bg : color_blend(bg, fg, p.v)));
   }
-  return FRAMETIME;
 }
-template <uint8_t M> static uint16_t mzwModeFn() { return mzwRun(M); }
+// WLED 0.15.x : efek bertipe  uint16_t fn()  (mengembalikan FRAMETIME)
+// WLED main/0.16: efek bertipe  void fn()
+// mode_ptr bersifat private di WS2812FX, jadi tipe yang diterima addEffect dipilih otomatis lewat SFINAE.
+template <uint8_t M> static void     mzwFnV() { mzwRun(M); }
+template <uint8_t M> static uint16_t mzwFnU() { mzwRun(M); return FRAMETIME; }
+template <uint8_t M, typename S> static auto mzwAdd(S &s, const char *d, int)  -> decltype(s.addEffect(255, &mzwFnV<M>, d)) { return s.addEffect(255, &mzwFnV<M>, d); }
+template <uint8_t M, typename S> static auto mzwAdd(S &s, const char *d, long) -> decltype(s.addEffect(255, &mzwFnU<M>, d)) { return s.addEffect(255, &mzwFnU<M>, d); }
 
 // Daftar nama (ASCII saja; hindari '@' ';' ',' pada nama). Format data: Nama@slider;warna;palette;flag;default
 #define MZW_LIST(X) \
@@ -234,9 +239,11 @@ static int mizumaFindEffectId(const char* prefix) {
 }
 
 // Panggil SEKALI di setup(), SEBELUM preset boot diterapkan. Mengembalikan jumlah efek yang berhasil didaftarkan.
+// PENTING: WLED membatasi total efek 255. Di WLED main (221 efek bawaan) hanya ~39 slot kosong bila 2D aktif ->
+// tambahkan  -D WLED_DISABLE_2D  di build_flags agar ke-45 mode muat. Cek hasilnya di /mizuma/debug (welcomeFx harus 45).
 static uint8_t mizumaRegisterWelcomeEffects() {
   uint8_t ok = 0;
-  #define MZW_REG(num, name) if (strip.addEffect(255, &mzwModeFn<num>, mzw_d##num) != 255) ok++;
+  #define MZW_REG(num, name) if (mzwAdd<num>(strip, mzw_d##num, 0) != 255) ok++;
   MZW_LIST(MZW_REG)
   #undef MZW_REG
   return ok;
