@@ -367,7 +367,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
 // =====================================================================================================
 #if !defined(MZW_HOST) && defined(SEGENV)
 
-static uint16_t mzwRun(uint8_t mode) {
+static void mzwRun(uint8_t mode) {
   const uint16_t n = SEGLEN;
   if (SEGENV.call == 0) SEGENV.step = strip.now;
   const uint32_t T = mzwPeriod(SEGMENT.speed);
@@ -380,9 +380,8 @@ static uint16_t mzwRun(uint8_t mode) {
     const uint32_t fg = SEGMENT.color_from_palette(p.pos, false, true, 0, 255);
     SEGMENT.setPixelColor(i, p.v == 255 ? fg : (p.v == 0 ? bg : color_blend(bg, fg, p.v)));
   }
-  return FRAMETIME;
 }
-template <uint8_t M> static uint16_t mzwModeFn() { return mzwRun(M); }
+template <uint8_t M> static void mzwModeFn() { mzwRun(M); }
 
 // Names keep the W01..W45 prefixes so existing .cpp preset/effect lookup remains valid.
 // WLED effect data format: Name@slider;colors;palette;flags;defaults
