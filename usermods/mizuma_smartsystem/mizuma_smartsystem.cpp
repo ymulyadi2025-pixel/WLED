@@ -869,6 +869,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     int bootStage = 0;
     uint32_t bootT = 0;
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
+    uint8_t  welcomeFxCount = 0;             // jumlah efek W01..W45 yang berhasil terdaftar (harus 45)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
 
@@ -1064,7 +1065,8 @@ void setup() override {
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 tSetupMs=millis();
 { // efek harus terdaftar SEBELUM preset boot dibaca (id efek ada di dalam preset)
-  uint8_t nfx=mizumaRegisterWelcomeEffects(); (void)nfx;
+  uint8_t nfx=mizumaRegisterWelcomeEffects(); welcomeFxCount=nfx;
+  if(nfx<MZW_COUNT){DEBUG_PRINTF_P(PSTR("[Mizuma] PERINGATAN: slot efek WLED penuh, hanya %u/%u mode welcoming terdaftar. Tambahkan -D WLED_DISABLE_2D\n"),(unsigned)nfx,(unsigned)MZW_COUNT);}
   DEBUG_PRINTF_P(PSTR("[Mizuma] %u efek welcoming terdaftar\n"),(unsigned)nfx);
 }
 startWelcomeSequence();
@@ -1094,8 +1096,8 @@ json+=",\"staIP\":\"";json+=staIP;
 json+="\",\"ssid\":\"";json+=jsonEscape(ssid);
 json+="\"}";req->send(200,"application/json",json);});
 server.on("/mizuma/debug",HTTP_GET,[this](AsyncWebServerRequest *req){
-char buf[256];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u}",
-(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis());
+char buf[256];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u,\"welcomeFx\":%u}",
+(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis(),(unsigned)welcomeFxCount);
 req->send(200,"application/json",buf);});
 server.on("/mizuma/preset",HTTP_GET,[this](AsyncWebServerRequest *req){handlePreset(req);});
 server.on("/mizuma/preset",HTTP_POST,[this](AsyncWebServerRequest *req){handlePreset(req);});
