@@ -1,5 +1,5 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — FINAL ASSEMBLY — REVISI R4 (preview Peek, thumbnail palette + palette custom/usermod, antrean /json, metadata efek, perbaikan backend)
+// MIZUMA SMARTSYSTEM — FINAL ASSEMBLY — REVISI R4b (preview Peek, thumbnail palette + palette custom/usermod, antrean /json, metadata efek, perbaikan backend)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
@@ -380,7 +380,7 @@ refreshConn();
 setInterval(refreshConn, 3000);
 fetch('/mizuma/boot').then(function(r){ return r.json(); }).then(function(j){
 var s=function(ms){ return (ms/1000).toFixed(2)+' s'; };
-document.getElementById('bootInfo').textContent = 'Usermod '+s(j.setup)+' \u00b7 Welcoming '+(j.welcome?s(j.welcome):'--');
+document.getElementById('bootInfo').textContent = 'Config '+(j.cfg?s(j.cfg):'--')+' \u00b7 Usermod '+s(j.setup)+' \u00b7 Loop '+(j.loop?s(j.loop):'--')+' \u00b7 Welcoming '+(j.welcome?s(j.welcome):'--')+' \u00b7 LED@setup '+(j.leds||0);
 }).catch(function(){});
 </script>
 </body>
@@ -869,7 +869,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     /* FIX BUG 1: brightness permanen */
     uint8_t savedBri = 180;
     bool briRestored = false;
-    unsigned long tSetupMs = 0, tLoopMs = 0, tWelcomeMs = 0; /* waktu boot (millis sejak aplikasi mulai) */
+    unsigned long tCfgMs = 0, tSetupMs = 0, tLoopMs = 0, tWelcomeMs = 0; uint16_t ledsAtSetup = 0; /* waktu boot (millis sejak aplikasi mulai) */
     bool cfgSavePending = false;
     unsigned long cfgSaveT = 0;
     void queueSave(){cfgSavePending=true;cfgSaveT=millis();}
@@ -1002,7 +1002,7 @@ applyCommonReplacements(html,activeKey);return html;}
 
 public:
 void setup() override {
-tSetupMs=millis();
+tSetupMs=millis();ledsAtSetup=strip.getLengthTotal();
 apBehavior=AP_BEHAVIOR_ALWAYS;
 DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 server.on("/mizuma.css",HTTP_GET,[](AsyncWebServerRequest *req){
@@ -1029,8 +1029,8 @@ json+=",\"staIP\":\"";json+=staIP;
 json+="\",\"ssid\":\"";json+=jsonEscape(ssid);
 json+="\"}";req->send(200,"application/json",json);});
 server.on("/mizuma/boot",HTTP_GET,[this](AsyncWebServerRequest *req){
-char buf[160];snprintf(buf,sizeof(buf),"{\"setup\":%lu,\"loop\":%lu,\"welcome\":%lu,\"now\":%lu,\"heap\":%u}",
-tSetupMs,tLoopMs,tWelcomeMs,(unsigned long)millis(),(unsigned)ESP.getFreeHeap());
+char buf[200];snprintf(buf,sizeof(buf),"{\"cfg\":%lu,\"setup\":%lu,\"loop\":%lu,\"welcome\":%lu,\"now\":%lu,\"leds\":%u,\"heap\":%u}",
+tCfgMs,tSetupMs,tLoopMs,tWelcomeMs,(unsigned long)millis(),(unsigned)ledsAtSetup,(unsigned)ESP.getFreeHeap());
 req->send(200,"application/json",buf);});
 server.on("/mizuma/debug",HTTP_GET,[](AsyncWebServerRequest *req){
 char buf[192];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u}",
@@ -1085,6 +1085,7 @@ top["welcomeDur"]=welcomeDur;
 top["bri"]=savedBri;}
 
 bool readFromConfig(JsonObject &root) override {
+if(!tCfgMs)tCfgMs=millis();
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
 JsonObject vehicle=top["vehicle"];
 vehicleName=vehicle["name"]|"";vehicleBrand=vehicle["brand"]|"";vehicleYear=vehicle["year"]|0;vehiclePlate=vehicle["plate"]|"";
