@@ -1,10 +1,94 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — REVISI R6 (Native WLED Boot Preset + Mizuma Startup Scheduler; palette/UI dipertahankan)
+// MIZUMA SMARTSYSTEM — REVISI R7 (Mizuma Signature Welcome FX + Startup Scheduler; palette/UI dipertahankan)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
 extern void serializeConfigToFS();
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+// Mizuma Signature Welcome — custom WLED effect (WLED 16.0.1 user-FX API)
+// Uses each segment's currently selected WLED palette. No per-frame heap allocation.
+// Timeline: Awakening -> Twin Flow (segment start/inner edge to outer edge) -> Ignite -> steady palette fill.
+// --------------------------------------------------------------------------------------------------------------------------------------
+static uint8_t MIZUMA_SIGNATURE_WELCOME_FX_ID = 0;
+
+static void mode_mizuma_signature_welcome() {
+  const uint16_t len = SEGLEN;
+  if (len == 0) return;
+
+  // WLED resets SEGENV.call on effect initialization. strip.now is shared by all segments.
+  if (SEGENV.call == 0) SEGENV.step = strip.now;
+
+  // Higher Speed means a shorter sequence. At the default 180 the intro is about 4.76 s.
+  const uint32_t introMs     = 6200UL - ((uint32_t)SEGMENT.speed * 8UL);
+  const uint32_t awakeningMs = (introMs * 18UL) / 100UL;
+  const uint32_t flowMs      = (introMs * 42UL) / 100UL;
+  const uint32_t igniteMs    = introMs - awakeningMs - flowMs;
+  const uint32_t elapsed     = (uint32_t)(strip.now - SEGENV.step);
+
+  // Intensity controls the trailing glow length relative to the segment size.
+  uint16_t tailPixels = 2U + (uint16_t)(((uint32_t)(len - 1U) * SEGMENT.intensity) / 765UL);
+  if (tailPixels > len) tailPixels = len;
+  uint32_t tailQ = ((uint32_t)tailPixels * 65535UL) / len;
+  if (tailQ < 1024UL) tailQ = 1024UL;
+  uint32_t headQ = tailQ / 4UL;
+  if (headQ < 1024UL) headQ = 1024UL;
+
+  uint8_t phase = 3; // final phase is a steady, full-palette output
+  uint32_t progress = 65535UL;
+  if (elapsed < awakeningMs) {
+    phase = 0;
+  } else if (elapsed < awakeningMs + flowMs) {
+    phase = 1;
+    progress = ((elapsed - awakeningMs) * 65535UL) / (flowMs ? flowMs : 1UL);
+  } else if (elapsed < introMs) {
+    phase = 2;
+    progress = ((elapsed - awakeningMs - flowMs) * 65535UL) / (igniteMs ? igniteMs : 1UL);
+  }
+
+  for (uint16_t i = 0; i < len; i++) {
+    // WLED resolves the palette chosen for this segment (including Default/Color 1).
+    const uint32_t paletteColor = SEGMENT.color_from_palette(i, true, false, 0);
+    const uint32_t pixelQ = (len > 1U) ? (((uint32_t)i * 65535UL) / (len - 1U)) : 65535UL;
+    uint8_t level = 255;
+
+    if (phase == 0) {
+      // Awakening: the complete segment gently rises from a faint glow.
+      const uint32_t p = (elapsed * 255UL) / (awakeningMs ? awakeningMs : 1UL);
+      level = (uint8_t)(8UL + (46UL * p) / 255UL);
+    } else if (phase == 1) {
+      // Twin Flow: one bright head travels from local segment start to its outer end.
+      if (pixelQ <= progress) {
+        const uint32_t behind = progress - pixelQ;
+        if (behind >= tailQ) level = 34;
+        else level = (uint8_t)(68UL + (187UL * (tailQ - behind)) / tailQ);
+      } else {
+        const uint32_t ahead = pixelQ - progress;
+        if (ahead >= headQ) level = 8;
+        else level = (uint8_t)(8UL + (34UL * (headQ - ahead)) / headQ);
+      }
+    } else if (phase == 2) {
+      // Ignite: the sweep front brightens; pixels behind it remain fully illuminated.
+      const uint32_t igniteFrontQ = headQ * 2UL;
+      if (pixelQ <= progress) level = 255;
+      else {
+        const uint32_t ahead = pixelQ - progress;
+        if (ahead >= igniteFrontQ) level = 24;
+        else level = (uint8_t)(24UL + (190UL * (igniteFrontQ - ahead)) / igniteFrontQ);
+      }
+    } else {
+      // Signature Glow: hold all LEDs steadily at full palette brightness until Riding.
+      level = 255;
+    }
+
+    SEGMENT.setPixelColor(i, color_fade(paletteColor, level));
+  }
+}
+
+// Effect parameters: WLED Speed + Flow Width (Intensity); palette selector enabled.
+static const char _data_FX_MODE_MIZUMA_SIGNATURE_WELCOME[] PROGMEM =
+  "Mizuma Signature Welcome@!,Flow Width;;!;;sx=180,ix=128";
 
 // WLED 16.0.1 defines these preset helpers in presets.cpp but does not
 // publish their prototypes through wled.h. They have external linkage.
@@ -658,7 +742,7 @@ const SEG_K=0,SEG_L=1;
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
 const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
 const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
-const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
+const WELCOMING_NAMES=['Mizuma Signature Welcome','Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
 const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
 const HIDE_AUDIO_FX=true; /* sembunyikan efek audio-reaktif (flag v/f) karena tidak ada mikrofon */
 const QUICK_COLORS=['FF0000','FFA500','FFD200','FFFFFF','000000','0000FF','00FF00'];
@@ -867,7 +951,6 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     int bootStage = 0;
     uint32_t bootT = 0;
     bool bootDone = false;
-    bool usingNativeWelcomePreset = false;
 
     /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
        Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
@@ -886,9 +969,9 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     int slotIdx(const String &k){for(int i=0;i<10;i++)if(k==slotKey(i))return i;return -1;}
     bool isRestrictedSlot(int i){return i>=4&&i<=9;}
     PresetSlot defaultSlot(int idx){
-    PresetSlot p;p.valid=true;p.fx=0;p.pal=0;
+    PresetSlot p;p.valid=true;p.fx=((idx==0||idx==1)&&MIZUMA_SIGNATURE_WELCOME_FX_ID)?MIZUMA_SIGNATURE_WELCOME_FX_ID:0;p.pal=0;
     p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
-    p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
+    p.sx=(idx==0||idx==1)?180:128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
     if(idx==4||idx==5||idx==8||idx==9){p.r=255;p.g=165;p.b=0;}
     else if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}
     else{p.r=255;p.g=255;p.b=255;}
@@ -983,55 +1066,32 @@ queueSave();
 req->send(200,"application/json","{\"ok\":true}");}
 
 /*
- * Startup R6:
- * - beginStrip() WLED sudah mengantrekan bootPreset melalui applyPreset().
- * - Jika Boot Preset native bernama "Mizuma Welcoming", konsumsi antrean itu
- *   di sini memakai handler preset bawaan WLED, lalu render sebelum Wi-Fi.
- * - Jika belum ada / namanya berbeda, gunakan slot Welcoming Mizuma sebagai
- *   fallback. Boot preset lain tidak dibiarkan menimpa fallback.
- * - Tidak ada ketergantungan Wi-Fi/HTTP dan tidak mengubah sistem palette.
+ * Startup R7:
+ * - Consume a pending WLED boot preset before the Wi-Fi startup path.
+ * - Then apply the persistent Mizuma Welcoming slots as the single source of truth.
+ * - New installs default to Mizuma Signature Welcome; an already-saved user choice is preserved.
+ * - No HTTP/Wi-Fi dependency and no palette UI/storage changes.
  */
 void startWelcomeSequence(){
-  usingNativeWelcomePreset = false;
-
   if (bootPreset > 0) {
-    String nativeName;
-    const bool presetReadable = getPresetName(bootPreset, nativeName);
-
-    // beginStrip() telah memanggil applyPreset(bootPreset, CALL_MODE_INIT).
-    // handlePresets() menyelesaikan state tersebut sekarang, sebelum Wi-Fi.
+    // beginStrip() may have queued the native WLED boot preset; finish it before override.
     handlePresets();
-
-    if (presetReadable && nativeName == "Mizuma Welcoming") {
-      usingNativeWelcomePreset = true;
-      DEBUG_PRINTLN(F("[Mizuma] Native WLED Welcome preset loaded."));
-    } else {
-      DEBUG_PRINTLN(F("[Mizuma] Native boot preset bukan 'Mizuma Welcoming'; memakai fallback slot Mizuma."));
-    }
   }
 
-  if (!usingNativeWelcomePreset) {
-    // beginStrip() mengawali WLED dengan bri=0 pada mode tertentu.
-    // Pulihkan brightness Mizuma hanya untuk fallback; native preset memiliki
-    // brightness sendiri sehingga tidak ditimpa.
-    bri = savedBri ? savedBri : 180;
-    applyModeSide("welcoming", "both");
-  }
+  bri = savedBri ? savedBri : 180;
+  applyModeSide("welcoming", "both");
 
-  // Paksa frame awal dijadwalkan sebelum WLED meneruskan startup jaringan.
-  // Tunggu hanya sebentar agar transfer frame sebelumnya tidak bertabrakan.
+  // Schedule the first frame before WLED proceeds through network startup.
   strip.trigger();
   const uint32_t renderWaitStart = millis();
   while (strip.isUpdating() && (uint32_t)(millis() - renderWaitStart) < 40U) {
     delay(1);
   }
-  if (!strip.isUpdating()) {
-    strip.service();
-  }
+  if (!strip.isUpdating()) strip.service();
 
   bootStage = 1;
   bootDone = false;
-  bootT = millis(); // awal durasi dihitung sesudah render frame Welcome dijadwalkan
+  bootT = millis();
 }
 
 void applyCommonReplacements(String &html,const char* activeKey){
@@ -1056,6 +1116,16 @@ applyCommonReplacements(html,activeKey);return html;}
 
 public:
 void setup() override {
+// Register the custom effect before applying the saved Welcoming preset.
+// WLED returns 255 when its effect table has no free slot; never store that sentinel as an FX ID.
+const uint8_t signatureFxId = strip.addEffect(255, &mode_mizuma_signature_welcome, _data_FX_MODE_MIZUMA_SIGNATURE_WELCOME);
+if (signatureFxId != 255) {
+  MIZUMA_SIGNATURE_WELCOME_FX_ID = signatureFxId;
+  DEBUG_PRINTF("[Mizuma] Signature Welcome FX registered at ID %u\n", (unsigned)signatureFxId);
+} else {
+  MIZUMA_SIGNATURE_WELCOME_FX_ID = 0;
+  DEBUG_PRINTLN(F("[Mizuma] Signature Welcome FX registration failed: WLED effect table is full."));
+}
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 startWelcomeSequence();
 apBehavior=AP_BEHAVIOR_ALWAYS;
