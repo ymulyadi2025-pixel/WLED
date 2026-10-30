@@ -1,16 +1,17 @@
 // =====================================================================================================
-// MIZUMA WELCOMING ENGINE — 50 CHOREOGRAPHED MODES (W01..W50)
+// MIZUMA WELCOMING ENGINE — 55 MODES (5 SIGNATURE + 50 CLASSIC)
 // -----------------------------------------------------------------------------------------------------
 // Drop-in replacement for mizuma_welcome.h. Public interface kept compatible:
 //   MZW_COUNT, mizumaRegisterWelcomeEffects(), mizumaFindEffectId(), mzwModeFn<M>()
-//   W01..W50 are registered by this header; existing .cpp integration stays unchanged.
+//   MZ01..MZ05 are first in the effect list; classic W01..W50 keep their names for .cpp lookups.
 //
 // DESIGN:
 // - 20 FAST modes (sharp chases / flashes), 20 FLOW modes (smooth visual transitions),
 //   and 10 HYBRID modes (smooth arrival + short high-energy accent).
 // - Listing order alternates by pairs: FAST x2 -> FLOW x2 -> HYBRID x2, then repeats;
 //   after the 10 HYBRID modes are used, FAST and FLOW continue alternating by pairs.
-// - Every mode is a multi-stage welcome animation, not a single continuously-running effect.
+// - MZ01..MZ05 are one-shot signature welcome sequences and hold their final illuminated state.
+// - Classic W01..W50 retain their previous animation mapping and looping behavior.
 // - Time is normalized to 0..4095. Speed sets total sequence duration; default speed 128 ~= 6.9 s.
 // - Pixel 0 = outer eyebrow tip, last pixel = inner tip. Reverse the WLED segment if wiring is opposite.
 // - Foreground color comes from the WLED segment palette; background from segment color slot 2.
@@ -20,7 +21,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define MZW_COUNT 50
+#define MZW_COUNT 55
 #define MZW_U     4096
 #define MZW_F(x)  ((int)((x) * 4096.0 + 0.5))
 
@@ -296,6 +297,50 @@ static inline int mzw_tetrix(int x, int p, uint32_t seed) {
   return mzw_mx(settled, mzw_mx(falling, flash));
 }
 
+// Distinct, large 1D "Tetrix" tiles. The lead tile accelerates (ease-in) and
+// leaves a visible stack behind it. reverse=1 travels from high LED index to low.
+static inline int mzw_tetrixTiles(int x, int p, int reverse, int cells, uint32_t seed, int &pos) {
+  if (cells < 4) cells = 4;
+  if (cells > 16) cells = 16;
+  int coord = reverse ? (4095 - x) : x;
+  int scaled = coord * cells;
+  int cell = scaled >> 12;
+  if (cell >= cells) cell = cells - 1;
+  int within = scaled & 4095;
+  int eased = (p * p) / 4095;                 // starts deliberately slow, then accelerates
+  int step = (eased * (cells + 1)) >> 12;
+  int local = 0;
+  if (cell < step) {
+    local = 132 + (mzw_h(seed + (uint32_t)cell * 61U) % 54U);
+    if ((cell & 1) == 0) local += 24;          // alternating brick faces
+  }
+  if (cell == step) {
+    int pulse = 205 + (mzw_smooth(mzw_tri(p * 5 + cell * 311)) * 50) / 255;
+    local = mzw_mx(local, pulse);
+  }
+  // A short two-tile shoulder makes the moving piece read as a block, not a dot.
+  if ((step % 3) == 1 && cell == step + 1) local = mzw_mx(local, 155);
+  // Fine dark seams visually separate the tiles on longer strips.
+  if (within < 115 || within > 3980) local = (local * 58) / 100;
+  pos = ((cell * 256) / cells + (p >> 6)) & 255;
+  return local;
+}
+
+static inline int mzw_wipeOff(int x, int p, int reverse, int soft) {
+  int coord = reverse ? (4095 - x) : x;
+  int front = -soft + (int)(((int64_t)p * (4095 + 2 * soft)) / 4095);
+  int darkness = mzw_ramp(front - coord + soft, 0, soft * 2);
+  return 255 - darkness;
+}
+
+static inline int mzw_sunrise(int x, int p, int soft, int &pos) {
+  // A slow horizon-like reveal with a soft leading edge and a moving warm palette.
+  int fill = mzw_fillV(x, p, soft * 2);
+  int glow = mzw_waveSins(x, p, 1, 1, 0, 58);
+  pos = ((x >> 4) + (p >> 6)) & 255;
+  return mzw_mx(fill, (glow * (255 - fill)) / 255);
+}
+
 // ---------- per-frame context ----------
 static inline uint32_t mzwPeriod(uint8_t speed) {
   int T = 12000 - (int)speed * 40;
@@ -310,7 +355,8 @@ static inline void mzwInit(MzwCtx &c, int mode, int n, uint32_t t, uint32_t T, u
   c.soft = 100 + c.wd / 9;
   int fin = mzw_ramp(c.u, 0, MZW_F(0.018));
   int fout = 255 - mzw_ramp(c.u, MZW_F(0.985), MZW_U);
-  c.env = (fin * fout) / 255;
+  // Signature MZ01..MZ05 are one-shot welcomes: do not fade the final all-on state.
+  c.env = (mode >= 1 && mode <= 5) ? fin : (fin * fout) / 255;
 }
 
 // Every two listings change character: FAST x2, FLOW x2, HYBRID x2.
@@ -333,9 +379,114 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
   const int xr = MZW_U - x;
   const int q = mzw_abs(2 * x - MZW_U); // center -> tips
   const int tail = wd < 460 ? 460 : wd;
-  const uint8_t kind = mzwKind[(c.mode >= 1 && c.mode <= 50) ? c.mode - 1 : 0];
-  const uint8_t k = mzwRank[(c.mode >= 1 && c.mode <= 50) ? c.mode - 1 : 0];
   int v = 0, pos = (x >> 4), p = -1;
+
+  // --------------------------------------------------------------------------
+  // FIRST IMPRESSION: five bespoke signature animations, listed before W01-W50.
+  // --------------------------------------------------------------------------
+  if (c.mode >= 1 && c.mode <= 5) {
+    const int xm = 4095 - x;
+    switch (c.mode) {
+      case 1: // MZ01 TITAN TETRIX RUSH: Tetrix R->L, wipe L->R, sweep R->L, fireworks, all-on fade.
+        if ((p=mzw_phase(u,0,MZW_F(.34)))>=0) {
+          v=mzw_tetrixTiles(x,p,1,12,271,pos);
+        } else if ((p=mzw_phase(u,MZW_F(.34),MZW_F(.47)))>=0) {
+          v=mzw_wipeOff(x,p,0,soft);
+        } else if ((p=mzw_phase(u,MZW_F(.47),MZW_F(.64)))>=0) {
+          v=mzw_sweep(x,p,tail*2,1);
+        } else if ((p=mzw_phase(u,MZW_F(.64),MZW_F(.84)))>=0) {
+          v=mzw_mx(mzw_fireworks1D(x,p,277),mzw_psStarburst(x,p,281));
+          v=mzw_mx(v,mzw_colorTwinkles(i,p,76,283,pos));
+        } else {
+          p=mzw_phase(u,MZW_F(.84),MZW_U);
+          int fade=mzw_smooth(mzw_ramp(p,0,4095));
+          v=28+(227*fade)/255;            // ends fully illuminated and stays there
+          pos=(x>>4);
+        }
+        break;
+
+      case 2: // MZ02 TITAN TETRIX MIRROR: exact directional mirror of MZ01.
+        if ((p=mzw_phase(u,0,MZW_F(.34)))>=0) {
+          v=mzw_tetrixTiles(x,p,0,12,293,pos);
+        } else if ((p=mzw_phase(u,MZW_F(.34),MZW_F(.47)))>=0) {
+          v=mzw_wipeOff(x,p,1,soft);
+        } else if ((p=mzw_phase(u,MZW_F(.47),MZW_F(.64)))>=0) {
+          v=mzw_sweep(x,p,tail*2,0);
+        } else if ((p=mzw_phase(u,MZW_F(.64),MZW_F(.84)))>=0) {
+          v=mzw_mx(mzw_fireworks1D(xm,p,277),mzw_psStarburst(xm,p,281));
+          v=mzw_mx(v,mzw_colorTwinkles(i,p,76,283,pos));
+        } else {
+          p=mzw_phase(u,MZW_F(.84),MZW_U);
+          int fade=mzw_smooth(mzw_ramp(p,0,4095));
+          v=28+(227*fade)/255;
+          pos=(x>>4);
+        }
+        break;
+
+      case 3: // MZ03 SOLAR FIREWORK VEIL: sunrise -> 1D fireworks -> color twinkle -> shimmer.
+        if ((p=mzw_phase(u,0,MZW_F(.40)))>=0) {
+          v=mzw_sunrise(x,p,soft*2,pos);
+        } else if ((p=mzw_phase(u,MZW_F(.40),MZW_F(.64)))>=0) {
+          v=mzw_mx(mzw_fireworks1D(x,p,307),mzw_psStarburst(x,p,311));
+        } else if ((p=mzw_phase(u,MZW_F(.64),MZW_F(.82)))>=0) {
+          v=mzw_colorTwinkles(i,p,92,313,pos);
+          v=mzw_mx(v,mzw_waveSins(x,p,2,1,0,75));
+        } else {
+          p=mzw_phase(u,MZW_F(.82),MZW_U);
+          v=mzw_shimmer(x,p,2,1,pos);
+        }
+        break;
+
+      case 4: // MZ04 PRISM SHIMMER FINALE: shimmer -> Sinelon rainbow -> comet bloom -> aurora closing.
+        if ((p=mzw_phase(u,0,MZW_F(.35)))>=0) {
+          v=mzw_shimmer(x,p,2,2,pos);
+        } else if ((p=mzw_phase(u,MZW_F(.35),MZW_F(.68)))>=0) {
+          pos=((x>>4)+(p>>1))&255;
+          v=mzw_mx(mzw_sinelonDual(x,p,tail*2),mzw_waveSins(x,p,2,1,15,120));
+        } else if ((p=mzw_phase(u,MZW_F(.68),MZW_F(.84)))>=0) {
+          v=mzw_mx(mzw_sweep(x,p,tail*3,0),mzw_psStarburst(x,p,337));
+          v=mzw_mx(v,mzw_colorTwinkles(i,p,64,341,pos));
+        } else {
+          p=mzw_phase(u,MZW_F(.84),MZW_U);
+          int aura=mzw_waveSins(x,p,2,1,65,155);
+          int fade=mzw_smooth(mzw_ramp(p,0,4095));
+          v=mzw_mx(aura,70+(185*fade)/255);
+          pos=((x>>4)+(p>>5))&255;
+        }
+        break;
+
+      default: // MZ05 TETRIX FUSION: block stacks -> mirrored block run -> particles -> aurora lock.
+        if ((p=mzw_phase(u,0,MZW_F(.43)))>=0) {
+          int tiles=mzw_tetrixTiles(x,p,1,12,359,pos);
+          int balls=mzw_bouncingBalls(x,p,2,135);
+          v=mzw_mx(tiles,balls/2);
+        } else if ((p=mzw_phase(u,MZW_F(.43),MZW_F(.66)))>=0) {
+          int tiles=mzw_tetrixTiles(x,p,0,12,367,pos);
+          int spray=mzw_psSpray1D(x,p,120,0);
+          v=mzw_mx(tiles,spray);
+        } else if ((p=mzw_phase(u,MZW_F(.66),MZW_F(.84)))>=0) {
+          v=mzw_mx(mzw_fireworks1D(x,p,373),mzw_psStarburst(x,p,379));
+          v=mzw_mx(v,mzw_colorTwinkles(i,p,80,383,pos));
+        } else {
+          p=mzw_phase(u,MZW_F(.84),MZW_U);
+          int fade=mzw_smooth(mzw_ramp(p,0,4095));
+          v=45+(210*fade)/255;
+          v=mzw_mx(v,mzw_waveSins(x,p,2,1,0,45));
+          pos=((x>>4)+(p>>5))&255;
+        }
+        break;
+    }
+    v = (mzw_cl(v) * c.env) / 255;
+    MzwPx out;
+    out.v = (uint8_t)v;
+    out.pos = (uint8_t)(pos & 255);
+    return out;
+  }
+
+  // Classic modes keep the original W01..W50 renderer; their internal slot is shifted by 5.
+  const int legacyMode = c.mode - 5;
+  const uint8_t kind = mzwKind[(legacyMode >= 1 && legacyMode <= 50) ? legacyMode - 1 : 0];
+  const uint8_t k = mzwRank[(legacyMode >= 1 && legacyMode <= 50) ? legacyMode - 1 : 0];
 
   if (kind == 0) {
     // ==================== FAST SHOW / SHARP BLINKS ====================
@@ -623,7 +774,8 @@ static void mzwRun(uint8_t mode) {
   const uint16_t n = SEGLEN;
   if (SEGENV.call == 0) SEGENV.step = strip.now;
   const uint32_t T = mzwPeriod(SEGMENT.speed);
-  const uint32_t t = (uint32_t)(strip.now - SEGENV.step) % T;
+  const uint32_t elapsed = (uint32_t)(strip.now - SEGENV.step);
+  const uint32_t t = (mode >= 1 && mode <= 5) ? (elapsed > T ? T : elapsed) : (elapsed % T);
   MzwCtx c;
   mzwInit(c, mode, (int)n, t, T, SEGMENT.intensity);
   const uint32_t bg = SEGCOLOR(1);
@@ -635,22 +787,24 @@ static void mzwRun(uint8_t mode) {
 }
 template <uint8_t M> static void mzwModeFn() { mzwRun(M); }
 
-// WLED effect list order alternates in pairs: FAST x2, FLOW x2, HYBRID x2.
+// First five entries are MZ signature one-shot sequences; the 50 classic W names follow unchanged.
 // WLED effect data format: Name@slider;colors;palette;flags;defaults
 #define MZW_LIST(X) \
- X(1,"W01 FAST Twin Flash")       X(2,"W02 FAST Split Strobe")      X(3,"W03 FLOW Velvet Arrival")    X(4,"W04 FLOW Center Bloom") \
- X(5,"W05 MIX Pulse Aurora")      X(6,"W06 MIX Laser Bloom")        X(7,"W07 FAST Triple Comet")      X(8,"W08 FAST Knight Rider X") \
- X(9,"W09 FLOW Aurora Silk")      X(10,"W10 FLOW Liquid Spectrum")   X(11,"W11 MIX Dissolve Chase")     X(12,"W12 MIX Ripple Scanner") \
- X(13,"W13 FAST Digital Matrix")  X(14,"W14 FAST Pacman Run")         X(15,"W15 FLOW Comet Ballet")      X(16,"W16 FLOW Dissolve Dream") \
- X(17,"W17 MIX Particle Wave")    X(18,"W18 MIX Rainbow Impact")      X(19,"W19 FAST Split Lane")        X(20,"W20 FAST Quad Beam Race") \
- X(21,"W21 FLOW Waterfall")       X(22,"W22 FLOW Firefly Garden")     X(23,"W23 MIX Waterfall Firework") X(24,"W24 MIX Twin Comet Aurora") \
- X(25,"W25 FAST Heartbeat Salvo") X(26,"W26 FAST Meteor Impact")      X(27,"W27 FLOW Rainbow Veil")      X(28,"W28 FLOW Glass Ripple") \
- X(29,"W29 MIX Firefly Scanner") X(30,"W30 MIX MIZUMA Signature")     X(31,"W31 FAST Rainbow Chase")    X(32,"W32 FAST Color Twinkle") \
- X(33,"W33 FLOW Floating Pearls") X(34,"W34 FLOW Sinelon Dance")      X(35,"W35 FAST Domino Rush")       X(36,"W36 FAST Firework Burst") \
- X(37,"W37 FLOW Starburst Bloom") X(38,"W38 FLOW Shimmer Tide")       X(39,"W39 FAST Scanner Assault")   X(40,"W40 FAST Alternating Strobe") \
- X(41,"W41 FLOW Aurora Ripple")   X(42,"W42 FLOW Center-to-Tip")      X(43,"W43 FAST Starburst Punch")   X(44,"W44 FAST Comet Barrage") \
- X(45,"W45 FLOW Crystal Drip")    X(46,"W46 FLOW Stardust Veil")      X(47,"W47 FAST Dissolve Spark")    X(48,"W48 FAST DMX Turbo") \
- X(49,"W49 FLOW Falling Jewels") X(50,"W50 FLOW Mizuma Aura")
+ X(1,"MZ01 TITAN TETRIX RUSH")          X(2,"MZ02 TITAN TETRIX MIRROR")       X(3,"MZ03 SOLAR FIREWORK VEIL") \
+ X(4,"MZ04 PRISM SHIMMER FINALE")       X(5,"MZ05 TETRIX FUSION") \
+ X(6,"W01 FAST Twin Flash")             X(7,"W02 FAST Split Strobe")           X(8,"W03 FLOW Velvet Arrival")          X(9,"W04 FLOW Center Bloom") \
+ X(10,"W05 MIX Pulse Aurora")           X(11,"W06 MIX Laser Bloom")            X(12,"W07 FAST Triple Comet")           X(13,"W08 FAST Knight Rider X") \
+ X(14,"W09 FLOW Aurora Silk")           X(15,"W10 FLOW Liquid Spectrum")       X(16,"W11 MIX Dissolve Chase")          X(17,"W12 MIX Ripple Scanner") \
+ X(18,"W13 FAST Digital Matrix")        X(19,"W14 FAST Pacman Run")            X(20,"W15 FLOW Comet Ballet")           X(21,"W16 FLOW Dissolve Dream") \
+ X(22,"W17 MIX Particle Wave")          X(23,"W18 MIX Rainbow Impact")         X(24,"W19 FAST Split Lane")             X(25,"W20 FAST Quad Beam Race") \
+ X(26,"W21 FLOW Waterfall")             X(27,"W22 FLOW Firefly Garden")        X(28,"W23 MIX Waterfall Firework")      X(29,"W24 MIX Twin Comet Aurora") \
+ X(30,"W25 FAST Heartbeat Salvo")       X(31,"W26 FAST Meteor Impact")         X(32,"W27 FLOW Rainbow Veil")           X(33,"W28 FLOW Glass Ripple") \
+ X(34,"W29 MIX Firefly Scanner")        X(35,"W30 MIX MIZUMA Signature")       X(36,"W31 FAST Rainbow Chase")         X(37,"W32 FAST Color Twinkle") \
+ X(38,"W33 FLOW Floating Pearls")       X(39,"W34 FLOW Sinelon Dance")         X(40,"W35 FAST Domino Rush")            X(41,"W36 FAST Firework Burst") \
+ X(42,"W37 FLOW Starburst Bloom")       X(43,"W38 FLOW Shimmer Tide")          X(44,"W39 FAST Scanner Assault")        X(45,"W40 FAST Alternating Strobe") \
+ X(46,"W41 FLOW Aurora Ripple")         X(47,"W42 FLOW Center-to-Tip")         X(48,"W43 FAST Starburst Punch")        X(49,"W44 FAST Comet Barrage") \
+ X(50,"W45 FLOW Crystal Drip")          X(51,"W46 FLOW Stardust Veil")         X(52,"W47 FAST Dissolve Spark")         X(53,"W48 FAST DMX Turbo") \
+ X(54,"W49 FLOW Falling Jewels")       X(55,"W50 FLOW Mizuma Aura")
 
 #define MZW_DATA(num, name) static const char mzw_d##num[] PROGMEM = name "@!,Lebar;!,!;!;1;sx=128,ix=160";
 MZW_LIST(MZW_DATA)
@@ -665,7 +819,7 @@ static int mizumaFindEffectId(const char* prefix) {
   return -1;
 }
 
-// Call once in setup(), before the boot preset is applied.
+// Call once in setup(), before the boot preset is applied. Registers 55 effects total.
 static uint8_t mizumaRegisterWelcomeEffects() {
   uint8_t ok = 0;
   #define MZW_REG(num, name) if (strip.addEffect(255, &mzwModeFn<num>, mzw_d##num) != 255) ok++;
