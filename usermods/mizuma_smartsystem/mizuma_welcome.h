@@ -1,5 +1,5 @@
 // =====================================================================================================
-// MIZUMA WELCOMING ENGINE — 45 CHOREOGRAPHED MODES (W01..W45)
+// MIZUMA WELCOMING ENGINE — 50 CHOREOGRAPHED MODES (W01..W50)
 // -----------------------------------------------------------------------------------------------------
 // Drop-in replacement for mizuma_welcome.h. Public interface kept compatible:
 //   MZW_COUNT, mizumaRegisterWelcomeEffects(), mizumaFindEffectId(), mzwModeFn<M>()
@@ -17,7 +17,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define MZW_COUNT 45
+#define MZW_COUNT 50
 #define MZW_U     4096
 #define MZW_F(x)  ((int)((x) * 4096.0 + 0.5))
 
@@ -124,6 +124,175 @@ static inline int mzw_pulsePair(int p) {
   return mzw_mx(a, b);
 }
 
+
+// ---------- extra choreography primitives inspired by WLED 1D / PS effects ----------
+// These are native integer renderers: no dependency on WLED's Particle System user feature.
+static inline int mzw_sine255(int phase) {
+  int x = phase & 4095;
+  if (x > 2047) x = 4095 - x;
+  return (x * (2048 - x) * 255) / 1048576;
+}
+static inline int mzw_waveSins(int x, int p, int scale, int drift, int lo, int hi) {
+  int a = mzw_sine255(x * scale - p * drift);
+  int b = mzw_sine255(x * (scale + 1) + p * (drift - 1));
+  int mix = (a * 3 + b) / 4;
+  return lo + (mix * (hi - lo)) / 255;
+}
+static inline int mzw_bouncingBalls(int x, int p, int count, int width) {
+  int out = 0;
+  if (count < 1) count = 1;
+  if (count > 4) count = 4;
+  for (int k = 0; k < count; k++) {
+    int ph = (p + (k * 4096) / count) & 4095;
+    int head = mzw_bounce(ph, 1);
+    out = mzw_mx(out, mzw_peak(mzw_abs(x - head), width));
+  }
+  return out;
+}
+static inline int mzw_chaseRainbow(int x, int p, int tail, int reverse, int &pos) {
+  pos = ((x >> 4) + (reverse ? -(p >> 2) : (p >> 2))) & 255;
+  return mzw_sweep(x, p, tail, reverse);
+}
+static inline int mzw_colorTwinkles(int i, int p, int density, uint32_t seed, int &hue) {
+  uint32_t tick = (uint32_t)(p >> 5);
+  uint8_t r = mzw_h((uint32_t)i * 131U + tick * 977U + seed);
+  hue = mzw_h((uint32_t)i * 37U + tick * 71U + seed * 3U);
+  if (r < (uint8_t)(255 - density)) return 0;
+  int ph = (p * 2 + (int)mzw_h((uint32_t)i * 19U + seed) * 16) & 4095;
+  return 45 + (mzw_smooth(mzw_tri(ph)) * 210) / 255;
+}
+static inline int mzw_dissolve(int i, int p, uint32_t seed, int reverse) {
+  uint8_t rank = mzw_h((uint32_t)i * 197U + seed * 29U);
+  if (reverse) rank = (uint8_t)(255 - rank);
+  int progress = p >> 4;
+  int d = progress - (int)rank;
+  if (d >= 0) return 255;
+  if (d > -28) return ((28 + d) * 150) / 28;
+  return 0;
+}
+static inline int mzw_drip(int x, int p, int tail, uint32_t seed, int reverse) {
+  int out = 0;
+  int coord = reverse ? (4095 - x) : x;
+  for (int k = 0; k < 4; k++) {
+    int delay = (int)(mzw_h(seed + (uint32_t)k * 73U) % 1500U);
+    int local = p - delay;
+    if (local < 0 || local > 3300) continue;
+    int flight = local > 2500 ? 4095 : (local * 4095) / 2500;
+    int head = mzw_head(flight, tail / 2 + 80);
+    out = mzw_mx(out, mzw_comet(head, coord, tail / 2 + 80));
+    if (local > 2050) {
+      int radius = ((local - 2050) * 620) / 1250;
+      int edge = mzw_abs(coord - 4095);
+      out = mzw_mx(out, mzw_peak(mzw_abs(edge - radius), 95));
+    }
+  }
+  return out;
+}
+static inline int mzw_fireworks1D(int x, int p, uint32_t seed) {
+  int out = 0;
+  for (int k = 0; k < 3; k++) {
+    int delay = k * 1320;
+    int local = p - delay;
+    if (local < 0 || local > 2050) continue;
+    int center = 400 + ((int)mzw_h(seed + (uint32_t)k * 97U) * 3295) / 255;
+    int radius = (local * 1500) / 2050;
+    int ring = mzw_peak(mzw_abs(mzw_abs(x - center) - radius), 115);
+    out = mzw_mx(out, ring);
+    for (int j = 0; j < 4; j++) {
+      int frac = 1 + j;
+      int offset = (radius * frac) / 4;
+      int a = mzw_peak(mzw_abs(x - (center + offset)), 72);
+      int b = mzw_peak(mzw_abs(x - (center - offset)), 72);
+      int tw = mzw_h(seed + (uint32_t)(k * 19 + j * 7));
+      if (tw > 80) out = mzw_mx(out, mzw_mx(a, b));
+    }
+  }
+  return out;
+}
+static inline int mzw_pacman(int x, int p, int tail, int reverse) {
+  int coord = reverse ? (4095 - x) : x;
+  int head = mzw_head(p, tail / 2 + 100);
+  int chop = ((p >> 7) & 1) ? 255 : 175;
+  int out = (mzw_peak(mzw_abs(coord - head), 150) * chop) / 255;
+  for (int k = 1; k <= 4; k++) {
+    int pellet = head - k * 330;
+    if (pellet >= 0 && pellet <= 4095)
+      out = mzw_mx(out, mzw_peak(mzw_abs(coord - pellet), 58));
+  }
+  return out;
+}
+static inline int mzw_psBalance(int x, int p, int count, int width) {
+  int out = 0;
+  if (count < 1) count = 1;
+  if (count > 5) count = 5;
+  int balance = mzw_bounce(p, 1);
+  for (int k = 0; k < count; k++) {
+    int offset = (k - (count - 1) / 2) * 245;
+    int head = mzw_cl(balance + offset) * 4095 / 255;
+    out = mzw_mx(out, mzw_peak(mzw_abs(x - head), width));
+  }
+  return out;
+}
+static inline int mzw_psSpray1D(int x, int p, int width, int reverse) {
+  int out = 0;
+  int center = 2048;
+  int coord = reverse ? 4095 - x : x;
+  for (int k = 0; k < 5; k++) {
+    int delay = k * 500;
+    int local = p - delay;
+    if (local < 0) continue;
+    if (local > 3000) local = 3000;
+    int radius = (local * 1950) / 3000;
+    int sign = (k & 1) ? -1 : 1;
+    int head = center + sign * radius;
+    out = mzw_mx(out, mzw_peak(mzw_abs(coord - head), width));
+    int trail = mzw_abs(coord - head);
+    if (trail < radius && ((trail / 95) % 3 == 0)) out = mzw_mx(out, 65);
+  }
+  return out;
+}
+static inline int mzw_psStarburst(int x, int p, uint32_t seed) {
+  int out = 0;
+  for (int k = 0; k < 3; k++) {
+    int delay = k * 1360;
+    int local = p - delay;
+    if (local < 0 || local > 1800) continue;
+    int center = 700 + ((int)mzw_h(seed + (uint32_t)k * 151U) * 2695) / 255;
+    int radius = (local * 1650) / 1800;
+    out = mzw_mx(out, mzw_peak(mzw_abs(mzw_abs(x - center) - radius), 80));
+    uint8_t r = mzw_h(seed + (uint32_t)k * 41U + (uint32_t)(local >> 5));
+    if (r > 100) {
+      int a = mzw_peak(mzw_abs(x - (center + radius)), 85);
+      int b = mzw_peak(mzw_abs(x - (center - radius)), 85);
+      out = mzw_mx(out, mzw_mx(a, b));
+    }
+  }
+  return out;
+}
+static inline int mzw_shimmer(int x, int p, int scale, int flow, int &pos) {
+  int phase = (x * scale - p * flow) & 4095;
+  int grain = ((x >> 5) & 1) ? 36 : 0;
+  pos = ((x >> 4) + (p >> 3)) & 255;
+  return mzw_cl(30 + grain + (mzw_sine255(phase) * 225) / 255);
+}
+static inline int mzw_sinelonDual(int x, int p, int tail) {
+  int head = mzw_sine255(p * 2) * 16;
+  int a = mzw_comet(head, x, tail);
+  int b = mzw_comet(4095 - head, x, tail);
+  return mzw_mx(a, b);
+}
+static inline int mzw_tetrix(int x, int p, uint32_t seed) {
+  int cell = (x * 12) >> 12;
+  if (cell > 11) cell = 11;
+  int step = (p * 14) >> 12;
+  int lane = (cell + (int)(mzw_h(seed + (uint32_t)cell * 43U) % 5U)) % 14;
+  int settled = (step > lane) ? 105 + (mzw_h(seed + (uint32_t)cell * 71U) % 75) : 0;
+  int fallingCell = (step + 3) % 12;
+  int falling = (cell == fallingCell) ? 255 : 0;
+  int flash = ((p >> 7) & 1) && (cell == ((step + 8) % 12)) ? 190 : 0;
+  return mzw_mx(settled, mzw_mx(falling, flash));
+}
+
 // ---------- per-frame context ----------
 static inline uint32_t mzwPeriod(uint8_t speed) {
   int T = 12000 - (int)speed * 40;
@@ -141,7 +310,7 @@ static inline void mzwInit(MzwCtx &c, int mode, int n, uint32_t t, uint32_t T, u
   c.env = (fin * fout) / 255;
 }
 
-// ---------- one-pixel renderer: 45 multi-stage choreographies ----------
+// ---------- one-pixel renderer: 50 multi-stage choreographies ----------
 static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
   const int u = c.u, wd = c.wd, soft = c.soft;
   const int x = c.n > 1 ? (int)(((uint32_t)i * 4096U) / (uint32_t)(c.n - 1)) : 0;
@@ -158,13 +327,13 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     case 1: { // IGNITION SIGNATURE: fill -> twin laser -> 3 flash -> premium glow
       if ((p = mzw_phase(u, 0, MZW_F(.22))) >= 0) v = mzw_fillV(x, p, soft);
       else if ((p = mzw_phase(u, MZW_F(.22), MZW_F(.52))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail, 0), mzw_sweep(x, p, tail / 2, 1));
-      else if ((p = mzw_phase(u, MZW_F(.52), MZW_F(.72))) >= 0) v = mzw_mx(mzw_flash(p, 3, 560), mzw_scanner(x, p, 1, 130));
+      else if ((p = mzw_phase(u, MZW_F(.52), MZW_F(.72))) >= 0) v = mzw_mx(mzw_flash(p, 3, 560), mzw_mx(mzw_scanner(x, p, 1, 130), mzw_dissolve(i, p, 11, 0)));
       else { p = mzw_phase(u, MZW_F(.72), MZW_U); v = 145 + mzw_breathe(p, 2, 0) * 110 / 255; }
     } break;
     case 2: { // REVERSE IGNITION: inner fill -> reverse laser -> sparkle lock
       if ((p = mzw_phase(u, 0, MZW_F(.22))) >= 0) v = mzw_fillV(xr, p, soft);
       else if ((p = mzw_phase(u, MZW_F(.22), MZW_F(.50))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail, 1), mzw_sweep(x, p, tail / 2, 0));
-      else if ((p = mzw_phase(u, MZW_F(.50), MZW_F(.73))) >= 0) v = mzw_mx(mzw_flash(p, 2, 720), mzw_glitter(i, p, 32, 17));
+      else if ((p = mzw_phase(u, MZW_F(.50), MZW_F(.73))) >= 0) { int h = 0; v = mzw_mx(mzw_flash(p, 2, 720), mzw_mx(mzw_glitter(i, p, 32, 17), mzw_colorTwinkles(i, p, 48, 19, h))); pos = h; }
       else { p = mzw_phase(u, MZW_F(.73), MZW_U); v = 165 + mzw_breathe(p, 3, 0) * 90 / 255; }
     } break;
     case 3: { // CENTER EXPANSION: radial ignition -> outward twin beams -> ripple -> hold
@@ -201,7 +370,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
       if ((p = mzw_phase(u, 0, MZW_F(.42))) >= 0) {
         int a = mzw_sweep(x, p, tail, 0), b = mzw_sweep(x, (p + 1365) & 4095, tail, 0), d = mzw_sweep(x, (p + 2730) & 4095, tail, 0);
         v = mzw_mx(a, mzw_mx(b, d));
-      } else if ((p = mzw_phase(u, MZW_F(.42), MZW_F(.63))) >= 0) v = mzw_mx(mzw_glitter(i, p, 40, 41), mzw_sweep(x, p, tail * 2, 0));
+      } else if ((p = mzw_phase(u, MZW_F(.42), MZW_F(.63))) >= 0) v = mzw_mx(mzw_glitter(i, p, 40, 41), mzw_mx(mzw_sweep(x, p, tail * 2, 0), mzw_bouncingBalls(x, p, 2, 115)));
       else if ((p = mzw_phase(u, MZW_F(.63), MZW_F(.78))) >= 0) v = mzw_flash(p, 3, 500);
       else { p = mzw_phase(u, MZW_F(.78), MZW_U); v = mzw_breathe(p, 2, 150); }
     } break;
@@ -216,13 +385,13 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     case 10: { // COMET ARRIVAL: single comet -> dual comet -> burst -> warm hold
       if ((p = mzw_phase(u, 0, MZW_F(.30))) >= 0) v = mzw_sweep(x, p, tail * 2, 0);
       else if ((p = mzw_phase(u, MZW_F(.30), MZW_F(.56))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail, 0), mzw_sweep(x, p, tail, 1));
-      else if ((p = mzw_phase(u, MZW_F(.56), MZW_F(.74))) >= 0) v = mzw_mx(mzw_flash(p, 2, 520), mzw_ripple(q, p, 260, 0));
+      else if ((p = mzw_phase(u, MZW_F(.56), MZW_F(.74))) >= 0) v = mzw_mx(mzw_flash(p, 2, 520), mzw_mx(mzw_ripple(q, p, 260, 0), mzw_fireworks1D(x, p, 29)));
       else { p = mzw_phase(u, MZW_F(.74), MZW_U); v = mzw_breathe(p, 2, 125); }
     } break;
     case 11: { // REVERSE COMET: reverse meteor -> center meeting -> sparkle lock -> fade glow
       if ((p = mzw_phase(u, 0, MZW_F(.31))) >= 0) v = mzw_sweep(x, p, tail * 2, 1);
       else if ((p = mzw_phase(u, MZW_F(.31), MZW_F(.57))) >= 0) v = mzw_centerSweep(qr, p, tail);
-      else if ((p = mzw_phase(u, MZW_F(.57), MZW_F(.76))) >= 0) v = mzw_mx(mzw_glitter(i, p, 48, 53), mzw_flash(p, 2, 500));
+      else if ((p = mzw_phase(u, MZW_F(.57), MZW_F(.76))) >= 0) v = mzw_mx(mzw_glitter(i, p, 48, 53), mzw_mx(mzw_flash(p, 2, 500), mzw_drip(x, p, tail, 31, 1)));
       else { p = mzw_phase(u, MZW_F(.76), MZW_U); v = mzw_breathe(p, 3, 130); }
     } break;
     case 12: { // DOUBLE KNIGHT RIDER: fast scan -> split scan -> flash confirmation -> lock
@@ -241,7 +410,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
       if ((p = mzw_phase(u, 0, MZW_F(.43))) >= 0) {
         int a = mzw_sweep(x, p, tail, 0), b = mzw_sweep(x, (p + 1365) & 4095, tail, 1), d = mzw_sweep(x, (p + 2730) & 4095, tail, 0);
         v = mzw_mx(a, mzw_mx(b, d));
-      } else if ((p = mzw_phase(u, MZW_F(.43), MZW_F(.64))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail * 3, 0), mzw_glitter(i, p, 35, 61));
+      } else if ((p = mzw_phase(u, MZW_F(.43), MZW_F(.64))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail * 3, 0), mzw_mx(mzw_glitter(i, p, 35, 61), mzw_psStarburst(x, p, 37)));
       else if ((p = mzw_phase(u, MZW_F(.64), MZW_F(.80))) >= 0) v = mzw_flash(p, 3, 470);
       else v = 200;
     } break;
@@ -289,7 +458,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     } break;
     case 21: { // LUXURY BREATH: light builds -> aurora rolls -> twin glints -> soft hold
       if ((p = mzw_phase(u, 0, MZW_F(.24))) >= 0) v = mzw_breathe(p, 1, 5);
-      else if ((p = mzw_phase(u, MZW_F(.24), MZW_F(.58))) >= 0) { pos = ((x >> 4) + (p >> 3)) & 255; v = mzw_mx(mzw_wave(x, p, 2, 3, 20, 205), mzw_sweep(x, p, tail / 2, 0)); }
+      else if ((p = mzw_phase(u, MZW_F(.24), MZW_F(.58))) >= 0) { pos = ((x >> 4) + (p >> 3)) & 255; v = mzw_mx(mzw_wave(x, p, 2, 3, 20, 205), mzw_mx(mzw_sweep(x, p, tail / 2, 0), mzw_shimmer(x, p, 2, 5, pos))); }
       else if ((p = mzw_phase(u, MZW_F(.58), MZW_F(.76))) >= 0) v = mzw_mx(mzw_peak(x, 200), mzw_peak(xr, 200));
       else { p = mzw_phase(u, MZW_F(.76), MZW_U); v = mzw_breathe(p, 2, 135); }
     } break;
@@ -307,7 +476,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     } break;
     case 24: { // HEARTBEAT ARRIVAL: double pulse -> sweeping accent -> triple flash -> hold
       if ((p = mzw_phase(u, 0, MZW_F(.34))) >= 0) v = mzw_pulsePair(p);
-      else if ((p = mzw_phase(u, MZW_F(.34), MZW_F(.62))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail, 0), mzw_sweep(x, p, tail / 2, 1));
+      else if ((p = mzw_phase(u, MZW_F(.34), MZW_F(.62))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail, 0), mzw_mx(mzw_sweep(x, p, tail / 2, 1), mzw_sinelonDual(x, p, tail)));
       else if ((p = mzw_phase(u, MZW_F(.62), MZW_F(.79))) >= 0) v = mzw_flash(p, 3, 460);
       else v = 210;
     } break;
@@ -336,7 +505,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     // ===== 28-36: COLOR FLOW / AURORA / SPARK =====
     case 28: { // SPECTRUM IGNITION: color wave -> comet highlight -> glitter -> gradient hold
       if ((p = mzw_phase(u, 0, MZW_F(.32))) >= 0) { pos = ((x >> 4) + (p >> 3)) & 255; v = mzw_wave(x, p, 2, 4, 55, 225); }
-      else if ((p = mzw_phase(u, MZW_F(.32), MZW_F(.59))) >= 0) { pos = ((x >> 4) + (p >> 2)) & 255; v = mzw_mx(90, mzw_sweep(x, p, tail * 2, 0)); }
+      else if ((p = mzw_phase(u, MZW_F(.32), MZW_F(.59))) >= 0) { v = mzw_mx(90, mzw_chaseRainbow(x, p, tail * 2, 0, pos)); }
       else if ((p = mzw_phase(u, MZW_F(.59), MZW_F(.78))) >= 0) { pos = (mzw_h((uint32_t)i * 17U + (uint32_t)(p >> 4)) + (p >> 4)) & 255; v = mzw_mx(mzw_glitter(i, p, 38, 97), 90); }
       else { p = mzw_phase(u, MZW_F(.78), MZW_U); pos = ((x >> 4) + (p >> 4)) & 255; v = mzw_breathe(p, 2, 150); }
     } break;
@@ -354,7 +523,7 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     } break;
     case 31: { // AURORA CURTAIN: layered waves -> comet through aurora -> sparkle rain -> hold
       if ((p = mzw_phase(u, 0, MZW_F(.36))) >= 0) { pos = ((x >> 4) + (p >> 4)) & 255; v = mzw_mx(mzw_wave(x, p, 2, 3, 25, 190), mzw_wave(x, 4095 - p, 3, 2, 0, 105)); }
-      else if ((p = mzw_phase(u, MZW_F(.36), MZW_F(.62))) >= 0) { pos = ((x >> 4) + (p >> 3)) & 255; v = mzw_mx(mzw_sweep(x, p, tail * 2, 0), mzw_wave(x, p, 2, 5, 0, 120)); }
+      else if ((p = mzw_phase(u, MZW_F(.36), MZW_F(.62))) >= 0) { pos = ((x >> 4) + (p >> 3)) & 255; v = mzw_mx(mzw_sweep(x, p, tail * 2, 0), mzw_mx(mzw_wave(x, p, 2, 5, 0, 120), mzw_waveSins(x, p, 3, 3, 0, 95))); }
       else if ((p = mzw_phase(u, MZW_F(.62), MZW_F(.80))) >= 0) v = mzw_mx(mzw_glitter(i, p, 43, 101), mzw_wave(x, p, 4, 2, 0, 120));
       else { p = mzw_phase(u, MZW_F(.80), MZW_U); pos = ((x >> 4) + (p >> 4)) & 255; v = mzw_breathe(p, 2, 130); }
     } break;
@@ -373,13 +542,13 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     case 34: { // STAR DUST: twinkle awakening -> glitter sweep -> sparkle burst -> luxury hold
       if ((p = mzw_phase(u, 0, MZW_F(.27))) >= 0) v = mzw_glitter(i, p, 27, 107);
       else if ((p = mzw_phase(u, MZW_F(.27), MZW_F(.58))) >= 0) v = mzw_mx(mzw_glitter(i, p, 48, 109), mzw_sweep(x, p, tail * 2, 0));
-      else if ((p = mzw_phase(u, MZW_F(.58), MZW_F(.79))) >= 0) v = mzw_mx(mzw_glitter(i, p, 72, 113), mzw_flash(p, 2, 450));
+      else if ((p = mzw_phase(u, MZW_F(.58), MZW_F(.79))) >= 0) { int h = 0; v = mzw_mx(mzw_glitter(i, p, 72, 113), mzw_mx(mzw_flash(p, 2, 450), mzw_colorTwinkles(i, p, 88, 117, h))); pos = h; }
       else { p = mzw_phase(u, MZW_F(.79), MZW_U); v = mzw_breathe(p, 2, 125); }
     } break;
     case 35: { // GLITTER COMET: comet launch -> two cross tails -> star burst -> soft hold
       if ((p = mzw_phase(u, 0, MZW_F(.38))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail * 3, 0), mzw_glitter(i, p, 20, 127));
       else if ((p = mzw_phase(u, MZW_F(.38), MZW_F(.63))) >= 0) v = mzw_mx(mzw_dualSweep(x, p, tail), mzw_glitter(i, p, 53, 131));
-      else if ((p = mzw_phase(u, MZW_F(.63), MZW_F(.80))) >= 0) v = mzw_mx(mzw_glitter(i, p, 85, 137), mzw_ripple(q, p, 220, 0));
+      else if ((p = mzw_phase(u, MZW_F(.63), MZW_F(.80))) >= 0) v = mzw_mx(mzw_glitter(i, p, 85, 137), mzw_mx(mzw_ripple(q, p, 220, 0), mzw_psStarburst(x, p, 139)));
       else { p = mzw_phase(u, MZW_F(.80), MZW_U); v = mzw_breathe(p, 2, 135); }
     } break;
     case 36: { // SPARK IGNITION: spark trails -> sequential fill -> laser edge -> bright hold
@@ -392,14 +561,14 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     // ===== 37-45: SHOWTIME / SIGNATURE FINISHES =====
     case 37: { // FIREFLY PARADE: random glows -> firefly wave -> twin comet -> flash hold
       if ((p = mzw_phase(u, 0, MZW_F(.29))) >= 0) { uint8_t h = mzw_h((uint32_t)i * 13U + 7U); v = mzw_smooth(mzw_tri(p * 3 + h * 16)); }
-      else if ((p = mzw_phase(u, MZW_F(.29), MZW_F(.58))) >= 0) { uint8_t h = mzw_h((uint32_t)i * 13U + 7U); v = mzw_mx(mzw_smooth(mzw_tri(p * 3 + h * 16)), mzw_wave(x, p, 3, 4, 0, 100)); pos = h; }
+      else if ((p = mzw_phase(u, MZW_F(.29), MZW_F(.58))) >= 0) { uint8_t h = mzw_h((uint32_t)i * 13U + 7U); v = mzw_mx(mzw_smooth(mzw_tri(p * 3 + h * 16)), mzw_mx(mzw_wave(x, p, 3, 4, 0, 100), mzw_psSpray1D(x, p, 90, 0))); pos = h; }
       else if ((p = mzw_phase(u, MZW_F(.58), MZW_F(.78))) >= 0) v = mzw_dualSweep(x, p, tail);
       else { p = mzw_phase(u, MZW_F(.78), MZW_U); v = mzw_mx(150, mzw_flash(p, 2, 430)); }
     } break;
     case 38: { // 8-CELL SHOW: block ignition -> cascading domino -> scanner -> lock flash
       if ((p = mzw_phase(u, 0, MZW_F(.30))) >= 0) v = mzw_blocks(x, p, 8, 0, 1);
       else if ((p = mzw_phase(u, MZW_F(.30), MZW_F(.57))) >= 0) v = mzw_blocks(x, p, 8, 1, 3);
-      else if ((p = mzw_phase(u, MZW_F(.57), MZW_F(.78))) >= 0) v = mzw_mx(mzw_scanner(x, p, 1, 210), mzw_flash(p, 2, 440));
+      else if ((p = mzw_phase(u, MZW_F(.57), MZW_F(.78))) >= 0) v = mzw_mx(mzw_scanner(x, p, 1, 210), mzw_mx(mzw_flash(p, 2, 440), mzw_tetrix(x, p, 151)));
       else v = 210;
     } break;
     case 39: { // 12-CELL DOMINO: segmented cascade -> ripple -> triple flash -> solid glow
@@ -410,20 +579,20 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
     } break;
     case 40: { // SEGMENT SCANNER: segmented bounce -> twin beam cross -> pulse -> premium hold
       if ((p = mzw_phase(u, 0, MZW_F(.33))) >= 0) { int b = mzw_bounce(p, 2) * 8 / 4096; int blk = (x * 8) >> 12; int d = mzw_abs(blk - b); v = d == 0 ? 255 : (d == 1 ? 150 : 12); }
-      else if ((p = mzw_phase(u, MZW_F(.33), MZW_F(.60))) >= 0) v = mzw_dualSweep(x, p, tail);
+      else if ((p = mzw_phase(u, MZW_F(.33), MZW_F(.60))) >= 0) v = mzw_mx(mzw_dualSweep(x, p, tail), mzw_psBalance(x, p, 3, 105));
       else if ((p = mzw_phase(u, MZW_F(.60), MZW_F(.78))) >= 0) v = mzw_flash(p, 2, 520);
       else { p = mzw_phase(u, MZW_F(.78), MZW_U); v = mzw_breathe(p, 2, 150); }
     } break;
     case 41: { // ALTERNATING SHOW: odd/even strobes -> opposing fill -> laser sweep -> lock
       if ((p = mzw_phase(u, 0, MZW_F(.27))) >= 0) { int phase = (p * 6) & 4095; v = (((((i & 1) ? 2048 : 0) + phase) & 4095) < 1500) ? 255 : 12; }
-      else if ((p = mzw_phase(u, MZW_F(.27), MZW_F(.56))) >= 0) v = ((i & 1) ? mzw_fillV(xr, p, soft) : mzw_fillV(x, p, soft));
+      else if ((p = mzw_phase(u, MZW_F(.27), MZW_F(.56))) >= 0) v = mzw_mx(((i & 1) ? mzw_fillV(xr, p, soft) : mzw_fillV(x, p, soft)), mzw_psSpray1D(x, p, 75, 0));
       else if ((p = mzw_phase(u, MZW_F(.56), MZW_F(.77))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail, 0), mzw_sweep(x, p, tail, 1));
       else v = 215;
     } break;
     case 42: { // TRIPLE STROBE ARRIVAL: salvo -> radial expansion -> triple comet -> glow
       if ((p = mzw_phase(u, 0, MZW_F(.24))) >= 0) v = mzw_flash(p, 3, 560);
       else if ((p = mzw_phase(u, MZW_F(.24), MZW_F(.52))) >= 0) v = mzw_mx(mzw_ripple(q, p, 300, 0), mzw_fillV(q, p, soft));
-      else if ((p = mzw_phase(u, MZW_F(.52), MZW_F(.78))) >= 0) { int a = mzw_sweep(x, p, tail, 0), b = mzw_sweep(x, (p + 1365) & 4095, tail, 1); v = mzw_mx(a, b); }
+      else if ((p = mzw_phase(u, MZW_F(.52), MZW_F(.78))) >= 0) { int a = mzw_sweep(x, p, tail, 0), b = mzw_sweep(x, (p + 1365) & 4095, tail, 1); v = mzw_mx(mzw_mx(a, b), mzw_fireworks1D(x, p, 163)); }
       else { p = mzw_phase(u, MZW_F(.78), MZW_U); v = mzw_breathe(p, 2, 140); }
     } break;
     case 43: { // CENTER BLAST: center ignition -> shockwave -> twin scanners -> bright lock
@@ -443,6 +612,72 @@ static inline MzwPx mzwPixel(const MzwCtx &c, int i) {
       else if ((p = mzw_phase(u, MZW_F(.30), MZW_F(.56))) >= 0) v = mzw_mx(mzw_sweep(x, p, tail * 2, 0), mzw_sweep(x, p, tail, 1));
       else if ((p = mzw_phase(u, MZW_F(.56), MZW_F(.77))) >= 0) v = mzw_mx(mzw_flash(p, 3, 500), mzw_scanner(x, p, 1, 150));
       else { p = mzw_phase(u, MZW_F(.77), MZW_U); v = 165 + mzw_breathe(p, 2, 0) * 90 / 255; }
+    } break;
+    // ===== 46-50: PARTICLE SHOW / DMX-STYLE HYBRIDS =====
+    case 46: { // PARTICLE SYMPHONY: bouncing balls -> balance/sinelon -> spray/drips -> starburst lock
+      if ((p = mzw_phase(u, 0, MZW_F(.25))) >= 0) {
+        v = mzw_mx(mzw_bouncingBalls(x, p, 3, 145), mzw_waveSins(x, p, 2, 3, 0, 70));
+      } else if ((p = mzw_phase(u, MZW_F(.25), MZW_F(.52))) >= 0) {
+        v = mzw_mx(mzw_psBalance(x, p, 4, 115), mzw_sinelonDual(x, p, tail));
+      } else if ((p = mzw_phase(u, MZW_F(.52), MZW_F(.77))) >= 0) {
+        v = mzw_mx(mzw_psSpray1D(x, p, 95, 0), mzw_drip(x, p, tail, 167, 1));
+      } else {
+        p = mzw_phase(u, MZW_F(.77), MZW_U);
+        v = mzw_mx(mzw_psStarburst(x, p, 173), mzw_breathe(p, 2, 120));
+      }
+    } break;
+    case 47: { // RAINBOW PACMAN RUN: rainbow chase -> chomping runner -> dual sinelon -> colorful twinkle
+      if ((p = mzw_phase(u, 0, MZW_F(.27))) >= 0) {
+        v = mzw_mx(65, mzw_chaseRainbow(x, p, tail * 2, 0, pos));
+      } else if ((p = mzw_phase(u, MZW_F(.27), MZW_F(.53))) >= 0) {
+        pos = ((x >> 4) + (p >> 2)) & 255;
+        v = mzw_mx(mzw_pacman(x, p, tail, 0), mzw_shimmer(x, p, 3, 4, pos));
+      } else if ((p = mzw_phase(u, MZW_F(.53), MZW_F(.76))) >= 0) {
+        v = mzw_mx(mzw_sinelonDual(x, p, tail * 2), mzw_sweep(x, p, tail / 2, 1));
+      } else {
+        p = mzw_phase(u, MZW_F(.76), MZW_U);
+        v = mzw_colorTwinkles(i, p, 95, 179, pos);
+      }
+    } break;
+    case 48: { // FIREWORK CASCADE: dissolve ignition -> fireworks 1D -> spray/drip -> starburst finale
+      if ((p = mzw_phase(u, 0, MZW_F(.23))) >= 0) {
+        v = mzw_dissolve(i, p, 181, 0);
+      } else if ((p = mzw_phase(u, MZW_F(.23), MZW_F(.54))) >= 0) {
+        v = mzw_mx(mzw_fireworks1D(x, p, 191), mzw_psStarburst(x, p, 193));
+      } else if ((p = mzw_phase(u, MZW_F(.54), MZW_F(.78))) >= 0) {
+        v = mzw_mx(mzw_psSpray1D(x, p, 115, 1), mzw_drip(x, p, tail, 197, 0));
+      } else {
+        p = mzw_phase(u, MZW_F(.78), MZW_U);
+        v = mzw_mx(mzw_flash(p, 2, 420), mzw_breathe(p, 2, 145));
+      }
+    } break;
+    case 49: { // TETRIX AURORA: falling blocks -> wavesins -> shimmer sweep -> color twinkle lock
+      if ((p = mzw_phase(u, 0, MZW_F(.29))) >= 0) {
+        v = mzw_mx(mzw_tetrix(x, p, 199), mzw_blocks(x, p, 12, 1, 2));
+      } else if ((p = mzw_phase(u, MZW_F(.29), MZW_F(.55))) >= 0) {
+        pos = ((x >> 4) + (p >> 3)) & 255;
+        v = mzw_mx(mzw_waveSins(x, p, 3, 4, 15, 215), mzw_waveSins(x, 4095 - p, 2, 3, 0, 120));
+      } else if ((p = mzw_phase(u, MZW_F(.55), MZW_F(.78))) >= 0) {
+        v = mzw_mx(mzw_shimmer(x, p, 4, 6, pos), mzw_sweep(x, p, tail, 0));
+      } else {
+        p = mzw_phase(u, MZW_F(.78), MZW_U);
+        v = mzw_colorTwinkles(i, p, 75, 211, pos);
+      }
+    } break;
+    case 50: { // MIZUMA DMX SHOWCASE: dissolve -> rainbow/sinelon -> spray/drip -> fireworks -> shimmer aura
+      if ((p = mzw_phase(u, 0, MZW_F(.19))) >= 0) {
+        v = mzw_mx(mzw_dissolve(i, p, 223, 0), mzw_sweep(x, p, tail, 0));
+      } else if ((p = mzw_phase(u, MZW_F(.19), MZW_F(.42))) >= 0) {
+        v = mzw_mx(mzw_chaseRainbow(x, p, tail * 2, 0, pos), mzw_sinelonDual(x, p, tail));
+      } else if ((p = mzw_phase(u, MZW_F(.42), MZW_F(.62))) >= 0) {
+        v = mzw_mx(mzw_psSpray1D(x, p, 105, 0), mzw_mx(mzw_drip(x, p, tail, 227, 1), mzw_pacman(x, p, tail, 1)));
+      } else if ((p = mzw_phase(u, MZW_F(.62), MZW_F(.82))) >= 0) {
+        v = mzw_mx(mzw_fireworks1D(x, p, 229), mzw_psStarburst(x, p, 233));
+      } else {
+        p = mzw_phase(u, MZW_F(.82), MZW_U);
+        pos = ((x >> 4) + (p >> 3)) & 255;
+        v = mzw_mx(mzw_shimmer(x, p, 3, 4, pos), mzw_mx(mzw_waveSins(x, p, 2, 4, 25, 155), mzw_breathe(p, 2, 110)));
+      }
     } break;
     default: v = 0; break;
   }
@@ -474,21 +709,22 @@ static void mzwRun(uint8_t mode) {
 }
 template <uint8_t M> static void mzwModeFn() { mzwRun(M); }
 
-// Keep the W01..W45 prefixes stable for existing preset/effect lookup.
+// Keep W01..W45 prefixes stable; W46..W50 are the added particle-show recipes.
 // WLED effect data format: Name@slider;colors;palette;flags;defaults
 #define MZW_LIST(X) \
- X(1,"W01 Ignition Signature")  X(2,"W02 Reverse Ignition")     X(3,"W03 Center Expansion")    X(4,"W04 Tips Converge") \
- X(5,"W05 Laser Cross")         X(6,"W06 Knight Rider Pro")     X(7,"W07 Digital Ignition")    X(8,"W08 Triple Comet Ignition") \
- X(9,"W09 12-Step Matrix")      X(10,"W10 Comet Arrival")       X(11,"W11 Reverse Comet")       X(12,"W12 Double Knight Rider") \
- X(13,"W13 Twin Comet Collision") X(14,"W14 Triple Race")       X(15,"W15 Center-Out Turbo")     X(16,"W16 Center Lock-In") \
- X(17,"W17 Triple Dash Race")   X(18,"W18 Pixel Race")          X(19,"W19 Split Lane")          X(20,"W20 Meteor Strike") \
- X(21,"W21 Luxury Breath")      X(22,"W22 Double Heartbeat")    X(23,"W23 Soft Arrival")        X(24,"W24 Heartbeat Arrival") \
- X(25,"W25 Triple Flash Show")  X(26,"W26 Pixel Ignition Pro")   X(27,"W27 Double Ripple")       X(28,"W28 Spectrum Ignition") \
- X(29,"W29 Reverse Spectrum")   X(30,"W30 Liquid Chrome")        X(31,"W31 Aurora Curtain")      X(32,"W32 Wave Interference") \
- X(33,"W33 Color Laser")        X(34,"W34 Star Dust")            X(35,"W35 Glitter Comet")        X(36,"W36 Spark Ignition") \
- X(37,"W37 Firefly Parade")     X(38,"W38 8-Cell Show")          X(39,"W39 12-Cell Domino")       X(40,"W40 Segment Scanner") \
- X(41,"W41 Alternating Show")   X(42,"W42 Triple Strobe Arrival") X(43,"W43 Center Blast")      X(44,"W44 Twin Lock Beam") \
- X(45,"W45 MIZUMA Signature")
+ X(1,"W01 Ignition Signature")    X(2,"W02 Reverse Ignition")       X(3,"W03 Center Expansion")       X(4,"W04 Tips Converge") \
+ X(5,"W05 Laser Cross")           X(6,"W06 Knight Rider Pro")        X(7,"W07 Digital Ignition")       X(8,"W08 Triple Comet Ignition") \
+ X(9,"W09 12-Step Matrix")        X(10,"W10 Comet Arrival")          X(11,"W11 Reverse Comet")          X(12,"W12 Double Knight Rider") \
+ X(13,"W13 Twin Comet Collision") X(14,"W14 Triple Race")            X(15,"W15 Center-Out Turbo")        X(16,"W16 Center Lock-In") \
+ X(17,"W17 Triple Dash Race")     X(18,"W18 Pixel Race")              X(19,"W19 Split Lane")              X(20,"W20 Meteor Strike") \
+ X(21,"W21 Luxury Breath")        X(22,"W22 Double Heartbeat")        X(23,"W23 Soft Arrival")            X(24,"W24 Heartbeat Arrival") \
+ X(25,"W25 Triple Flash Show")    X(26,"W26 Pixel Ignition Pro")       X(27,"W27 Double Ripple")           X(28,"W28 Spectrum Ignition") \
+ X(29,"W29 Reverse Spectrum")     X(30,"W30 Liquid Chrome")            X(31,"W31 Aurora Curtain")          X(32,"W32 Wave Interference") \
+ X(33,"W33 Color Laser")          X(34,"W34 Star Dust")                X(35,"W35 Glitter Comet")           X(36,"W36 Spark Ignition") \
+ X(37,"W37 Firefly Parade")       X(38,"W38 8-Cell Show")              X(39,"W39 12-Cell Domino")           X(40,"W40 Segment Scanner") \
+ X(41,"W41 Alternating Show")     X(42,"W42 Triple Strobe Arrival")   X(43,"W43 Center Blast")            X(44,"W44 Twin Lock Beam") \
+ X(45,"W45 MIZUMA Signature")     X(46,"W46 Particle Symphony")        X(47,"W47 Rainbow Pacman Run")      X(48,"W48 Firework Cascade") \
+ X(49,"W49 Tetrix Aurora")        X(50,"W50 MIZUMA DMX Showcase")
 
 #define MZW_DATA(num, name) static const char mzw_d##num[] PROGMEM = name "@!,Lebar;!,!;!;1;sx=128,ix=160";
 MZW_LIST(MZW_DATA)
