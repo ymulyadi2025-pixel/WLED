@@ -1,10 +1,15 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — FINAL ASSEMBLY — REVISI R4 (startup Welcoming dipercepat; fitur palette tidak diubah)
+// MIZUMA SMARTSYSTEM — REVISI R6 (Native WLED Boot Preset + Mizuma Startup Scheduler; palette/UI dipertahankan)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
 extern void serializeConfigToFS();
+
+// WLED 16.0.1 defines these preset helpers in presets.cpp but does not
+// publish their prototypes through wled.h. They have external linkage.
+extern bool getPresetName(byte index, String& name);
+extern void handlePresets();
 
 // --------------------------------------------------------------------------------------------------------------------------------------
 // Blok 1 — Komponen Bersama (Native-feel FINAL: tanpa getar, transisi 110ms, nav "Dashboard")
@@ -859,16 +864,13 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     };
     PresetSlot pslots[10];
     uint16_t welcomeDur = 7000;
-    int bootStage = 0; unsigned long bootT = 0; bool bootDone = false;
-    bool welcomeTimerStarted = false;
+    int bootStage = 0;
+    uint32_t bootT = 0;
+    bool bootDone = false;
+    bool usingNativeWelcomePreset = false;
 
-    /* Startup WLED: simpan boot preset asli, nonaktifkan sementara agar tidak
-       menimpa Welcoming, lalu pulihkan nilainya pada loop pertama. */
-    uint8_t nativeBootPreset = 0;
-    bool bootPresetCaptured = false;
-    bool bootPresetRestorePending = false;
-
-    /* Brightness Mizuma yang dipulihkan saat startup. */
+    /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
+       Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
     uint8_t savedBri = 180;
     bool cfgSavePending = false;
     unsigned long cfgSaveT = 0;
@@ -916,13 +918,13 @@ JsonArray c2=col.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);}
 void applySingleSlot(uint8_t slotIdx){
 uint8_t segId=(slotIdx%2==0)?0:1;
 StaticJsonDocument<1024> doc;JsonObject root=doc.to<JsonObject>();
-root["on"]=true;if(bri==0)root["bri"]=180;
+root["on"]=true;if(bri==0)root["bri"]=savedBri;
 JsonArray seg=root.createNestedArray("seg");
 addSegmentFromSlot(seg,segId,slotIdx);
 deserializeState(root);}
 void applyTwoSlots(uint8_t rightSlot,uint8_t leftSlot){
 StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
-root["on"]=true;root["transition"]=0;if(bri==0)root["bri"]=180;
+root["on"]=true;root["transition"]=0;if(bri==0)root["bri"]=savedBri;
 JsonArray seg=root.createNestedArray("seg");
 addSegmentFromSlot(seg,0,rightSlot);
 addSegmentFromSlot(seg,1,leftSlot);
@@ -980,38 +982,56 @@ stateUpdated(CALL_MODE_DIRECT_CHANGE);
 queueSave();
 req->send(200,"application/json","{\"ok\":true}");}
 
+/*
+ * Startup R6:
+ * - beginStrip() WLED sudah mengantrekan bootPreset melalui applyPreset().
+ * - Jika Boot Preset native bernama "Mizuma Welcoming", konsumsi antrean itu
+ *   di sini memakai handler preset bawaan WLED, lalu render sebelum Wi-Fi.
+ * - Jika belum ada / namanya berbeda, gunakan slot Welcoming Mizuma sebagai
+ *   fallback. Boot preset lain tidak dibiarkan menimpa fallback.
+ * - Tidak ada ketergantungan Wi-Fi/HTTP dan tidak mengubah sistem palette.
+ */
 void startWelcomeSequence(){
-/* setup() Usermod dipanggil setelah WLED menyelesaikan beginStrip().
-   Karena itu bus dan segment sudah siap, tetapi WiFi belum perlu selesai. */
-if(!bootPresetCaptured){nativeBootPreset=bootPreset;bootPresetCaptured=true;}
-bootPresetRestorePending=(nativeBootPreset>0);
-bootPreset=0; // cegah boot preset WLED menimpa Welcoming setelah setup Usermod
+  usingNativeWelcomePreset = false;
 
-if(savedBri==0)savedBri=180;
-bri=savedBri;
-stateUpdated(CALL_MODE_DIRECT_CHANGE);
+  if (bootPreset > 0) {
+    String nativeName;
+    const bool presetReadable = getPresetName(bootPreset, nativeName);
 
-if(applyModeSide("welcoming","both")){
-  bootStage=1;
-  bootDone=false;
-  welcomeTimerStarted=false;
-  /* Paksa frame Welcoming pertama sebelum WLED memulai WiFi/HTTP.
-     beginStrip() sebelumnya dapat meninggalkan transfer LED asinkron (frame hitam)
-     yang masih berjalan. Jangan sekadar melewati service(): tunggu bus siap sebentar,
-     lalu trigger + render frame pertama. Jika bus macet, jangan memblokir boot lama;
-     loop WLED akan melanjutkan refresh normal. */
+    // beginStrip() telah memanggil applyPreset(bootPreset, CALL_MODE_INIT).
+    // handlePresets() menyelesaikan state tersebut sekarang, sebelum Wi-Fi.
+    handlePresets();
+
+    if (presetReadable && nativeName == "Mizuma Welcoming") {
+      usingNativeWelcomePreset = true;
+      DEBUG_PRINTLN(F("[Mizuma] Native WLED Welcome preset loaded."));
+    } else {
+      DEBUG_PRINTLN(F("[Mizuma] Native boot preset bukan 'Mizuma Welcoming'; memakai fallback slot Mizuma."));
+    }
+  }
+
+  if (!usingNativeWelcomePreset) {
+    // beginStrip() mengawali WLED dengan bri=0 pada mode tertentu.
+    // Pulihkan brightness Mizuma hanya untuk fallback; native preset memiliki
+    // brightness sendiri sehingga tidak ditimpa.
+    bri = savedBri ? savedBri : 180;
+    applyModeSide("welcoming", "both");
+  }
+
+  // Paksa frame awal dijadwalkan sebelum WLED meneruskan startup jaringan.
+  // Tunggu hanya sebentar agar transfer frame sebelumnya tidak bertabrakan.
   strip.trigger();
-  const uint32_t firstFrameWaitStart = millis();
-  while (strip.isUpdating() && (uint32_t)(millis() - firstFrameWaitStart) < 80) {
-    delay(1); // yield ke task driver/RMT tanpa menahan CPU
+  const uint32_t renderWaitStart = millis();
+  while (strip.isUpdating() && (uint32_t)(millis() - renderWaitStart) < 40U) {
+    delay(1);
   }
   if (!strip.isUpdating()) {
     strip.service();
   }
-}else{
-  bootStage=0;
-  bootDone=true;
-}
+
+  bootStage = 1;
+  bootDone = false;
+  bootT = millis(); // awal durasi dihitung sesudah render frame Welcome dijadwalkan
 }
 
 void applyCommonReplacements(String &html,const char* activeKey){
@@ -1036,8 +1056,7 @@ applyCommonReplacements(html,activeKey);return html;}
 
 public:
 void setup() override {
-/* Prioritas startup: nyalakan Welcoming segera setelah strip siap.
-   Hook ini berjalan sebelum WLED memulai koneksi WiFi dan HTTP. */
+// Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 startWelcomeSequence();
 apBehavior=AP_BEHAVIOR_ALWAYS;
 DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
@@ -1085,24 +1104,16 @@ out+=buf;}
 out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
-  /* WLED memanggil loop Usermod setelah setup() inti selesai. Pulihkan nilai
-     boot preset asli sebelum konfigurasi berikutnya disimpan. */
-  if(bootPresetRestorePending){
-    bootPreset=nativeBootPreset;
-    bootPresetRestorePending=false;
-  }else if(bootPreset!=nativeBootPreset){
-    nativeBootPreset=bootPreset; // ikuti perubahan boot preset dari UI WLED
+  if(cfgSavePending && (uint32_t)(millis() - cfgSaveT) > 1500U){
+    cfgSavePending=false;
+    serializeConfigToFS();
   }
+  if(bootDone || bootStage != 1) return;
 
-  if(cfgSavePending&&millis()-cfgSaveT>1500){cfgSavePending=false;serializeConfigToFS();}
-  if(bootDone||bootStage!=1)return;
-  /* Mulai hitung 7 detik saat loop animasi WLED sudah berjalan. Frame awal
-     sudah menyala sejak setup; ini menjaga durasi animasi tetap utuh. */
-  if(!welcomeTimerStarted){bootT=millis();welcomeTimerStarted=true;return;}
-  if((uint32_t)(millis()-bootT)>=welcomeDur){
-    applyModeSide("riding","both");
-    bootStage=2;
-    bootDone=true;
+  if((uint32_t)(millis() - bootT) >= welcomeDur){
+    applyModeSide("riding", "both");
+    bootStage = 2;
+    bootDone = true;
   }
 }
 
@@ -1127,24 +1138,10 @@ s["c1"]=pslots[i].c1;s["c2"]=pslots[i].c2;s["c3"]=pslots[i].c3;
 s["o1"]=pslots[i].o1;s["o2"]=pslots[i].o2;s["o3"]=pslots[i].o3;
 s["bri"]=pslots[i].bri;}
 top["welcomeDur"]=welcomeDur;
-top["bri"]=savedBri;
-top["nativeBootPreset"]=nativeBootPreset;}
+top["bri"]=savedBri;}
 
 bool readFromConfig(JsonObject &root) override {
-/* WLED sudah membaca def.ps (bootPreset) sebelum memanggil Usermod config.
-   Simpan nilai aslinya lalu nolkan sebelum beginStrip() agar tidak ada preset
-   bawaan yang tampil/menimpa Welcoming pada awal boot. */
-uint8_t configuredBootPreset=bootPreset;
-JsonObject top=root["Mizuma"];
-if(top.isNull()){
-  nativeBootPreset=configuredBootPreset;
-  bootPresetCaptured=true;
-  bootPreset=0;
-  return false;
-}
-nativeBootPreset=top["nativeBootPreset"]|configuredBootPreset;
-bootPresetCaptured=true;
-bootPreset=0;
+JsonObject top=root["Mizuma"];if(top.isNull())return false;
 JsonObject vehicle=top["vehicle"];
 vehicleName=vehicle["name"]|"";vehicleBrand=vehicle["brand"]|"";vehicleYear=vehicle["year"]|0;vehiclePlate=vehicle["plate"]|"";
 JsonObject rem=top["reminder"];
@@ -1165,7 +1162,6 @@ pslots[i].o1=s["o1"]|0;pslots[i].o2=s["o2"]|0;pslots[i].o3=s["o3"]|0;
 pslots[i].bri=s["bri"]|180;}}
 welcomeDur = 7000; // dikunci 7 detik (abaikan nilai lama yg tersimpan)
 savedBri=top["bri"]|180;
-if(savedBri==0)savedBri=180;
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}
