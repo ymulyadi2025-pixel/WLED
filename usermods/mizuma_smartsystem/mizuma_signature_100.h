@@ -525,7 +525,17 @@ static void renderAlgorithm(uint8_t id) {
       case 96U: { uint8_t ion=sin8(uint8_t(u*4U+ph)); uint8_t packet=mz_hash(x,uint8_t(slow+ph/7U),id); level=mz_mul(ion,packet); mix=packet; break; }
       case 97U: { uint8_t gravity=mz_peak(mz_absdiff(p,uint8_t(128U+sin8(uint8_t(ph/3U))/4U)),120U); level=mz_mul(gravity,sin8(uint8_t(ph+u/2U))); mix=gravity; break; }
       case 98U: { uint8_t horizon=sin8(uint8_t(u/2U+ph)); uint8_t line=mz_peak(mz_dist(p,ph),14U); level=mz_max(uint8_t(horizon/2U),line); mix=line; break; }
-      case 99U: { uint8_t sigA=sin8(uint8_t(u+ph)),sigB=sin8(uint8_t(u*3U-ph)),sigC=mz_hash(x,slow,id); level=mz_max(mz_mul(sigA,sigB),uint8_t(sigC>238U?255U:0U)); mix=mz_avg(sigA,sigC); break; }
+      case 99U: {
+        // Gunakan deklarasi terpisah dan nama unik agar tidak berbenturan
+        // dengan macro/simbol sigB atau sigC dari header lain.
+        const uint8_t mzSigA99 = sin8(uint8_t(u + ph));
+        const uint8_t mzSigB99 = sin8(uint8_t(u * 3U - ph));
+        const uint8_t mzSigC99 = mz_hash(x, slow, id);
+        level = mz_max(mz_mul(mzSigA99, mzSigB99),
+                       uint8_t(mzSigC99 > 238U ? 255U : 0U));
+        mix = mz_avg(mzSigA99, mzSigC99);
+        break;
+      }
       default: level = a; mix = b; break;
     }
 
