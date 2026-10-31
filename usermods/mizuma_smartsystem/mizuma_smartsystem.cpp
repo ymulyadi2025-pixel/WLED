@@ -444,6 +444,8 @@ body{display:flex;flex-direction:column;}
 .side-row{display:flex;background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:2px;margin:8px 12px 0;}
 .side-row .side-btn{flex:1;padding:5px 0;border:none;background:transparent;color:var(--tx3);font-size:10px;font-weight:700;border-radius:8px;}
 .side-row .side-btn.active{background:var(--s3);color:var(--ac);}
+.side-row .swap-btn{font-size:9px;white-space:nowrap;border-left:1px solid var(--bd);border-radius:0 8px 8px 0;}
+.side-row .swap-btn.active{background:var(--ac-dim);color:var(--ac);border-color:var(--ac);}
 .preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
 .pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
 .pv-canvas.off{opacity:.22;}
@@ -549,6 +551,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button class="side-btn" data-side="kiri">Kiri</button>
 <button class="side-btn active" data-side="both">Semua</button>
 <button class="side-btn" data-side="kanan">Kanan</button>
+<button class="side-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Tukar pemetaan output kanan dan kiri">⇄ Tukar</button>
 </div>
 <div class="preview-row">
 <canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
@@ -646,7 +649,7 @@ let jqTail=Promise.resolve();
 function jtry(url,opt,n){return fetch(url,opt).then(function(r){if(r.status===503&&n<6)return new Promise(function(w){setTimeout(w,250);}).then(function(){return jtry(url,opt,n+1);});return r;});}
 function jfetch(url,opt){const task=jqTail.then(function(){return jtry(url,opt,0);});jqTail=task.catch(function(){});return task;}
 let activeTab=localStorage.getItem('mzActiveTab')||'riding';
-let activeSide='both',activeSub='efek';
+let activeSide='both',activeSub='efek',sideSwap=false;
 let dirty=false,pendingAction=null,restrictedName='';
 let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[];
 let cur={fx:0,pal:0,col:null,palName:'',params:{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}};
@@ -656,6 +659,8 @@ cur.params=paramsFor(0);
 let wHue=0,wSat=1,wVal=1,liveEnabled=true;
 let segColors=[[255,165,0],[0,0,0],[0,0,0]],colorTarget=0,slotCount=1;
 const SEG_K=0,SEG_L=1;
+function mapSegId(logicalSide){const right=(logicalSide==='kanan');return (right!==sideSwap)?SEG_K:SEG_L;}
+function segById(state,id){if(!state||!state.seg)return null;return state.seg.find(function(x){return x&&x.id===id;})||state.seg[id]||null;}
 const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
 const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
 /* Filter default milik tab asli dipertahankan. Katalog khusus hanya berlaku di tab Welcoming. */
@@ -689,7 +694,7 @@ function palIdByName(n){return palNamesRaw.findIndex(function(x){return x===n;})
 /* PAL_GRADS (gradient karangan manual) dihapus: thumbnail kini 100% dari /json/palx */
 function post(o){jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(function(){});}
 function debounce(fn,ms){let t;return function(){const a=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,a);},ms);};}
-function segIds(){if(activeSide==='kanan')return[SEG_K];if(activeSide==='kiri')return[SEG_L];return[SEG_K,SEG_L];}
+function segIds(){if(activeSide==='kanan')return[mapSegId('kanan')];if(activeSide==='kiri')return[mapSegId('kiri')];return[mapSegId('kanan'),mapSegId('kiri')];}
 function isRestrictedTab(){return activeTab==='sein'||activeTab==='rem'||activeTab==='hazard';}
 function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
 function markDirty(){dirty=true;document.getElementById('subSave').classList.add('dirty');}
@@ -699,11 +704,12 @@ function paintRange(el){const min=+el.min||0,max=+el.max||255;el.style.setProper
 document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin'))paintRange(e.target);});
 /* ===== LIVE PREVIEW ===== */
 const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
-let segR={start:0,stop:48},segL={start:48,stop:96},ledTotal=0;
-function captureSegs(j){const s=j&&j.seg;if(!s||!s.length)return;if(s[0]&&s[0].stop>0)segR={start:s[0].start||0,stop:s[0].stop};if(s.length>1&&s[1]&&s[1].stop>0)segL={start:s[1].start||0,stop:s[1].stop};if(segL.start<segR.stop&&segL.start>segR.start)segR.stop=segL.start;}
+let segGeom=[{start:0,stop:48},{start:48,stop:96}],ledTotal=0;
+function captureSegs(j){const s=j&&j.seg;if(!s||!s.length)return;s.forEach(function(x,i){if(!x)return;const id=(x.id!=null)?x.id:i;if((id===0||id===1)&&x.stop>0)segGeom[id]={start:x.start||0,stop:x.stop};});if(segGeom[1].start<segGeom[0].stop&&segGeom[1].start>segGeom[0].start)segGeom[0].stop=segGeom[1].start;}
+function geomForSide(side){return segGeom[mapSegId(side)];}
 /* Frame WS Peek WLED: byte0='L'(76), byte1=versi (1: data mulai idx 2 | 2: matriks, data mulai idx 4), lalu RGB per LED (sudah diskala brightness) */
 function paintStrip(cv,sg,flat,off,cnt,step){const len=Math.max(1,sg.stop-sg.start);if(cv.width!==len)cv.width=len;const ctx=cv.getContext('2d'),img=ctx.createImageData(len,1);for(let i=0;i<len;i++){let px=Math.floor((sg.start+i)/step);if(px>=cnt)px=cnt-1;const k=off+px*3,o=i*4;img.data[o]=flat[k];img.data[o+1]=flat[k+1];img.data[o+2]=flat[k+2];img.data[o+3]=255;}ctx.putImageData(img,0,0);}
-function drawLive(flat,raw){let off=0;if(!raw&&flat[0]===76&&(flat[1]===1||flat[1]===2))off=(flat[1]===2)?4:2;const cnt=Math.floor((flat.length-off)/3);if(cnt<1)return;const step=(ledTotal>cnt)?ledTotal/cnt:1;paintStrip(pvR,segR,flat,off,cnt,step);paintStrip(pvL,segL,flat,off,cnt,step);}
+function drawLive(flat,raw){let off=0;if(!raw&&flat[0]===76&&(flat[1]===1||flat[1]===2))off=(flat[1]===2)?4:2;const cnt=Math.floor((flat.length-off)/3);if(cnt<1)return;const step=(ledTotal>cnt)?ledTotal/cnt:1;paintStrip(pvR,geomForSide('kanan'),flat,off,cnt,step);paintStrip(pvL,geomForSide('kiri'),flat,off,cnt,step);}
 jfetch('/json/state').then(function(r){return r.json();}).then(captureSegs).catch(function(){});
 jfetch('/json/info').then(function(r){return r.json();}).then(function(j){if(j&&j.leds&&j.leds.count)ledTotal=j.leds.count;}).catch(function(){});
 let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
@@ -713,7 +719,7 @@ mzConnectLive();
 document.addEventListener('visibilitychange',function(){if(document.hidden){mzLiveCmd(false);if(mzWS){try{mzWS.close();}catch(e){}}}else{mzConnectLive();}});
 window.addEventListener('beforeunload',function(){mzLiveCmd(false);if(mzWS)try{mzWS.close();}catch(e){}});
 /* Fallback bila WS Peek tidak aktif (mis. klien lain mengambil Peek): /json/live, lalu warna solid */
-function pollSolid(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);const s=j.seg||[];const f=function(cv,seg){if(!seg)return;const c=(seg.col&&seg.col[0])?seg.col[0]:[20,20,20];const ctx=cv.getContext('2d');ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';ctx.fillRect(0,0,cv.width,1);};f(pvR,s[0]);f(pvL,s[1]||s[0]);}).catch(function(){});}
+function pollSolid(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);const f=function(cv,seg){if(!seg)return;const c=(seg.col&&seg.col[0])?seg.col[0]:[20,20,20];const ctx=cv.getContext('2d');ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';ctx.fillRect(0,0,cv.width,1);};f(pvR,segById(j,mapSegId('kanan')));f(pvL,segById(j,mapSegId('kiri')));}).catch(function(){});}
 function pollState(){if(!liveEnabled||document.hidden)return;jfetch('/json/live').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(j){const Ls=j&&j.leds;if(!Array.isArray(Ls)||!Ls.length||typeof Ls[0]!=='string')throw 0;const flat=new Uint8Array(Ls.length*3);for(let i=0;i<Ls.length;i++){const n=parseInt(String(Ls[i]).replace('#',''),16)||0;flat[i*3]=(n>>16)&255;flat[i*3+1]=(n>>8)&255;flat[i*3+2]=n&255;}drawLive(flat,true);}).catch(pollSolid);}
 setInterval(function(){if(liveOk&&performance.now()-lastDraw>3000)liveOk=false;if(!liveOk)pollState();},1000);
 document.getElementById('liveToggle').addEventListener('click',function(){liveEnabled=!liveEnabled;this.classList.toggle('on',liveEnabled);pvR.classList.toggle('off',!liveEnabled);pvL.classList.toggle('off',!liveEnabled);mzLiveCmd(liveEnabled);});
@@ -746,7 +752,7 @@ const sendBriD=debounce(function(v){post({bri:v});fetch('/mizuma/bri?v='+v,{meth
 /* ===== SIDE INFO (kiri/kanan dari state device) ===== */
 let usiT=null;
 function updateSideInfo(){if(usiT)return;usiT=setTimeout(function(){usiT=null;updateSideInfoNow();},350);}
-function updateSideInfoNow(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNameById(s.pal)||'Palette');};document.getElementById('ctxInfo').textContent=nm(j.seg[1]||j.seg[0]);document.getElementById('savedInfo').textContent=nm(j.seg[0]);}).catch(function(){});}
+function updateSideInfoNow(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNameById(s.pal)||'Palette');};document.getElementById('ctxInfo').textContent=nm(segById(j,mapSegId('kiri')));document.getElementById('savedInfo').textContent=nm(segById(j,mapSegId('kanan')));}).catch(function(){});}
 /* ===== FX / BG / CS ===== */
 function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
@@ -830,8 +836,8 @@ document.getElementById('mCancel').addEventListener('click',function(){document.
 function updateControlsFromPreset(tab,st){if(!st)return;cur.fx=st.fx!=null?st.fx:0;cur.pal=(tab==='sein'||tab==='rem'||tab==='hazard')?0:(st.pal!=null?st.pal:0);const np=paramsFor(cur.fx);np.sx=st.sx!=null?st.sx:128;np.ix=st.ix!=null?st.ix:128;np.c1=st.c1!=null?st.c1:128;np.c2=st.c2!=null?st.c2:128;np.c3=st.c3!=null?st.c3:128;np.o1=st.o1!=null?st.o1:0;np.o2=st.o2!=null?st.o2:0;np.o3=st.o3!=null?st.o3:0;cur.params=np;if(st.col&&st.col.length){const cols=Array.isArray(st.col[0])?st.col:[st.col];for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}slotCount=cols.length;}const pName=palNameById(cur.pal);cur.palName=pName;if(isRestrictedTab())normalizeRestrictedState(false);renderColorRow();renderParams(cur.fx);const fxName=allFx[cur.fx]||'';if(fxName){document.querySelectorAll('.fx-item').forEach(function(el){el.classList.toggle('active',el.querySelector('.fx-name').textContent===fxName);});}document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}
 function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){const uiSide=activeSide==='kiri'?'Kiri':'Kanan';const st=d[tab+uiSide];updateControlsFromPreset(tab,st);if(activeSide!==''){fetch('/mizuma/apply?mode='+encodeURIComponent(tab)+'&side='+encodeURIComponent(activeSide),{method:'POST'}).catch(function(){});}
 /* FOKUS SISI: matikan sisi yang tidak diedit */
-if(activeSide==='kanan'){post({seg:[{id:SEG_L,on:false}]});}
-else if(activeSide==='kiri'){post({seg:[{id:SEG_K,on:false}]});}
+if(activeSide==='kanan'){post({seg:[{id:mapSegId('kiri'),on:false}]});}
+else if(activeSide==='kiri'){post({seg:[{id:mapSegId('kanan'),on:false}]});}
 updateCtx();updateSideInfo();}).catch(function(){});}
 /* ===== NAVIGATION ===== */
 function setSub(k){activeSub=k;const r=isRestrictedTab();
@@ -851,15 +857,18 @@ if(k==='template'||k==='custom')loadPalettes(false);
 updateModeAktif();}
 function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
+function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');b.textContent=sideSwap?'⇄ Ditukar':'⇄ Tukar';b.title=sideSwap?'Pemetaan kanan dan kiri sedang ditukar. Tekan untuk mengembalikan.':'Tukar pemetaan output kanan dan kiri';}
+function loadSideSwap(){return fetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
+function requestSideSwap(){const next=!sideSwap;fetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');});}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
-document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn||!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
+document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;if(btn.dataset.action==='swap'){if(dirty){showModal(requestSideSwap);}else{requestSideSwap();}return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 /* ===== INIT ===== */
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
 setSub(activeSub);renderSavedList();
 loadFxData(function(ok){if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}else{initFromState();}});
-function initFromState(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=(j.seg&&j.seg[0])?j.seg[0]:null;if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
+function initFromState(){loadSideSwap().then(function(){return jfetch('/json/state');}).then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=segById(j,mapSegId('kanan'));if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
 </script>
 <script>
 (function(){
@@ -908,6 +917,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     uint8_t  welcomeFxCount = 0;             // jumlah efek custom MZ01..MZ05 + W01..W50 (harus 55)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
+    bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
 
     /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
        Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
@@ -956,8 +966,9 @@ JsonArray col=s.createNestedArray("col");
 JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
 JsonArray c1=col.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
 JsonArray c2=col.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);}
+uint8_t physicalSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?0:1;}
 void applySingleSlot(uint8_t slotIdx){
-uint8_t segId=(slotIdx%2==0)?0:1;
+bool rightSide=(slotIdx%2)==0;uint8_t segId=physicalSegForLogicalSide(rightSide);
 StaticJsonDocument<1024> doc;JsonObject root=doc.to<JsonObject>();
 root["on"]=true;if(bri==0)root["bri"]=savedBri;
 JsonArray seg=root.createNestedArray("seg");
@@ -967,8 +978,8 @@ void applyTwoSlots(uint8_t rightSlot,uint8_t leftSlot){
 StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
 root["on"]=true;root["transition"]=0;if(bri==0)root["bri"]=savedBri;
 JsonArray seg=root.createNestedArray("seg");
-addSegmentFromSlot(seg,0,rightSlot);
-addSegmentFromSlot(seg,1,leftSlot);
+addSegmentFromSlot(seg,physicalSegForLogicalSide(true),rightSlot);
+addSegmentFromSlot(seg,physicalSegForLogicalSide(false),leftSlot);
 deserializeState(root);}
 int modeBase(const String &mode){
 if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 4;
@@ -1139,6 +1150,8 @@ server.on("/mizuma/preset",HTTP_GET,[this](AsyncWebServerRequest *req){handlePre
 server.on("/mizuma/preset",HTTP_POST,[this](AsyncWebServerRequest *req){handlePreset(req);});
 server.on("/mizuma/apply",HTTP_GET,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/apply",HTTP_POST,[this](AsyncWebServerRequest *req){handleApply(req);});
+server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String json=String("{\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
+server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}sideSwap=(req->arg("enabled")=="1"||req->arg("enabled")=="true");queueSave();String json=String("{\"ok\":true,\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
@@ -1186,7 +1199,8 @@ s["c1"]=pslots[i].c1;s["c2"]=pslots[i].c2;s["c3"]=pslots[i].c3;
 s["o1"]=pslots[i].o1;s["o2"]=pslots[i].o2;s["o3"]=pslots[i].o3;
 s["bri"]=pslots[i].bri;}
 top["welcomeDur"]=welcomeDur;
-top["bri"]=savedBri;}
+top["bri"]=savedBri;
+top["sideSwap"]=sideSwap;}
 
 bool readFromConfig(JsonObject &root) override {
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
@@ -1210,6 +1224,7 @@ pslots[i].o1=s["o1"]|0;pslots[i].o2=s["o2"]|0;pslots[i].o3=s["o3"]|0;
 pslots[i].bri=s["bri"]|180;}}
 welcomeDur = 7000; // dikunci 7 detik (abaikan nilai lama yg tersimpan)
 savedBri=top["bri"]|180;
+sideSwap=top["sideSwap"]|false;
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}
