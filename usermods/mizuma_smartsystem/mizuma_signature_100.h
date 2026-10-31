@@ -501,11 +501,11 @@ static void renderAlgorithm(uint8_t id) {
       case 69U: { uint8_t crown=mz_peak(mz_absdiff(p,128U),96U); level=mz_mul(crown,sin8(uint8_t(ph+u))); mix=uint8_t(200U-crown/2U); break; }
       case 70U: { uint8_t d=mz_absdiff(p,128U); uint8_t wave=sin8(uint8_t(ph+u)); level=mz_peak(d, uint8_t(20U+wave/3U)); mix=wave; break; }
       case 71U: { uint8_t d=mz_absdiff(p,128U); uint8_t open=sin8(uint8_t(ph/2U)); level=mz_peak(mz_absdiff(d,open/2U),36U); mix=open; break; }
-      case 72U: { uint8_t center=mz_peak(mz_absdiff(p,128U),128U); level=mz_mul(center,sin8(uint8_t(ph/2U))); mix=center; break; }
-      case 73U: { uint8_t edge=mz_peak(mz_min(p,uint8_t(255U-p)),128U); level=mz_mul(edge,sin8(uint8_t(ph/2U))); mix=edge; break; }
+      case 72U: { uint8_t mzCenter72=mz_peak(mz_absdiff(p,128U),128U); level=mz_mul(mzCenter72,sin8(uint8_t(ph/2U))); mix=mzCenter72; break; }
+      case 73U: { uint8_t mzEdge73=mz_peak(mz_min(p,uint8_t(255U-p)),128U); level=mz_mul(mzEdge73,sin8(uint8_t(ph/2U))); mix=mzEdge73; break; }
       case 74U: { uint8_t l=mz_peak(mz_dist(p,ph),20U),r=mz_peak(mz_dist(p,uint8_t(255U-ph)),20U); level=mz_max(l,r); mix=(l>r)?40U:220U; break; }
       case 75U: { uint8_t w=ramp; level=(w>70U&&w<184U)?255U:18U; mix=w; break; }
-      case 76U: { uint8_t aperture=sin8(uint8_t(ph/2U)); uint8_t d=mz_absdiff(p,aperture); level=mz_peak(d,28U); mix=aperture; break; }
+      case 76U: { uint8_t aperture=sin8(uint8_t(ph/2U)); uint8_t apertureDist76=mz_absdiff(p,aperture); level=mz_peak(apertureDist76,28U); mix=aperture; break; }
       case 77U: { uint8_t gate=uint8_t((u+ph)&63U); level=(gate<5U)?255U:((gate<14U)?100U:0U); mix=uint8_t(gate*4U); break; }
       case 78U: { uint8_t beacon=mz_dist(p,ph); level=mz_peak(beacon, uint8_t(12U+(intensity>>3U)+(detail>>1U))); mix=(beacon<10U)?250U:110U; break; }
       case 79U: { uint8_t x1=mz_peak(mz_dist(p,ph),16U),x2=mz_peak(mz_dist(p,uint8_t(ph+85U)),12U),x3=mz_peak(mz_dist(p,uint8_t(ph+170U)),16U); level=mz_max(x1,mz_max(x2,x3)); mix=mz_avg(x1,x3); break; }
@@ -514,7 +514,7 @@ static void renderAlgorithm(uint8_t id) {
       case 82U: { uint8_t noise1=mz_hash(x,uint8_t(slow),id),noise2=mz_hash(uint16_t(x+17U),uint8_t(slow+23U),id+9U); level=mz_mul(noise1,noise2); mix=noise2; break; }
       case 84U: { uint8_t bit=uint8_t((x*5U+ph/7U)^(x>>1U)); level=(bit&8U)?220U:20U; mix=uint8_t(bit*13U); break; }
       case 87U: { uint8_t logistic=sin8(uint8_t(u*3U+ph)); level=mz_mul(logistic,uint8_t(255U-logistic/2U)); mix=logistic; break; }
-      case 88U: { uint8_t lx=sin8(uint8_t(u+ph)),ly=sin8(uint8_t(u*2U-ph/2U)); level=mz_avg(mz_mul(lx,ly),mz_absdiff(lx,ly)); level=mz_avg(level,e); mix=ly; break; }
+      case 88U: { const uint8_t mz88Left=sin8(uint8_t(u+ph)); const uint8_t mz88Right=sin8(uint8_t(u*2U-ph/2U)); level=mz_avg(mz_mul(mz88Left,mz88Right),mz_absdiff(mz88Left,mz88Right)); level=mz_avg(level,e); mix=mz88Right; break; }
       case 89U: { uint8_t cell=uint8_t((u+ph)&31U); level=(cell<16U)?uint8_t(cell*16U):uint8_t((31U-cell)*16U); mix=hash; break; }
       case 90U: { uint8_t bolt=mz_hash(x,uint8_t(slow+x/3U),id); level=(bolt>242U)?255U:((bolt>226U)?190U:0U); mix=(bolt>230U)?245U:80U; break; }
       case 91U: { uint8_t flare=mz_peak(mz_dist(p,ph),45U); level=mz_max(flare,uint8_t(sin8(uint8_t(u+ph/3U))/3U)); mix=(flare>170U)?245U:130U; break; }
