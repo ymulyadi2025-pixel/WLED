@@ -44,6 +44,7 @@ def S(t, fx, sx=None, ix=None, c1=None, c2=None, c3=None, o=None, pal=None, col=
 class Show:
     def __init__(s, name, cat, desc, stages):
         s.name = name; s.cat = cat; s.desc = desc; s.stages = sorted(stages, key=lambda x: (x.t, x.side))
+        s.duration_ms = 0
 
 # ---------- resep per efek (parameter mengikuti metadata fxdata WLED) ----------
 def solid(t, c='A1', side=0, **k):      return S(t, 'Solid', pal=0, col=(c, None, None), side=side, **k)
@@ -301,46 +302,35 @@ add('Mizuma Grand Finale', 'Campuran', 'Final megah: Strobe, Fireworks 1D, Sinel
 # =====================================================================================================
 # validasi, pembuatan header C++ dan katalog
 # =====================================================================================================
-SHOW_MS = 7000
-# Jadwal animasi dinormalisasi agar semua show sudah mencapai frame penutup
-# sebelum perpindahan ke Riding. Stage terakhir dikunci pada 6250 ms, lalu
-# ditahan sampai transisi boot pada 7000 ms.
-SHOW_FINAL_LOCK_MS = 6250
-SHOW_TIME_SCALE = 0.80
+# Durasi dihitung per animasi: cue terakhir + waktu penutup. Tidak ada
+# pemampatan timestamp, pemotongan stage, atau lock global 7 detik.
+SHOW_END_HOLD_MS = 1500
 
 TRANSITION_BASE_MS = {
-    'Signature Tetrix': 480,
+    'Signature Tetrix': 620,
     'Kedipan Cepat': 140,
-    'Keindahan': 560,
-    'Campuran': 360,
+    'Keindahan': 700,
+    'Campuran': 480,
 }
 
 def prepare_show_timing(shows):
-    """Rapikan jadwal dan hitung crossfade per stage. tt disimpan dalam 10 ms."""
+    """Pertahankan waktu resep dan hitung crossfade hingga cue terakhir."""
     for sh in shows:
-        # Skala hanya timestamp resep asli; script selalu dijalankan dari definisi,
-        # jadi tidak akan mengompres header berulang kali.
-        for st in sh.stages:
-            st.t = int(round((st.t * SHOW_TIME_SCALE) / 10.0) * 10)
-
-        # Setiap show memiliki keadaan akhir stabil. Ini mencegah animasi tampak
-        # terpotong saat sistem beralih ke Riding pada detik ke-7.
-        sh.stages = [st for st in sh.stages if st.t < SHOW_FINAL_LOCK_MS]
-        sh.stages.append(solid(SHOW_FINAL_LOCK_MS, 'A1'))
         sh.stages.sort(key=lambda x: (x.t, x.side))
+        last_cue = max((st.t for st in sh.stages), default=0)
+        sh.duration_ms = last_cue + SHOW_END_HOLD_MS
 
         times = sorted({st.t for st in sh.stages})
-        base = TRANSITION_BASE_MS.get(sh.cat, 320)
+        base = TRANSITION_BASE_MS.get(sh.cat, 420)
         for st in sh.stages:
             next_times = [t for t in times if t > st.t]
-            next_t = next_times[0] if next_times else SHOW_MS
+            next_t = next_times[0] if next_times else sh.duration_ms
             gap = max(0, next_t - st.t)
-            # Jangan biarkan crossfade melewati cue berikutnya. Untuk cue cepat,
-            # transisi dibuat pendek agar ritmenya tetap tegas.
+            # Transisi diatur per kategori dan dibatasi agar selesai sebelum cue berikutnya.
             if gap < 100:
                 transition_ms = 0
             else:
-                transition_ms = min(base, int(gap * 0.38))
+                transition_ms = min(base, int(gap * 0.42))
             transition_ms = max(0, (transition_ms // 10) * 10)
             st.tt = min(255, transition_ms // 10)
 
@@ -395,8 +385,8 @@ def emit(shows, fx_names):
     L.append('#include <stdint.h>')
     L.append('')
     L.append('#define MZ_SHOW_COUNT %d' % len(shows))
-    L.append('#define MZ_SHOW_TOTAL_MS %d' % SHOW_MS)
-    L.append('#define MZ_SHOW_FINAL_LOCK_MS %d' % SHOW_FINAL_LOCK_MS)
+    L.append('#define MZ_SHOW_END_HOLD_MS %d' % SHOW_END_HOLD_MS)
+    L.append('#define MZ_SHOW_MAX_DURATION_MS %d' % max((sh.duration_ms for sh in shows), default=0))
     L.append('// Nama efek WLED yang dipakai (dicari berdasarkan NAMA saat boot, bukan nomor, jadi tahan terhadap pergeseran ID).')
     L.append('static const char* const MZ_FXN[] = {')
     for n in fx_names: L.append('  "%s",' % n)
@@ -412,7 +402,7 @@ def emit(shows, fx_names):
     L.append('  int16_t sx, ix, c1, c2, c3, pal;  int8_t o;  uint8_t side;  uint8_t tt;  int16_t tb; // tt = transisi ms/10')
     L.append('  uint32_t col[3];')
     L.append('};')
-    L.append('struct MzShow { const char* name; const MzStage* st; uint8_t n; };')
+    L.append('struct MzShow { const char* name; const MzStage* st; uint8_t n; uint16_t durationMs; };')
     L.append('')
     for i, sh in enumerate(shows, 1):
         L.append('// MZ%02d %s  [%s]' % (i, sh.name, sh.cat))
@@ -427,21 +417,22 @@ def emit(shows, fx_names):
     L.append('')
     L.append('static const MzShow MZ_SHOWS[MZ_SHOW_COUNT] = {')
     for i, sh in enumerate(shows, 1):
-        L.append('  {"MZ%02d %s", mzs%02d, (uint8_t)(sizeof(mzs%02d)/sizeof(mzs%02d[0]))},' % (i, sh.name, i, i, i))
+        L.append('  {"MZ%02d %s", mzs%02d, (uint8_t)(sizeof(mzs%02d)/sizeof(mzs%02d[0])), %d},' % (i, sh.name, i, i, i, sh.duration_ms))
     L.append('};')
     return '\n'.join(L) + '\n'
 
 def catalog(shows):
     cats = []
     out = ['# Katalog 55 animasi Welcoming Mizuma', '',
-           'Setiap animasi adalah **rangkaian efek asli WLED** (tahap demi tahap). Semua show dinormalisasi ke 7000 ms.',
-           'Stage penutup stabil dimulai pada 6250 ms dan ditahan sebelum perpindahan ke Riding. Transisi antartahap memakai crossfade WLED sesuai kategori dan jeda cue.',
+           'Setiap animasi adalah **rangkaian efek asli WLED** (tahap demi tahap). Durasi tiap show dihitung dari cue terakhir + %d ms waktu penutup; tidak dikunci ke 7 detik.' % SHOW_END_HOLD_MS,
+           'Transisi antartahap memakai crossfade WLED yang disesuaikan dengan kategori dan jarak cue. Durasi berbeda untuk setiap animasi.',
            'Palette yang dipilih pengguna di UI menjadi palette global saat show berjalan. Nilai palette di resep dipertahankan sebagai metadata/original look, bukan memaksa pilihan pengguna.',
            'Warna `A1/A2/A3` menjadi aksen yang dipetakan ke palette aktif; hitam dan putih tetap menjadi latar/highlight.', '']
     for i, sh in enumerate(shows, 1):
         if sh.cat not in cats:
             cats.append(sh.cat); out += ['', '## %s' % sh.cat, '']
         out.append('### MZ%02d — %s' % (i, sh.name)); out.append(sh.desc); out.append('')
+        out.append('**Durasi: %.2f detik**' % (sh.duration_ms / 1000.0)); out.append('')
         out.append('| t (ms) | Efek | Sisi | Catatan |'); out.append('|---:|---|:-:|---|')
         for st in sh.stages:
             notes = []
@@ -477,4 +468,5 @@ if __name__ == '__main__':
     open(os.path.join(here, 'katalog_55_animasi.md'), 'w', encoding='utf-8').write(catalog(SHOWS))
     cnt = {}
     for sh in SHOWS: cnt[sh.cat] = cnt.get(sh.cat, 0) + 1
-    print('OK  efek unik dipakai: %d | tahap total: %d | per kategori: %s' % (len(used), sum(len(s.stages) for s in SHOWS), cnt))
+    durations = [sh.duration_ms for sh in SHOWS]
+    print('OK  efek unik dipakai: %d | tahap total: %d | per kategori: %s | durasi: %.2f–%.2f dtk' % (len(used), sum(len(s.stages) for s in SHOWS), cnt, min(durations)/1000.0, max(durations)/1000.0))

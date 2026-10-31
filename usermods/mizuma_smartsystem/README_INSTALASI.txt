@@ -36,17 +36,28 @@ HASIL YANG DIHARAPKAN
 - Tab Riding, Sein, Rem, dan Hazard tetap memakai penyaringan/daftar lama.
 - Tukar Kanan-Kiri tetap tersedia, tersimpan di konfigurasi Mizuma, dan
   runner yang sedang berjalan dihentikan sebelum pemetaan diubah.
+- Tombol Arah Normal/Terbalik tampil khusus pada tab Welcoming. Fitur ini
+  membalik arah gerak tiap efek tanpa membalik urutan stage; statusnya disimpan
+  di konfigurasi ESP32.
 - Show memakai nama efek WLED yang di-resolve saat boot, bukan nomor FX
   hard-coded, sehingga lebih tahan terhadap perubahan indeks efek WLED.
-- Palette di UI tetap sama. Pada tab Welcoming, palette nonzero menjadi
+- Tampilan menu warna/palette yang sudah ada tetap dipakai; tidak ada menu warna baru.
+  Pada tab Welcoming, palette nonzero menjadi
   palette global bagi semua stage; warna aksen RGB di stage dipetakan ke
   tiga posisi palette. Memilih palette "Default" (ID 0) mengembalikan resep
   warna asli per-stage Mizuma.
-- Setiap perpindahan stage menggunakan crossfade WLED dengan durasi sesuai
-  kategori dan jarak cue. UI tidak berubah.
-- Jadwal semua show dinormalisasi: stage penutup stabil dimulai pada 6250 ms,
-  ditahan sampai 7000 ms, lalu transisi ke Riding berlangsung 400 ms. Ini
-  mencegah penutup animasi terpotong oleh perpindahan boot.
+- Setiap perpindahan stage menggunakan crossfade WLED yang lebih lembut untuk
+  Signature, Beauty, dan Hybrid, sementara Fast Blink tetap cepat.
+- Durasi tiap animasi dihitung sendiri: timestamp stage terakhir + 1500 ms
+  waktu penutup. Tidak ada pemampatan cue, pemotongan stage, atau batas 7 detik.
+- Durasi 55 resep saat ini bervariasi dari 6,10 sampai 7,95 detik. Animasi
+  terlama adalah MZ01 Mizuma Ignition (7,95 detik); animasi terpendek adalah
+  MZ50 Katana Dawn (6,10 detik).
+- Saat boot menggunakan show Mizuma, perpindahan ke Riding menunggu semua sisi
+  yang sedang menjalankan show sampai durasi masing-masing selesai. Jika sisi
+  kanan dan kiri memakai show berbeda, sistem menunggu sisi yang lebih lama.
+- Preset boot native WLED yang bukan show Mizuma tetap memakai fallback 7 detik,
+  karena preset native tersebut tidak membawa metadata durasi dari generator.
 
 PENTING: PARTICLE SYSTEM 1D
 Untuk memperoleh 15 native FX secara lengkap, jangan mendefinisikan
@@ -73,14 +84,13 @@ MENGUBAH RESEP ANIMASI
 
 CATATAN STATUS PENGUJIAN
 - Python generator: py_compile berhasil; menghasilkan 55 show, 52 nama FX,
-  dan 366 stage (311 resep asli + 55 stage penutup stabil).
+  dan 311 stage resep asli. Durasi dihitung dinamis dari cue terakhir + 1500 ms.
 - Header C++: kompilasi mandiri C++11 dengan -Wall -Wextra -Werror berhasil.
-- Audit jadwal: semua 55 show mulai pada 0 ms dan memiliki final lock pada
-  6250 ms; durasi boot disinkronkan ke 7000 ms.
-- Helper palette dan fungsi perpindahan stage berhasil dikompilasi serta
-  diuji dengan mock Segment/strip: palette global nonzero mengalahkan pal
-  resep, Default mengembalikan palette resep asli, dan durasi transisi pulih.
-- Tujuh blok JavaScript inline lolos pemeriksaan sintaks Node.js.
+- Audit jadwal: seluruh cue asli dipertahankan. Rentang durasi hasil generator
+  saat ini adalah 6100–7950 ms; perpindahan boot menunggu runner selesai.
+- JavaScript inline lolos pemeriksaan sintaks Node.js.
+- Endpoint durasi per-show dan tombol pembalik arah sudah ditambahkan dan
+  diperiksa secara struktural; perilaku pada perangkat belum diuji.
 - Build firmware penuh ESP32-C3 belum diverifikasi dalam lingkungan ini,
   karena executable PlatformIO (pio/platformio) tidak tersedia. Lakukan
   clean build dan upload pada proyek lokal sebelum dipakai di motor.

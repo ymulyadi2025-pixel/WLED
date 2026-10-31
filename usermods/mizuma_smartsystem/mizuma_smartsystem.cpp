@@ -446,6 +446,9 @@ body{display:flex;flex-direction:column;}
 .side-row .side-btn.active{background:var(--s3);color:var(--ac);}
 .side-row .swap-btn{font-size:9px;white-space:nowrap;border-left:1px solid var(--bd);border-radius:0 8px 8px 0;}
 .side-row .swap-btn.active{background:var(--ac-dim);color:var(--ac);border-color:var(--ac);}
+.side-row .reverse-btn{display:none;flex:1.25;font-size:9px;white-space:nowrap;border-left:1px solid var(--bd);border-radius:0;padding-left:4px;padding-right:4px;}
+.side-row.show-reverse .reverse-btn{display:block;}
+.side-row .reverse-btn.active{background:var(--ac-dim);color:var(--ac);border-color:var(--ac);}
 .preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
 .pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
 .pv-canvas.off{opacity:.22;}
@@ -553,6 +556,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button class="side-btn active" data-side="both">Semua</button>
 <button class="side-btn" data-side="kanan">Kanan</button>
 <button class="side-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Tukar pemetaan output kanan dan kiri">⇄ Tukar</button>
+<button class="side-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Balik arah gerak animasi Welcoming">↔ Normal</button>
 </div>
 <div class="preview-row">
 <canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
@@ -650,9 +654,9 @@ let jqTail=Promise.resolve();
 function jtry(url,opt,n){return fetch(url,opt).then(function(r){if(r.status===503&&n<6)return new Promise(function(w){setTimeout(w,250);}).then(function(){return jtry(url,opt,n+1);});return r;});}
 function jfetch(url,opt){const task=jqTail.then(function(){return jtry(url,opt,0);});jqTail=task.catch(function(){});return task;}
 let activeTab=localStorage.getItem('mzActiveTab')||'riding';
-let activeSide='both',activeSub='efek',sideSwap=false;
+let activeSide='both',activeSub='efek',sideSwap=false,showReverse=false;
 let dirty=false,pendingAction=null,restrictedName='';
-let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[],showNames=[];
+let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[],showNames=[],showDurations=[];
 let cur={fx:0,pal:0,col:null,palName:'',isShow:false,showIndex:0,params:{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}};
 let fxParamsCache={},fxPalCache={};
 function paramsFor(i){if(!fxParamsCache[i]){const d=fxData.length?fxDefs(i):{};const g=function(k,df){return d[k]!=null?d[k]:df;};const p={sx:g('sx',128),ix:g('ix',128),c1:g('c1',128),c2:g('c2',128),c3:g('c3',128),o1:g('o1',0),o2:g('o2',0),o3:g('o3',0)};if(!fxData.length)return p;fxParamsCache[i]=p;}return fxParamsCache[i];}
@@ -747,7 +751,7 @@ function isStarPal(){const n=palNameById(cur.pal);return n.charAt(0)==='*';}
 function normalizeRestrictedState(forceDefault){if(!isRestrictedTab())return;colorTarget=0;cur.pal=0;cur.palName=palNamesRaw[0]||'Default';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;const defNum=parseInt(colors[0].h,16);const defRgb=[(defNum>>16)&255,(defNum>>8)&255,defNum&255];const current=segColors[0]||[0,0,0];const hsv=rgb2hsv(current[0],current[1],current[2]);if(forceDefault||!hueOk(hsv[0],HUE_RULES[activeTab])||(current[0]===0&&current[1]===0&&current[2]===0)){segColors[0]=defRgb;restrictedName=colors[0].n;}segColors[1]=[0,0,0];segColors[2]=[0,0,0];}
 function sendColor(r,g,b,silent){if(isRestrictedTab()){colorTarget=0;cur.pal=0;segColors[0]=[r,g,b];segColors[1]=[0,0,0];segColors[2]=[0,0,0];}else{segColors[colorTarget]=[r,g,b];}const cols=[segColors[0]||[255,255,255],segColors[1]||[0,0,0],segColors[2]||[0,0,0]];const segs=segIds().map(function(id){return{id:id,col:cols,pal:isRestrictedTab()?0:cur.pal};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();renderColorRow();updateSideInfo();}
 function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});if(activeTab==='welcoming'){fetch('/mizuma/show/palette?pal='+i+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)post({seg:segs});}).catch(function(){post({seg:segs});});}else post({seg:segs});cur.pal=i;fxPalCache[cur.fx]=i;markDirty();renderColorRow();updateSideInfo();}
-function renderShowInfo(){const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');hint.textContent='Animasi Mizuma multi-stage: efek WLED berganti otomatis dalam satu rangkaian sekitar 7 detik.';hint.style.display='block';}
+function renderShowInfo(){const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');const ms=Number(showDurations[cur.showIndex]||0);const sec=ms>0?(ms/1000).toFixed(2).replace('.',',')+' detik':'mengikuti seluruh tahap animasi';hint.textContent='Durasi: '+sec+'. Setiap animasi memiliki waktu berbeda dan berjalan sampai seluruh tahap selesai.';hint.style.display='block';}
 function sendShow(index){if(activeTab!=='welcoming'||index<0||index>=showNames.length)return;cur.isShow=true;cur.showIndex=index;cur.fx=0;document.getElementById('fxSavedName').textContent=showNames[index];fetch('/mizuma/show?index='+index+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('show rejected');markDirty();renderShowInfo();updateCtx();updateSideInfo();}).catch(function(){toast('Gagal menjalankan animasi Mizuma');});}
 function sendEffect(i){cur.isShow=false;cur.showIndex=0;if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);let palToSend=cur.pal;if(!isRestrictedTab()){let pi=-1;if(fxPalCache[i]!=null)pi=fxPalCache[i];else{const df=fxDefs(i);if(df.pal!=null)pi=df.pal;else{const nm=allFx[i]||'';if(FX_PAL_DEFAULTS[nm])pi=palIdByName(FX_PAL_DEFAULTS[nm]);}}if(pi>=0&&palNameById(pi)){cur.pal=pi;cur.palName=palNameById(pi);palToSend=pi;document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}}const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});const applyFx=function(){post({seg:segs});};if(activeTab==='welcoming'){fetch('/mizuma/show/stop?side='+encodeURIComponent(activeSide),{method:'POST'}).then(applyFx).catch(applyFx);}else applyFx();if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();renderParams(i);updateSideInfo();}
 const sendParamD=debounce(function(k,v){const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
@@ -817,7 +821,7 @@ function parseFxData(meta){const parts=(meta||'').split(';'),labels=(parts[0]||'
 function renderParams(idx){if(cur.isShow){renderShowInfo();return;}const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');hint.textContent='Efek ini tidak memiliki parameter tambahan.';const p=parseFxData(fxData[idx]||'');const iv=function(k){return cur.params[k]!=null?cur.params[k]:128;};p.sl.forEach(function(s){const v=iv(s.key);const row=document.createElement('div');row.className='param-row';row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>'+v+'</span></div><input type="range" min="0" max="255" value="'+v+'">';const inp=row.querySelector('input');inp.addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});box.appendChild(row);paintRange(inp);});p.tg.forEach(function(s){const on0=cur.params[s.key]===1;const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm'+(on0?' primary':'')+'" data-on="'+(on0?'1':'0')+'">'+(on0?'On':'Off')+'</button>';const b=row.querySelector('button');b.addEventListener('click',function(){const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});box.appendChild(row);});document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
 function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}if(activeTab==='welcoming'&&!showNames.length){grid.innerHTML='<div class="foot-hint">Katalog animasi Mizuma belum termuat. Muat ulang halaman.</div>';return;}curList=listForTab();if(activeTab!=='welcoming'){curList=curList.slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;const wa=MZW_RE.test(a.name),wb=MZW_RE.test(b.name);if(wa!==wb)return wa?-1:1;return a.name.localeCompare(b.name);});} /* Welcoming: 55 show + 15 FX native; tab lain tetap memakai filter lama. */curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item'+(e.unavailable?' unavailable':'');if(e.isShow)el.dataset.showIndex=e.showIndex;else if(e.idx>=0)el.dataset.fxIndex=e.idx;el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';if(!e.unavailable)el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;if(e.isShow){sendShow(e.showIndex);renderShowInfo();}else{sendEffect(e.idx);renderParams(e.idx);}updateCtx();});else el.title='Efek ini tidak tersedia pada build WLED saat ini';grid.appendChild(el);});updateCtx();}
 document.getElementById('fxSearch').addEventListener('input',function(e){const q=e.target.value.toLowerCase();document.querySelectorAll('#fxGrid .fx-item').forEach(function(el){el.style.display=el.querySelector('.fx-name').textContent.toLowerCase().indexOf(q)>=0?'':'none';});});
-function loadFxData(cb){Promise.all([jfetch('/json/eff').then(function(r){return r.json();}),jfetch('/json/fxdata').then(function(r){return r.json();}),fetch('/mizuma/shows').then(function(r){if(!r.ok)throw new Error('shows');return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];showNames=v[2]||[];cb(true);}).catch(function(){cb(false);});}
+function loadFxData(cb){Promise.all([jfetch('/json/eff').then(function(r){return r.json();}),jfetch('/json/fxdata').then(function(r){return r.json();}),fetch('/mizuma/shows').then(function(r){if(!r.ok)throw new Error('shows');return r.json();}),fetch('/mizuma/show-durations').then(function(r){if(!r.ok)throw new Error('show durations');return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];showNames=v[2]||[];showDurations=v[3]||[];cb(true);}).catch(function(){cb(false);});}
 function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
 /* ===== LABELS & CONTEXT ===== */
 function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua'}[activeSide];}
@@ -858,20 +862,24 @@ if(r&&(k==='template'||k==='custom')){buildRestricted();normalizeRestrictedState
 if(k==='simpan')renderSavedList();
 if(k==='template'||k==='custom')loadPalettes(false);
 updateModeAktif();}
-function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
+function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateShowDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
 function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');b.textContent=sideSwap?'⇄ Ditukar':'⇄ Tukar';b.title=sideSwap?'Pemetaan kanan dan kiri sedang ditukar. Tekan untuk mengembalikan.':'Tukar pemetaan output kanan dan kiri';}
+function updateShowDirectionButton(){const row=document.getElementById('sideRow'),b=document.getElementById('reverseFxBtn');if(!row||!b)return;row.classList.toggle('show-reverse',activeTab==='welcoming');b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');b.textContent=showReverse?'↔ Terbalik':'↔ Normal';b.title=showReverse?'Arah animasi dibalik. Tekan untuk mengembalikan arah normal.':'Balik arah gerak animasi Welcoming';}
 function loadSideSwap(){return fetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
 function requestSideSwap(){const next=!sideSwap;fetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');});}
+function loadShowReverse(){return fetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateShowDirectionButton();}).catch(function(){updateShowDirectionButton();});}
+function requestShowReverse(){const next=!showReverse;fetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateShowDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah animasi dibalik':'Arah animasi normal');}).catch(function(){toast('Gagal membalik arah animasi');});}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
-document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;if(btn.dataset.action==='swap'){if(dirty){showModal(requestSideSwap);}else{requestSideSwap();}return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
+document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;if(btn.dataset.action==='swap'){if(dirty){showModal(requestSideSwap);}else{requestSideSwap();}return;}if(btn.dataset.action==='reverse'){if(activeTab!=='welcoming')return;if(dirty){showModal(requestShowReverse);}else{requestShowReverse();}return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 /* ===== INIT ===== */
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
+updateShowDirectionButton();
 setSub(activeSub);renderSavedList();
 loadFxData(function(ok){if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}else{initFromState();}});
-function initFromState(){loadSideSwap().then(function(){return jfetch('/json/state');}).then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=segById(j,mapSegId('kanan'));if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
+function initFromState(){loadSideSwap().then(loadShowReverse).then(function(){return jfetch('/json/state');}).then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=segById(j,mapSegId('kanan'));if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
 </script>
 <script>
 (function(){
@@ -915,7 +923,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     uint8_t bri = 180;
     };
     PresetSlot pslots[10];
-    uint16_t welcomeDur = MZ_SHOW_TOTAL_MS;
+    static const uint16_t NATIVE_WELCOME_FALLBACK_MS = 7000; // hanya untuk preset boot WLED native, bukan show Mizuma
     int bootStage = 0;
     uint32_t bootT = 0;
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
@@ -926,6 +934,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
+    bool showReverse = false; // membalik arah gerak semua stage Welcoming tanpa mengubah urutan stage
 
     /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
        Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
@@ -1105,7 +1114,7 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   if(st.c2>=0)seg.custom2=(uint8_t)constrain(st.c2,0,255);
   if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
   if(st.o>=0)seg.check1=(st.o!=0);
-  seg.reverse=(st.flags&1U)!=0;
+  seg.reverse=(((st.flags&1U)!=0) ^ showReverse); // tombol arah membalik semua gerak, termasuk resep yang sudah flip
   seg.on=true;
 
   applyShowStageColors(st,seg,userPalette);
@@ -1146,7 +1155,7 @@ void tickShowEngine(){
       }
       r.stageIndex++;
     }
-    if(r.stageIndex>=show.n)r.active=false; // leave the final WLED effect running
+    if(elapsed>=show.durationMs)r.active=false; // selesai setelah cue terakhir + waktu penutup show
   }
 }
 bool startShowPreview(int index,const String &side){
@@ -1224,6 +1233,34 @@ void handleShowStop(AsyncWebServerRequest *req){
   String side=req->hasArg("side")?req->arg("side"):String("both");
   if(side!="both"&&side!="kanan"&&side!="kiri"){req->send(400,"application/json","{\"ok\":false}");return;}
   stopShowRunners(side);req->send(200,"application/json","{\"ok\":true}");
+}
+void applyCurrentShowDirection(){
+  bool changed=false;
+  for(uint8_t rIdx=0;rIdx<2;rIdx++){
+    ShowRunner &r=showRunner[rIdx];
+    if(!r.hasCurrentShow||r.showIndex>=MZ_SHOW_COUNT)continue;
+    const MzShow &show=MZ_SHOWS[r.showIndex];
+    if(r.currentStageIndex>=show.n)continue;
+    const uint8_t segId=physicalSegForLogicalSide(r.logicalRight);
+    if(segId>=strip.getSegmentsNum())continue;
+    Segment &seg=strip.getSegment(segId);
+    if(!seg.isActive())continue;
+    const MzStage &st=show.st[r.currentStageIndex];
+    seg.reverse=(((st.flags&1U)!=0) ^ showReverse);
+    changed=true;
+  }
+  if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+}
+void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){
+    String json=String("{\"enabled\":")+(showReverse?"true":"false")+"}";
+    req->send(200,"application/json",json);return;
+  }
+  if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}
+  showReverse=(req->arg("enabled")=="1"||req->arg("enabled")=="true");
+  applyCurrentShowDirection();queueSave();
+  String json=String("{\"ok\":true,\"enabled\":")+(showReverse?"true":"false")+"}";
+  req->send(200,"application/json",json);
 }
 
 String jsonEscape(const String &s){
@@ -1378,11 +1415,13 @@ json+=",\"staIP\":\"";json+=staIP;
 json+="\",\"ssid\":\"";json+=jsonEscape(ssid);
 json+="\"}";req->send(200,"application/json",json);});
 server.on("/mizuma/debug",HTTP_GET,[this](AsyncWebServerRequest *req){
-char buf[256];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u,\"showFxResolved\":%u}",
-(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis(),(unsigned)showFxResolved);
+char buf[288];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u,\"showFxResolved\":%u,\"maxShowMs\":%u}",
+(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis(),(unsigned)showFxResolved,(unsigned)MZ_SHOW_MAX_DURATION_MS);
 req->send(200,"application/json",buf);});
 server.on("/mizuma/shows",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(1800);out+="[";for(uint8_t i=0;i<MZ_SHOW_COUNT;i++){if(i)out+=",";out+='"';out+=jsonEscape(String(MZ_SHOWS[i].name));out+='"';}out+="]";req->send(200,"application/json",out);});
+server.on("/mizuma/show-durations",HTTP_GET,[this](AsyncWebServerRequest *req){
+String out;out.reserve(500);out+="[";for(uint8_t i=0;i<MZ_SHOW_COUNT;i++){if(i)out+=",";out+=String(MZ_SHOWS[i].durationMs);}out+="]";req->send(200,"application/json",out);});
 server.on("/mizuma/show",HTTP_GET,[this](AsyncWebServerRequest *req){handleShow(req);});
 server.on("/mizuma/show",HTTP_POST,[this](AsyncWebServerRequest *req){handleShow(req);});
 server.on("/mizuma/show/palette",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowPalette(req);});
@@ -1395,6 +1434,8 @@ server.on("/mizuma/apply",HTTP_GET,[this](AsyncWebServerRequest *req){handleAppl
 server.on("/mizuma/apply",HTTP_POST,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String json=String("{\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
 server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}stopShowRunners("both");sideSwap=(req->arg("enabled")=="1"||req->arg("enabled")=="true");queueSave();String json=String("{\"ok\":true,\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
+server.on("/mizuma/show/reverse",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowReverse(req,true);});
+server.on("/mizuma/show/reverse",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowReverse(req,false);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
@@ -1415,8 +1456,17 @@ void loop() override {
   }
   if(bootDone || bootStage != 1) return;
 
-  if((uint32_t)(millis() - bootT) >= welcomeDur){
-    applyModeSide("riding", "both", 4); // 400 ms crossfade setelah welcoming selesai
+  bool welcomeFinished=false;
+  if(usingNativeWelcomePreset){
+    // Preset native WLED tidak memiliki metadata durasi dari generator Mizuma.
+    welcomeFinished=((uint32_t)(millis()-bootT)>=NATIVE_WELCOME_FALLBACK_MS);
+  }else{
+    const bool hasShow=showRunner[0].hasCurrentShow||showRunner[1].hasCurrentShow;
+    welcomeFinished=hasShow?(!showRunner[0].active&&!showRunner[1].active)
+                           :((uint32_t)(millis()-bootT)>=NATIVE_WELCOME_FALLBACK_MS);
+  }
+  if(welcomeFinished){
+    applyModeSide("riding", "both", 4); // 400 ms crossfade setelah show Mizuma selesai
     bootStage = 2;
     bootDone = true;
   }
@@ -1442,9 +1492,9 @@ s["sx"]=pslots[i].sx;s["ix"]=pslots[i].ix;
 s["c1"]=pslots[i].c1;s["c2"]=pslots[i].c2;s["c3"]=pslots[i].c3;
 s["o1"]=pslots[i].o1;s["o2"]=pslots[i].o2;s["o3"]=pslots[i].o3;
 s["bri"]=pslots[i].bri;}
-top["welcomeDur"]=welcomeDur;
 top["bri"]=savedBri;
-top["sideSwap"]=sideSwap;}
+top["sideSwap"]=sideSwap;
+top["showReverse"]=showReverse;}
 
 bool readFromConfig(JsonObject &root) override {
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
@@ -1470,9 +1520,9 @@ pslots[i].sx=s["sx"]|128;pslots[i].ix=s["ix"]|128;
 pslots[i].c1=s["c1"]|128;pslots[i].c2=s["c2"]|128;pslots[i].c3=s["c3"]|128;
 pslots[i].o1=s["o1"]|0;pslots[i].o2=s["o2"]|0;pslots[i].o3=s["o3"]|0;
 pslots[i].bri=s["bri"]|180;}}
-welcomeDur = MZ_SHOW_TOTAL_MS; // diselaraskan dengan durasi show dari generator
 savedBri=top["bri"]|180;
 sideSwap=top["sideSwap"]|false;
+showReverse=top["showReverse"]|false;
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}
