@@ -1,5 +1,5 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — REVISI R6.1 (Native WLED Boot Preset + Mizuma Startup Scheduler; arah LED + UI kontrol diperbaiki)
+// MIZUMA SMARTSYSTEM — REVISI R6.2 (fix rute /mizuma/show/reverse tertimpa /mizuma/show; UI kontrol Kiri/Semua/Kanan | Posisi/Arah dipisah per kategori)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
@@ -441,23 +441,37 @@ body{display:flex;flex-direction:column;}
 .tabbar{display:flex;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--bd);}
 .tabbar button{flex:1 0 auto;padding:10px 10px;background:none;border:none;color:var(--tx2);font-size:12px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;}
 .tabbar button.active{color:var(--tx);border-bottom-color:var(--ac);}
-/* Lima kontrol tetap satu baris: tiga pilihan sisi dikelompokkan, dua tombol terakhir adalah fungsi output. */
-.control-panel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:12px 42px;column-gap:4px;row-gap:3px;padding:7px 8px 0;align-items:stretch;}
-.control-caption{font-size:8px;font-weight:800;letter-spacing:.85px;line-height:12px;color:var(--tx3);white-space:nowrap;text-transform:uppercase;}
-.side-caption{grid-column:1 / 4;text-align:left;padding-left:5px;}
-.action-caption{grid-column:4 / 6;text-align:center;border-left:1px solid var(--bd);}
-.side-row{grid-column:1 / 4;display:flex;align-items:stretch;gap:3px;min-width:0;padding:3px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;}
-.side-row .side-btn{flex:1;display:flex;align-items:center;justify-content:center;min-width:0;min-height:34px;padding:4px 1px;border:1px solid transparent;border-radius:7px;background:var(--s2);color:var(--tx2);font-size:clamp(8.5px,2.7vw,10px);font-weight:800;line-height:1;white-space:nowrap;}
-.side-row .side-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);box-shadow:inset 0 0 0 1px rgba(245,165,36,.08);}
-.control-panel .tool-btn{grid-row:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;min-height:42px;padding:3px 1px;border:1px solid var(--bd2);border-radius:10px;background:var(--s2);color:var(--tx);font-size:clamp(8px,2.45vw,9.5px);font-weight:800;line-height:1;white-space:nowrap;}
-#swapSideBtn{grid-column:4;border-left:1px solid var(--bd2);}
-#reverseFxBtn{grid-column:5;}
-.control-panel .tool-icon{font-size:14px;line-height:15px;color:var(--tx2);font-weight:700;}
-.control-panel .tool-label{display:block;max-width:100%;overflow:hidden;text-overflow:clip;}
+/* Satu baris, dua kategori berbeda:
+   [Pilih sisi lampu: Kiri | Semua | Kanan] = pilihan, hanya satu yang aktif (bentuk segmen menyatu).
+   [Atur semua sisi: Posisi, Arah]    = sakelar nyala/mati, berlaku ke semua sisi (bentuk tombol terpisah + lampu status). */
+.control-panel{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);column-gap:12px;padding:7px 8px 0;align-items:start;}
+.ctl-group{position:relative;min-width:0;display:flex;flex-direction:column;gap:4px;}
+.ctl-tools::before{content:"";position:absolute;left:-7px;top:2px;bottom:0;width:1px;background:var(--bd2);}
+.control-caption{display:flex;align-items:center;gap:6px;min-width:0;padding:0 2px;font-size:10px;font-weight:700;line-height:13px;color:var(--tx3);white-space:nowrap;}
+.control-caption span{min-width:0;overflow:hidden;text-overflow:ellipsis;}
+.control-caption::after{content:"";flex:1 0 8px;height:1px;background:var(--bd);}
+.side-row{display:flex;gap:2px;min-width:0;padding:3px;background:var(--s1);border:1px solid var(--bd);border-radius:12px;}
+.side-row .side-btn{flex:1;min-width:0;min-height:40px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:4px 2px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--tx2);font-size:clamp(10px,3vw,11.5px);font-weight:700;line-height:1;white-space:nowrap;}
+.side-row .side-btn:active{transform:scale(.96);}
+.side-btn .lamp{display:flex;gap:3px;}
+.side-btn .lamp i{width:10px;height:4px;border-radius:2px;background:var(--bd2);transition:background .2s,box-shadow .2s;}
+.side-btn .lamp i.on{background:var(--tx3);}
+.side-row .side-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
+.side-row .side-btn.active .lamp i.on{background:var(--ac);box-shadow:0 0 6px rgba(245,165,36,.6);}
+.tool-row{display:flex;gap:6px;min-width:0;}
+.control-panel .tool-btn{position:relative;flex:1;min-width:0;min-height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 2px 4px;border:1px solid var(--bd2);border-radius:10px;background:var(--s2);color:var(--tx);line-height:1;white-space:nowrap;}
+.control-panel .tool-btn:active{transform:scale(.96);}
+.control-panel .tool-btn::after{content:"";position:absolute;top:5px;right:5px;width:5px;height:5px;border-radius:50%;background:var(--bd2);transition:background .2s,box-shadow .2s;}
+.control-panel .tool-icon{width:16px;height:16px;color:var(--tx2);}
+.control-panel .tool-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.control-panel .tool-label{display:block;max-width:100%;overflow:hidden;text-overflow:clip;font-size:clamp(10px,3vw,11px);font-weight:700;}
+.control-panel .tool-state{display:block;max-width:100%;overflow:hidden;text-overflow:clip;font-size:8.5px;font-weight:600;color:var(--tx3);}
 .control-panel .tool-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
-.control-panel .tool-btn.active .tool-icon{color:var(--ac);}
+.control-panel .tool-btn.active::after{background:var(--ac);box-shadow:0 0 5px var(--ac);}
+.control-panel .tool-btn.active .tool-icon,.control-panel .tool-btn.active .tool-state{color:var(--ac);}
 .control-panel .tool-btn:disabled{opacity:.55;cursor:wait;}
-@media(min-width:520px){.control-panel{column-gap:6px;row-gap:3px;padding-left:12px;padding-right:12px;}}
+@media(prefers-reduced-motion:reduce){.control-panel *{transition:none !important;}}
+@media(min-width:520px){.control-panel{column-gap:14px;padding-left:12px;padding-right:12px;}.ctl-tools::before{left:-8px;}}
 .preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
 .pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
 .pv-canvas.off{opacity:.22;}
@@ -561,19 +575,25 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button data-tab="hazard">Hazard</button>
 </div>
 <div class="control-panel" id="controlPanel">
-  <div class="control-caption side-caption">PILIH SISI LED</div>
-  <div class="control-caption action-caption">FUNGSI OUTPUT</div>
-  <div class="side-row" id="sideRow" role="group" aria-label="Pilih sisi lampu yang dikontrol">
-    <button class="side-btn" data-side="kiri" type="button" aria-label="Pilih lampu kiri">Kiri</button>
-    <button class="side-btn active" data-side="both" type="button" aria-label="Pilih kedua sisi">Semua</button>
-    <button class="side-btn" data-side="kanan" type="button" aria-label="Pilih lampu kanan">Kanan</button>
+  <div class="ctl-group ctl-sides">
+    <div class="control-caption"><span>Pilih sisi lampu</span></div>
+    <div class="side-row" id="sideRow" role="group" aria-label="Pilih sisi lampu yang dikontrol">
+      <button class="side-btn" data-side="kiri" type="button" aria-label="Pilih lampu kiri"><span class="lamp" aria-hidden="true"><i class="on"></i><i></i></span><span class="side-label">Kiri</span></button>
+      <button class="side-btn active" data-side="both" type="button" aria-label="Pilih kedua sisi"><span class="lamp" aria-hidden="true"><i class="on"></i><i class="on"></i></span><span class="side-label">Semua</span></button>
+      <button class="side-btn" data-side="kanan" type="button" aria-label="Pilih lampu kanan"><span class="lamp" aria-hidden="true"><i></i><i class="on"></i></span><span class="side-label">Kanan</span></button>
+    </div>
   </div>
-  <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Menukar pemetaan output fisik kiri dan kanan">
-    <span class="tool-icon" aria-hidden="true">⇄</span><span class="tool-label">Posisi</span>
-  </button>
-  <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Membalik arah gerak animasi LED pada semua sisi">
-    <span class="tool-icon" aria-hidden="true">↔</span><span class="tool-label">Arah</span>
-  </button>
+  <div class="ctl-group ctl-tools">
+    <div class="control-caption"><span>Atur semua sisi</span></div>
+    <div class="tool-row" role="group" aria-label="Pengaturan output lampu">
+      <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Menukar pemetaan output fisik kiri dan kanan">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8h15"/><path d="M15 4l4 4-4 4"/><path d="M20 16H5"/><path d="M9 12l-4 4 4 4"/></svg></span><span class="tool-label">Posisi</span><span class="tool-state">Normal</span>
+      </button>
+      <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Membalik arah gerak animasi LED pada semua sisi">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M7 8l-4 4 4 4"/><path d="M17 8l4 4-4 4"/></svg></span><span class="tool-label">Arah</span><span class="tool-state">Normal</span>
+      </button>
+    </div>
+  </div>
 </div>
 <div class="preview-row">
 <canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
@@ -881,8 +901,8 @@ if(k==='template'||k==='custom')loadPalettes(false);
 updateModeAktif();}
 function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
-function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=sideSwap?'Ditukar':'Posisi';b.title=sideSwap?'Output fisik kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Menukar pemetaan output fisik kiri dan kanan.';}
-function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=showReverse?'Dibalik':'Arah';b.title=showReverse?'Arah gerak animasi sedang dibalik pada semua sisi. Tekan untuk mengembalikan.':'Membalik arah gerak animasi LED pada semua sisi dan berlaku di semua tab.';}
+function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');const st=b.querySelector('.tool-state');if(st)st.textContent=sideSwap?'Ditukar':'Normal';b.title=sideSwap?'Output fisik kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Menukar pemetaan output fisik kiri dan kanan.';}
+function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');const st=b.querySelector('.tool-state');if(st)st.textContent=showReverse?'Dibalik':'Normal';b.title=showReverse?'Arah gerak animasi sedang dibalik pada semua sisi. Tekan untuk mengembalikan.':'Membalik arah gerak animasi LED pada semua sisi dan berlaku di semua tab.';}
 function loadSideSwap(){return jfetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
 function requestSideSwap(){const next=!sideSwap;const b=document.getElementById('swapSideBtn');if(b)b.disabled=true;jfetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('swap rejected');sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');}).finally(function(){if(b)b.disabled=false;});}
 function loadShowReverse(){return jfetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();}).catch(function(){updateDirectionButton();});}
@@ -902,6 +922,7 @@ function requestShowReverse(){
       toast(showReverse?'↔ Arah animasi dibalik':'↔ Arah animasi normal');
     })
     .catch(function(err){
+      if(window.console)console.error('reverse gagal:',err);
       showReverse=previous;updateDirectionButton();
       toast(err&&err.message==='no_active_segment'?'Tidak ada segmen LED aktif':'Gagal mengubah arah LED');
     })
@@ -1501,20 +1522,22 @@ server.on("/mizuma/shows",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(1800);out+="[";for(uint8_t i=0;i<MZ_SHOW_COUNT;i++){if(i)out+=",";out+='"';out+=jsonEscape(String(MZ_SHOWS[i].name));out+='"';}out+="]";req->send(200,"application/json",out);});
 server.on("/mizuma/show-durations",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(500);out+="[";for(uint8_t i=0;i<MZ_SHOW_COUNT;i++){if(i)out+=",";out+=String(MZ_SHOWS[i].durationMs);}out+="]";req->send(200,"application/json",out);});
-server.on("/mizuma/show",HTTP_GET,[this](AsyncWebServerRequest *req){handleShow(req);});
-server.on("/mizuma/show",HTTP_POST,[this](AsyncWebServerRequest *req){handleShow(req);});
+// PENTING: ESPAsyncWebServer mencocokkan URL berdasarkan awalan "/path/". Rute "/mizuma/show" juga menangkap
+// "/mizuma/show/reverse|palette|stop" bila terdaftar lebih dulu. Karena itu rute turunan HARUS didaftarkan sebelum "/mizuma/show".
+server.on("/mizuma/show/reverse",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowReverse(req,true);});
+server.on("/mizuma/show/reverse",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowReverse(req,false);});
 server.on("/mizuma/show/palette",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowPalette(req);});
 server.on("/mizuma/show/palette",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowPalette(req);});
 server.on("/mizuma/show/stop",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowStop(req);});
 server.on("/mizuma/show/stop",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowStop(req);});
+server.on("/mizuma/show",HTTP_GET,[this](AsyncWebServerRequest *req){handleShow(req);});
+server.on("/mizuma/show",HTTP_POST,[this](AsyncWebServerRequest *req){handleShow(req);});
 server.on("/mizuma/preset",HTTP_GET,[this](AsyncWebServerRequest *req){handlePreset(req);});
 server.on("/mizuma/preset",HTTP_POST,[this](AsyncWebServerRequest *req){handlePreset(req);});
 server.on("/mizuma/apply",HTTP_GET,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/apply",HTTP_POST,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String json=String("{\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
 server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}stopShowRunners("both");sideSwap=(req->arg("enabled")=="1"||req->arg("enabled")=="true");queueSave();String json=String("{\"ok\":true,\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
-server.on("/mizuma/show/reverse",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowReverse(req,true);});
-server.on("/mizuma/show/reverse",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowReverse(req,false);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
