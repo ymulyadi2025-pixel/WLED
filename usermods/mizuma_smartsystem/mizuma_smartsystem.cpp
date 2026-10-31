@@ -571,7 +571,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
   <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Menukar pemetaan output fisik kiri dan kanan">
     <span class="tool-icon" aria-hidden="true">⇄</span><span class="tool-label">Posisi</span>
   </button>
-  <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Membalik arah gerak animasi LED pada sisi yang aktif">
+  <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Membalik arah gerak animasi LED pada semua sisi">
     <span class="tool-icon" aria-hidden="true">↔</span><span class="tool-label">Arah</span>
   </button>
 </div>
@@ -882,11 +882,31 @@ updateModeAktif();}
 function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
 function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=sideSwap?'Ditukar':'Posisi';b.title=sideSwap?'Output fisik kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Menukar pemetaan output fisik kiri dan kanan.';}
-function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=showReverse?'Dibalik':'Arah';b.title=showReverse?'Arah gerak animasi sedang dibalik. Tekan untuk mengembalikan.':'Membalik urutan gerak animasi LED pada sisi yang aktif.';}
+function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=showReverse?'Dibalik':'Arah';b.title=showReverse?'Arah gerak animasi sedang dibalik pada semua sisi. Tekan untuk mengembalikan.':'Membalik arah gerak animasi LED pada semua sisi dan berlaku di semua tab.';}
 function loadSideSwap(){return jfetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
 function requestSideSwap(){const next=!sideSwap;const b=document.getElementById('swapSideBtn');if(b)b.disabled=true;jfetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('swap rejected');sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');}).finally(function(){if(b)b.disabled=false;});}
 function loadShowReverse(){return jfetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();}).catch(function(){updateDirectionButton();});}
-function requestShowReverse(){const previous=showReverse,next=!previous,b=document.getElementById('reverseFxBtn');/* Perbarui state UI lebih dulu agar efek yang dipilih saat request menunggu ikut memakai arah baru. */showReverse=next;updateDirectionButton();if(b)b.disabled=true;jfetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('reverse rejected');showReverse=!!d.enabled;updateDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah animasi dibalik':'↔ Arah animasi normal');}).catch(function(){showReverse=previous;updateDirectionButton();toast('Gagal mengubah arah LED');}).finally(function(){if(b)b.disabled=false;});}
+function requestShowReverse(){
+  const previous=showReverse,next=!previous,b=document.getElementById('reverseFxBtn');
+  // Update optimistis supaya efek yang dipilih saat request menunggu ikut memakai arah baru.
+  showReverse=next;updateDirectionButton();if(b)b.disabled=true;
+  jfetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'})
+    .then(function(r){
+      if(!r.ok){return r.json().catch(function(){return {};}).then(function(d){throw new Error(d.error||('HTTP '+r.status));});}
+      return r.json();
+    })
+    .then(function(d){
+      if(!d.ok)throw new Error(d.error||'reverse rejected');
+      if(!Number(d.activeSegments))throw new Error('no_active_segment');
+      showReverse=!!d.enabled;updateDirectionButton();updateSideInfo();
+      toast(showReverse?'↔ Arah animasi dibalik':'↔ Arah animasi normal');
+    })
+    .catch(function(err){
+      showReverse=previous;updateDirectionButton();
+      toast(err&&err.message==='no_active_segment'?'Tidak ada segmen LED aktif':'Gagal mengubah arah LED');
+    })
+    .finally(function(){if(b)b.disabled=false;});
+}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
 document.getElementById('controlPanel').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;/* Posisi dan arah adalah kontrol langsung, bukan perubahan preset: jangan ditahan dialog Simpan. */if(btn.dataset.action==='swap'){requestSideSwap();return;}if(btn.dataset.action==='reverse'){requestShowReverse();return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
@@ -1132,7 +1152,12 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
   if(st.o>=0)seg.check1=(st.o!=0);
   const bool stageReverse=(((st.flags&1U)!=0) ^ showReverse); // resep dan pilihan pengguna digabungkan
-  if(seg.reverse!=stageReverse){seg.reverse=stageReverse;seg.markForReset();}
+  // WLED menyimpan reverse sebagai option bit 1 (REVERSE = 0x0002).
+  // Gunakan setter resmi agar stateChanged WLED ikut diperbarui, lalu reset runtime FX.
+  if(seg.reverse!=stageReverse){
+    seg.setOption(1,stageReverse);
+    seg.markForReset();
+  }
   seg.on=true;
 
   applyShowStageColors(st,seg,userPalette);
@@ -1273,7 +1298,8 @@ uint8_t applyCurrentShowDirection(){
       targetReverse=(((st.flags&1U)!=0) ^ showReverse);
     }
     if(seg.reverse!=targetReverse){
-      seg.reverse=targetReverse;
+      // Bit 1 adalah opsi REVERSE resmi pada Segment WLED.
+      seg.setOption(1,targetReverse);
       seg.markForReset();
       changed=true;
     }
@@ -1287,8 +1313,16 @@ void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
     req->send(200,"application/json",json);return;
   }
   if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}
-  showReverse=(req->arg("enabled")=="1"||req->arg("enabled")=="true");
+  const bool previousReverse=showReverse;
+  const String value=req->arg("enabled");
+  showReverse=(value=="1"||value=="true"||value=="on");
   const uint8_t activeSegments=applyCurrentShowDirection();
+  if(activeSegments==0){
+    showReverse=previousReverse;
+    String json=String("{\"ok\":false,\"enabled\":")+(showReverse?"true":"false")+String(",\"activeSegments\":0,\"error\":\"no_active_segment\"}");
+    req->send(409,"application/json",json);
+    return;
+  }
   queueSave();
   String json=String("{\"ok\":true,\"enabled\":")+(showReverse?"true":"false")+String(",\"activeSegments\":")+String(activeSegments)+"}";
   req->send(200,"application/json",json);
