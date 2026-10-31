@@ -1,10 +1,1464 @@
-String staIP=staOn?WiFi.localIP().toString():String("");
-String ssid=staOn?WiFi.SSID():String("Mizuma Smart System");
-String json="{\"ap\":";json+=apOn?"true":"false";
-json+=",\"sta\":";json+=staOn?"true":"false";
-json+=",\"staIP\":\"";json+=staIP;
-json+="\",\"ssid\":\"";json+=jsonEscape(ssid);
-json+="\"}";req->send(200,"application/json",json);});
+// =====================================================================================================================================
+// MIZUMA SMARTSYSTEM — REVISI R6.1 (Native WLED Boot Preset + Mizuma Startup Scheduler; arah LED + UI kontrol diperbaiki)
+// Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
+// PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
+// ======================================================================================================================================
+#include "wled.h"
+#include "mizuma_shows.h"     // 55 rangkaian animasi multi-stage Mizuma
+extern void serializeConfigToFS();
+
+// WLED 16.0.1 defines these preset helpers in presets.cpp but does not
+// publish their prototypes through wled.h. They have external linkage.
+extern bool getPresetName(byte index, String& name);
+extern void handlePresets();
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+// Blok 1 — Komponen Bersama (Native-feel FINAL: tanpa getar, transisi 110ms, nav "Dashboard")
+// --------------------------------------------------------------------------------------------------------------------------------------
+const char MIZUMA_SHARED_CSS[] PROGMEM = R"rawliteral(
+:root{
+--bg:#0a0a0a; --s1:#151515; --s2:#1c1c1c; --s3:#242424;
+--bd:#262626; --bd2:#333;
+--tx:#f2f2f2; --tx2:#9a9a9a; --tx3:#666;
+--ac:#f5a524; --ac-dim:rgba(245,165,36,.14);
+--ok:#3ddc84; --ok-dim:rgba(61,220,132,.14);
+--warn:#e8a33d; --warn-dim:rgba(232,163,61,.14);
+--bad:#e05555; --bad-dim:rgba(224,85,85,.14);
+--r-lg:16px; --r-md:12px; --r-sm:9px;
+--nav-h:62px;
+--ease:cubic-bezier(.22,1,.36,1);
+color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;scrollbar-width:none;}
+*::-webkit-scrollbar{display:none;}
+html{overscroll-behavior-y:none;}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));overscroll-behavior-y:none;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
+a{touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+svg{display:block;}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px;}
+a,button{transition:transform .12s var(--ease),background .2s,border-color .2s,color .2s,opacity .2s;}
+a:active,button:active{transform:scale(.96);}
+@keyframes mzRise{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+@keyframes mzNav{from{transform:translateY(100%);}to{transform:none;}}
+.mzheader{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));background:rgba(10,10,10,.85);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:30;animation:mzRise .22s var(--ease) backwards;}
+.container,.body-layout,.freeze{animation:mzRise .26s var(--ease) backwards .02s;}
+.bottomnav{animation:mzNav .26s var(--ease) backwards .04s;}
+.card,.tile,.stat-box{animation:mzRise .3s var(--ease) backwards;}
+.mzheader .brand{display:flex;align-items:center;gap:10px;}
+.mzheader .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--ac),#c46a10);display:flex;align-items:center;justify-content:center;font-weight:800;color:#0a0a0a;font-size:16px;box-shadow:0 2px 12px rgba(245,165,36,.35);}
+.mzheader .brandtext{line-height:1.1;}
+.mzheader .b1{font-size:13px;font-weight:800;color:#fff;letter-spacing:.5px;}
+.mzheader .b2{font-size:9px;color:var(--ac);letter-spacing:1.5px;}
+.mzheader .status{display:flex;align-items:center;gap:8px;}
+.mzheader .volt{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--tx);background:var(--s2);padding:5px 10px;border-radius:20px;border:1px solid var(--bd);}
+.mzheader .vdot{width:6px;height:6px;border-radius:50%;background:#555;}
+.mzheader .vdot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok);}
+.mzheader .conn{display:flex;align-items:center;justify-content:center;padding:4px;text-decoration:none;}
+.mzheader .conn svg{width:16px;height:16px;stroke:var(--tx2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.bottomnav{position:fixed;bottom:0;left:0;right:0;display:flex;background:rgba(18,18,18,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--bd);z-index:40;padding-bottom:env(safe-area-inset-bottom);}
+.bottomnav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:7px 2px 8px;text-decoration:none;color:var(--tx3);font-size:10px;font-weight:600;}
+.bottomnav a:active{transform:none;}
+.bottomnav .bn-pill{display:flex;align-items:center;justify-content:center;padding:3px 16px;border-radius:16px;transition:background .25s var(--ease),transform .12s var(--ease);}
+.bottomnav a:active .bn-pill{transform:scale(.88);}
+.bottomnav .bn-pill svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.bottomnav a.active{color:var(--ac);}
+.bottomnav a.active .bn-pill{background:var(--ac-dim);}
+.bottomnav a.disabled{opacity:.4;pointer-events:none;}
+.card{background:var(--s1);border-radius:var(--r-lg);padding:14px;border:1px solid var(--bd);margin-bottom:12px;}
+.card-title{font-size:12px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;font-weight:700;}
+.placeholder-text{color:var(--tx3);font-size:12px;text-align:center;padding:10px 0;}
+.badge{font-size:10px;padding:4px 9px;border-radius:20px;font-weight:700;}
+.badge.gray{background:var(--s3);color:var(--tx2);}
+.badge.green{background:var(--ok-dim);color:var(--ok);}
+.badge.orange{background:var(--warn-dim);color:var(--warn);}
+.badge.red{background:var(--bad-dim);color:var(--bad);}
+.chip{padding:8px 14px;border-radius:20px;background:var(--s2);border:1px solid var(--bd);color:var(--tx2);font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px;}
+.chip.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
+.progress{height:6px;border-radius:3px;background:var(--s3);overflow:hidden;}
+.progress .fill{height:100%;border-radius:3px;background:var(--ok);width:0;transition:width .9s var(--ease);}
+.progress .fill.warn{background:var(--warn);}
+.progress .fill.bad{background:var(--bad);}
+.icobox{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.icobox svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.icobox.ac{background:var(--ac-dim);color:var(--ac);}
+.icobox.ok{background:var(--ok-dim);color:var(--ok);}
+.icobox.warn{background:var(--warn-dim);color:var(--warn);}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border-radius:var(--r-md);background:var(--s2);border:1px solid var(--bd2);color:var(--tx);font-size:13px;font-weight:700;text-decoration:none;margin-top:10px;}
+.btn.primary{background:var(--ac);border-color:var(--ac);color:#0a0a0a;}
+.btn.danger{background:#3d1414;border-color:#5a1c1c;color:#ff8080;}
+)rawliteral";
+
+const char MIZUMA_HEADER_HTML[] PROGMEM = R"rawliteral(
+<div class="mzheader">
+<div class="brand">
+<div class="logo">M</div>
+<div class="brandtext"><div class="b1">MIZUMA</div><div class="b2">PERFORMANCE</div></div>
+</div>
+<div class="status">
+<span class="volt"><span class="vdot" id="hdrVoltDot"></span><span id="hdrVolt">-- V</span></span>
+<a class="conn" id="hdrConn" href="/pengaturan" title="Status koneksi — buka Pengaturan"></a>
+</div>
+</div>
+)rawliteral";
+
+const char MIZUMA_HEADER_SCRIPT[] PROGMEM = R"rawliteral(
+(function(){
+var m=document.querySelector('meta[name="viewport"]');
+if(m && m.content.indexOf('viewport-fit')<0) m.content+=', viewport-fit=cover';
+if(!document.querySelector('meta[name="theme-color"]')){var t=document.createElement('meta');t.name='theme-color';t.content='#0a0a0a';document.head.appendChild(t);}
+})();
+var MZ_WIFI='<svg viewBox="0 0 24 24"><path d="M2 9a15 15 0 0 1 20 0"/><path d="M5 12.5a11 11 0 0 1 14 0"/><path d="M8.5 15.8a7 7 0 0 1 7 0"/><circle cx="12" cy="19" r="1.6"/></svg>';
+var MZ_GLOBE='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.6 2.6 4 5.7 4 9s-1.4 6.4-4 9c-2.6-2.6-4-5.7-4-9s1.4-6.4 4-9z"/></svg>';
+async function mzRefreshHeader() {
+try {
+const res = await fetch('/mizuma/status');
+const data = await res.json();
+document.getElementById('hdrConn').innerHTML = data.sta ? MZ_GLOBE : MZ_WIFI;
+if (data.volt) { document.getElementById('hdrVolt').textContent = data.volt + ' V'; document.getElementById('hdrVoltDot').className = 'vdot ok'; }
+} catch (e) {}
+}
+mzRefreshHeader();
+setInterval(mzRefreshHeader, 5000);
+document.querySelectorAll('.card,.tile,.stat-box').forEach(function(el,i){ el.style.animationDelay = (30 + i*30) + 'ms'; });
+setTimeout(function(){ document.querySelectorAll('.progress .fill[data-w]').forEach(function(f){ f.style.width = f.getAttribute('data-w') + '%'; }); }, 200);
+function mzFadeTo(url){
+if(window.__mzFading) return; window.__mzFading = true;
+var f=document.getElementById('mzFade');
+if(!f){ f=document.createElement('div'); f.id='mzFade';
+f.style.cssText='position:fixed;inset:0;background:#0a0a0a;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:999;';
+document.body.appendChild(f); }
+requestAnimationFrame(function(){ f.style.opacity='1'; });
+setTimeout(function(){ window.location.href=url; }, 110);
+}
+document.addEventListener('click', function(e){
+var a=e.target.closest('a'); if(!a) return;
+var href=a.getAttribute('href');
+if(!href || href.charAt(0)==='#' || href.indexOf('http')===0 || a.hasAttribute('data-noanim')) return;
+if(e.metaKey||e.ctrlKey) return;
+e.preventDefault(); mzFadeTo(href);
+});
+)rawliteral";
+
+const char MIZUMA_BOTTOMNAV_HTML[] PROGMEM = R"rawliteral(
+<div class="bottomnav">
+<a href="/app" class="__ACTIVE_BERANDA__"><span class="bn-pill"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>Dashboard</a>
+<a href="/led" class="__ACTIVE_LAMPU__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.3 2.2h4.6c.2-.8.6-1.6 1.3-2.2A6 6 0 0 0 12 3z"/></svg></span>Lampu</a>
+<a href="/servis" class="__ACTIVE_SERVIS__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Servis</a>
+<a href="/keamanan" class="__ACTIVE_KEAMANAN__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/></svg></span>Keamanan</a>
+<a href="/pengaturan" class="__ACTIVE_PENGATURAN__"><span class="bn-pill"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Pengaturan</a>
+</div>
+)rawliteral";
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+// Blok 2 — Dashboard
+// --------------------------------------------------------------------------------------------------------------------------------------
+const char MIZUMA_HOME_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
+<style>
+.container{padding:16px;max-width:520px;margin:0 auto;}
+.greet-card{display:flex;justify-content:space-between;align-items:center;}
+.greet-k{font-size:10px;font-weight:800;letter-spacing:1.6px;color:var(--ac);text-transform:uppercase;}
+.greet-name{font-size:22px;font-weight:800;color:#fff;margin-top:2px;letter-spacing:.2px;}
+.greet-sub{font-size:12px;color:var(--tx2);margin-top:3px;}
+.greet-ico{width:44px;height:44px;border-radius:14px;background:var(--ac-dim);color:var(--ac);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.greet-ico svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.stat-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
+.stat-box{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:10px 6px;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.stat-box .si{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;}
+.stat-box .si svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.si.ac{background:var(--ac-dim);color:var(--ac);} .si.ok{background:var(--ok-dim);color:var(--ok);} .si.warn{background:var(--warn-dim);color:var(--warn);}
+.stat-box .sv{font-size:13px;font-weight:800;color:var(--tx);}
+.stat-box .sl{font-size:9px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;}
+.volt-row{display:flex;align-items:center;gap:12px;}
+.volt-mid{flex:1;}
+.volt-big{font-size:26px;font-weight:800;color:#fff;}
+.volt-unit{font-size:13px;color:var(--tx2);}
+.quick-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.tile{display:flex;align-items:center;gap:10px;background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:12px;text-decoration:none;}
+.tile .ti{width:36px;height:36px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.tile .ti svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.tile .tl{font-size:12.5px;font-weight:700;color:var(--tx);}
+.tile .ts{font-size:10px;color:var(--tx3);margin-top:1px;}
+</style>
+</head>
+<body>
+%HEADER%
+<div class="container">
+<div class="card greet-card">
+<div>
+<div class="greet-k" id="greetText">SELAMAT PAGI</div>
+<div class="greet-name">%VEHICLE_NAME%</div>
+<div class="greet-sub">%VEHICLE_BRAND% &bull; %VEHICLE_YEAR% &bull; %VEHICLE_PLATE%</div>
+</div>
+<div class="greet-ico"><svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+</div>
+<div class="stat-row">
+<div class="stat-box"><div class="si ac"><svg viewBox="0 0 24 24"><path d="M4 14a8 8 0 0 1 16 0"/><path d="M12 14l4-4"/></svg></div><div class="sv">--</div><div class="sl">Odometer</div></div>
+<div class="stat-box"><div class="si ok"><svg viewBox="0 0 24 24"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/></svg></div><div class="sv">--</div><div class="sl">Alarm</div></div>
+<div class="stat-box"><div class="si warn"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.3 2.2h4.6c.2-.8.6-1.6 1.3-2.2A6 6 0 0 0 12 3z"/></svg></div><div class="sv">--</div><div class="sl">Lampu</div></div>
+</div>
+<div class="card">
+<div class="card-title">Tegangan Aki</div>
+<div class="volt-row">
+<div class="icobox warn"><svg viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
+<div class="volt-mid">
+<span class="volt-big">--</span><span class="volt-unit"> V</span>
+<div class="progress" style="margin-top:6px;"><div class="fill warn" data-w="0"></div></div>
+</div>
+<span class="badge gray">Sensor belum terpasang</span>
+</div>
+</div>
+<div class="card">
+<div class="card-title">Reminder Servis</div>
+<div class="placeholder-text">Belum ada data servis &mdash; lihat tab Servis</div>
+</div>
+<div class="quick-tiles">
+<a class="tile" href="/led"><div class="ti ac"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.3 2.2h4.6c.2-.8.6-1.6 1.3-2.2A6 6 0 0 0 12 3z"/></svg></div><div><div class="tl">Kontrol Lampu</div><div class="ts">5 mode &bull; 2 sisi</div></div></a>
+<a class="tile" href="/keamanan"><div class="ti ok"><svg viewBox="0 0 24 24"><path d="M12 21s7-6 7-11a7 7 0 0 0-14 0c0 5 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></div><div><div class="tl">Lokasi GPS</div><div class="ts">Fase 13</div></div></a>
+</div>
+<div class="card">
+<div class="card-title">Riwayat Kejadian</div>
+<div class="placeholder-text">Belum ada riwayat</div>
+</div>
+</div>
+%BOTTOMNAV%
+<script src="/mizuma.js"></script>
+<script>
+const h = new Date().getHours();
+let g = 'SELAMAT MALAM';
+if (h >= 4 && h < 11) g = 'SELAMAT PAGI';
+else if (h >= 11 && h < 15) g = 'SELAMAT SIANG';
+else if (h >= 15 && h < 18) g = 'SELAMAT SORE';
+document.getElementById('greetText').textContent = g;
+</script>
+</body>
+</html>
+)rawliteral";
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+// Blok 3 — Pengaturan v2 (sub-tab Koneksi/Jaringan + panel Ubah Mode Koneksi + daftar Fitur)
+// --------------------------------------------------------------------------------------------------------------------------------------
+const char MIZUMA_SETTINGS_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pengaturan - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
+<style>
+.container { padding:16px; max-width:520px; margin:0 auto; }
+.info-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:8px 0; font-size:13px; border-bottom:1px solid var(--bd); }
+.info-row:last-child { border-bottom:none; }
+.info-row .k { color:var(--tx2); }
+.info-row .v { color:var(--tx); font-weight:600; text-align:right; }
+.chip-row { display:flex; gap:8px; margin-bottom:12px; }
+.switch-panel { margin-top:12px; padding-top:12px; border-top:1px solid var(--bd); animation:mzRise .25s var(--ease) backwards; }
+.target-title { font-size:13px; font-weight:700; color:var(--tx); margin-bottom:8px; }
+.guide-box { font-size:12px; color:var(--tx2); background:var(--s2); padding:10px 12px; border-radius:var(--r-sm); margin-bottom:12px; line-height:1.55; border-left:3px solid var(--ac); }
+.guide-box b { color:var(--tx); }
+.status-row { display:flex; align-items:center; gap:8px; font-size:12px; margin-bottom:4px; color:var(--tx2); }
+.dot { width:9px; height:9px; border-radius:50%; background:#555; display:inline-block; flex-shrink:0; transition:background .3s, box-shadow .3s; }
+.dot.on { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+.danger { border-color:#4a1f1f; background:#1a1010; }
+.danger .card-title { color:var(--bad); }
+.feat-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:13px;}
+.feat-row:last-child{border-bottom:none;}
+.feat-row .fi{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.fi.on{background:var(--ok-dim);color:var(--ok);} .fi.off{background:var(--s3);color:var(--tx3);}
+.fi svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
+.feat-row .fn{flex:1;color:var(--tx);}
+.feat-row .fs{font-size:10px;font-weight:800;}
+.fs.on{color:var(--ok);} .fs.off{color:var(--tx3);}
+</style>
+</head>
+<body>
+%HEADER%
+<div class="container">
+<div class="card">
+<div class="card-title">Informasi Motor</div>
+<div class="info-row"><span class="k">Nama Motor</span><span class="v">%VEHICLE_NAME%</span></div>
+<div class="info-row"><span class="k">Brand</span><span class="v">%VEHICLE_BRAND%</span></div>
+<div class="info-row"><span class="k">Tahun</span><span class="v">%VEHICLE_YEAR%</span></div>
+<div class="info-row"><span class="k">No. Polisi</span><span class="v">%VEHICLE_PLATE%</span></div>
+<a class="btn" href="/settings/um">Ubah Data Motor</a>
+</div>
+<div class="card">
+<div class="card-title">Koneksi &amp; Jaringan</div>
+<div class="chip-row">
+<button class="chip active" data-pane="koneksi">Koneksi</button>
+<button class="chip" data-pane="jaringan">Jaringan</button>
+</div>
+<div id="paneKoneksi">
+<div class="info-row"><span class="k">Jenis Mode</span><span class="v" id="connMode">Memuat...</span></div>
+<div class="info-row"><span class="k">Nama WiFi</span><span class="v" id="connSSID">--</span></div>
+<button class="btn" id="btnModePanel">Ubah Mode Koneksi</button>
+<div class="switch-panel" id="switchPanel" style="display:none;">
+<div class="target-title" id="targetTitle">Beralih Mode</div>
+<div class="guide-box" id="guideBox">Memuat panduan...</div>
+<div class="status-row"><span class="dot" id="statusDot"></span><span id="statusText">Memeriksa koneksi...</span></div>
+<a class="btn primary" id="btnSwitchAction" style="display:none;" href="#">Beralih Mode Sekarang</a>
+</div>
+</div>
+<div id="paneJaringan" style="display:none;">
+<div class="info-row"><span class="k">Jaringan Aktif</span><span class="v" id="netSSID">--</span></div>
+<div class="info-row"><span class="k">Alamat IP</span><span class="v" id="netIP">--</span></div>
+<a class="btn" href="/settings/wifi">Buka Pengaturan WiFi &amp; Network</a>
+</div>
+</div>
+<div class="card">
+<div class="card-title">Perangkat &amp; Firmware</div>
+<div class="info-row"><span class="k">Firmware</span><span class="v">MIZUMA WLED 16.0.1</span></div>
+<div class="card-title" style="margin-top:12px;">Fitur</div>
+<div class="feat-row"><span class="fi on"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span><span class="fn">LED Alis Pintar</span><span class="fs on">Aktif</span></div>
+<div class="feat-row"><span class="fi off"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span><span class="fn">Reminder Servis &amp; Sparepart</span><span class="fs off">Fase 10</span></div>
+<div class="feat-row"><span class="fi off"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span><span class="fn">Kesehatan Aki (Voltase)</span><span class="fs off">Fase 11</span></div>
+<div class="feat-row"><span class="fi off"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span><span class="fn">Anti-Theft</span><span class="fs off">Fase 12</span></div>
+<div class="feat-row"><span class="fi off"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></span><span class="fn">GPS Tracker</span><span class="fs off">Fase 13</span></div>
+</div>
+<div class="card danger">
+<div class="card-title">Reset Pabrik</div>
+<div class="placeholder-text" style="color:#c99;">Menghapus semua konfigurasi dan mengembalikan ke pengaturan awal</div>
+<a class="btn danger" href="/settings/sec">Buka Halaman Reset</a>
+</div>
+</div>
+%BOTTOMNAV%
+<script src="/mizuma.js"></script>
+<script>
+var isAPMode = (window.location.hostname === '4.3.2.1');
+document.querySelectorAll('.chip-row .chip').forEach(function(ch){
+ch.addEventListener('click', function(){
+document.querySelectorAll('.chip-row .chip').forEach(function(x){ x.classList.remove('active'); });
+ch.classList.add('active');
+var k = ch.getAttribute('data-pane');
+document.getElementById('paneKoneksi').style.display  = (k === 'koneksi')  ? 'block' : 'none';
+document.getElementById('paneJaringan').style.display = (k === 'jaringan') ? 'block' : 'none';
+});
+});
+document.getElementById('btnModePanel').addEventListener('click', function(){
+var p = document.getElementById('switchPanel');
+p.style.display = (p.style.display === 'none') ? 'block' : 'none';
+});
+if (isAPMode) {
+document.getElementById('targetTitle').textContent = 'Pilihan: Mode Kontrol + Internet (Hotspot)';
+document.getElementById('guideBox').innerHTML = '<b>Panduan:</b><br>1. Aktifkan Hotspot / Tethering di HP Anda.<br>2. Tunggu hingga sistem terhubung ke Hotspot HP.<br>3. Tombol beralih muncul otomatis saat terhubung.';
+} else {
+document.getElementById('targetTitle').textContent = 'Pilihan: Mode Kontrol Only (Offline)';
+document.getElementById('guideBox').innerHTML = '<b>Panduan:</b><br>1. Aktifkan Wi-Fi di HP Anda.<br>2. Sambungkan ke Wi-Fi <b>Mizuma Smart System</b>.<br>3. Tombol beralih muncul otomatis saat terhubung.';
+}
+async function refreshConn() {
+try {
+const res = await fetch('/mizuma/status');
+const data = await res.json();
+document.getElementById('connMode').textContent = data.sta ? 'Mode Internet (Hotspot HP)' : 'Mode Kontrol (WiFi Mizuma)';
+document.getElementById('connSSID').textContent = data.ssid || '--';
+document.getElementById('netSSID').textContent  = data.ssid || '--';
+document.getElementById('netIP').textContent    = data.sta ? data.staIP : '4.3.2.1';
+var dot = document.getElementById('statusDot');
+var st  = document.getElementById('statusText');
+var btn = document.getElementById('btnSwitchAction');
+if (isAPMode) {
+if (data.sta && data.staIP) {
+dot.className = 'dot on'; st.textContent = 'Sistem terhubung ke Hotspot HP!'; st.style.color = 'var(--ok)';
+btn.href = 'http://' + data.staIP + '/app'; btn.textContent = 'Beralih ke Mode Kontrol + Internet'; btn.style.display = 'flex';
+} else {
+dot.className = 'dot'; st.textContent = 'Menunggu ESP32 terhubung ke Hotspot HP...'; st.style.color = 'var(--tx2)'; btn.style.display = 'none';
+}
+} else {
+if (data.ap) {
+dot.className = 'dot on'; st.textContent = 'HP Anda terhubung ke Wi-Fi Mizuma!'; st.style.color = 'var(--ok)';
+btn.href = 'http://4.3.2.1/app'; btn.textContent = 'Beralih ke Mode Kontrol Only'; btn.style.display = 'flex';
+} else {
+dot.className = 'dot'; st.textContent = 'Menunggu HP terhubung ke Wi-Fi Mizuma...'; st.style.color = 'var(--tx2)'; btn.style.display = 'none';
+}
+}
+} catch (e) {}
+}
+refreshConn();
+setInterval(refreshConn, 3000);
+</script>
+</body>
+</html>
+)rawliteral";
+
+// --------------------------------------------------------------------------------------------------------------------------------------
+// Blok 4 — Placeholder (Servis & Keamanan)
+// --------------------------------------------------------------------------------------------------------------------------------------
+const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>%PAGE_TITLE% - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
+<style>
+.container { padding:16px; max-width:520px; margin:0 auto; }
+.center-card { text-align:center; padding:40px 20px; }
+.center-card .ci { font-size:40px; margin-bottom:14px; }
+.center-card .ct { font-size:15px; font-weight:700; color:#fff; margin-bottom:6px; }
+</style>
+</head>
+<body>
+%HEADER%
+<div class="container">
+<div class="card center-card">
+<div class="ci">%PAGE_ICON%</div>
+<div class="ct">%PAGE_TITLE%</div>
+<div class="placeholder-text">Fitur ini sedang dikembangkan dan akan tersedia di tahap pengembangan berikutnya.</div>
+</div>
+</div>
+%BOTTOMNAV%
+<script src="/mizuma.js"></script>
+</body>
+</html>
+)rawliteral";
+
+// ================= AKHIR PART 1/2 — balas "lanjut" untuk PART 2/2 (Blok 5 + Blok 6) =================
+// =====================================================================================================================================
+// =====================================================================================================================================
+// BLOK 5 — LED (REVISI: fokus sisi, side-info L/R, slider vertikal V/K, wheel besar, quick color ringkas, pairing efek→palette)
+// =====================================================================================================================================
+const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lampu - Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
+<style>
+html,body{height:100%;overflow:hidden;}
+body{display:flex;flex-direction:column;}
+.freeze{flex-shrink:0;background:var(--bg);border-bottom:1px solid var(--bd);}
+.tabbar{display:flex;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--bd);}
+.tabbar button{flex:1 0 auto;padding:10px 10px;background:none;border:none;color:var(--tx2);font-size:12px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;}
+.tabbar button.active{color:var(--tx);border-bottom-color:var(--ac);}
+/* Lima kontrol tetap satu baris: tiga pilihan sisi dikelompokkan, dua tombol terakhir adalah fungsi output. */
+.control-panel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));grid-template-rows:12px 42px;column-gap:4px;row-gap:3px;padding:7px 8px 0;align-items:stretch;}
+.control-caption{font-size:8px;font-weight:800;letter-spacing:.85px;line-height:12px;color:var(--tx3);white-space:nowrap;text-transform:uppercase;}
+.side-caption{grid-column:1 / 4;text-align:left;padding-left:5px;}
+.action-caption{grid-column:4 / 6;text-align:center;border-left:1px solid var(--bd);}
+.side-row{grid-column:1 / 4;display:flex;align-items:stretch;gap:3px;min-width:0;padding:3px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;}
+.side-row .side-btn{flex:1;display:flex;align-items:center;justify-content:center;min-width:0;min-height:34px;padding:4px 1px;border:1px solid transparent;border-radius:7px;background:var(--s2);color:var(--tx2);font-size:clamp(8.5px,2.7vw,10px);font-weight:800;line-height:1;white-space:nowrap;}
+.side-row .side-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);box-shadow:inset 0 0 0 1px rgba(245,165,36,.08);}
+.control-panel .tool-btn{grid-row:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:0;min-height:42px;padding:3px 1px;border:1px solid var(--bd2);border-radius:10px;background:var(--s2);color:var(--tx);font-size:clamp(8px,2.45vw,9.5px);font-weight:800;line-height:1;white-space:nowrap;}
+#swapSideBtn{grid-column:4;border-left:1px solid var(--bd2);}
+#reverseFxBtn{grid-column:5;}
+.control-panel .tool-icon{font-size:14px;line-height:15px;color:var(--tx2);font-weight:700;}
+.control-panel .tool-label{display:block;max-width:100%;overflow:hidden;text-overflow:clip;}
+.control-panel .tool-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
+.control-panel .tool-btn.active .tool-icon{color:var(--ac);}
+.control-panel .tool-btn:disabled{opacity:.55;cursor:wait;}
+@media(min-width:520px){.control-panel{column-gap:6px;row-gap:3px;padding-left:12px;padding-right:12px;}}
+.preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
+.pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
+.pv-canvas.off{opacity:.22;}
+.live-btn{width:24px;height:24px;border-radius:50%;background:var(--s2);border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;color:var(--tx3);padding:0;}
+.live-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.live-btn.on{color:var(--ac);border-color:var(--ac);background:var(--ac-dim);animation:livePulse 2s infinite;}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(245,165,36,.35);}70%{box-shadow:0 0 0 6px rgba(245,165,36,0);}100%{box-shadow:0 0 0 0 rgba(245,165,36,0);}}
+.info-row3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);gap:8px;align-items:center;padding:4px 12px 10px;background:var(--bg);border-bottom:1px solid var(--bd);}
+.info-row3 .i3{font-size:9.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.i3.left{text-align:left;}
+.i3.right{text-align:right;}
+.i3.mid{display:flex;align-items:center;gap:6px;}
+.i3.mid svg{width:13px;height:13px;stroke:var(--tx2);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0;}
+.i3.mid #brightVal{font-size:9.5px;color:var(--tx);width:22px;text-align:right;}
+.body-layout{flex:1;min-height:0;display:flex;}
+.subnav{width:86px;flex-shrink:0;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;}
+.subnav .nav-btns{flex:1;overflow-y:auto;}
+.subnav button.nav-b{display:block;width:100%;padding:11px 2px;background:none;border:none;color:var(--tx3);font-size:9.5px;line-height:1.2;text-align:center;border-left:3px solid transparent;}
+.subnav button.nav-b.active{color:var(--tx);border-left-color:var(--ac);background:var(--s2);}
+.subnav .icon{display:flex;justify-content:center;margin-bottom:3px;}
+.subnav .icon svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.sub-save{flex-shrink:0;padding:10px 0 12px;border-top:1px solid var(--bd);display:flex;justify-content:center;}
+.sub-save button{position:relative;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--ac),#c46a10);color:#0a0a0a;border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(245,165,36,.35);}
+.sub-save button svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.sub-save .dotd{position:absolute;top:1px;right:1px;width:9px;height:9px;border-radius:50%;background:var(--bad);border:2px solid var(--s1);display:none;}
+.sub-save.dirty .dotd{display:block;}
+.sub-save.dirty button{animation:savePulse 1.6s infinite;}
+@keyframes savePulse{0%{box-shadow:0 0 0 0 rgba(245,165,36,.45);}70%{box-shadow:0 0 0 10px rgba(245,165,36,0);}100%{box-shadow:0 0 0 0 rgba(245,165,36,0);}}
+.right-col{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;}
+.pane-head{flex-shrink:0;background:var(--bg);padding:9px 12px;border-bottom:1px solid var(--bd);display:flex;flex-direction:column;gap:7px;}
+.pane-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px;}
+.pane-foot{flex-shrink:0;background:var(--s1);border-top:1px solid var(--bd);padding:12px 14px;max-height:45%;overflow-y:auto;}
+.mode-row{font-size:10.5px;color:var(--tx2);}
+.mode-row b{color:var(--tx);}
+.search-box{width:100%;padding:8px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-size:12px;}
+.fx-head-row{display:flex;align-items:center;gap:8px;}
+.fx-chip{font-size:10.5px;font-weight:700;color:var(--ac);background:var(--ac-dim);padding:4px 10px;border-radius:14px;white-space:nowrap;max-width:42%;overflow:hidden;text-overflow:ellipsis;}
+.fx-search{flex:1;min-width:0;padding:7px 10px;background:var(--s1);border:1px solid var(--bd);border-radius:10px;color:var(--tx);font-size:11px;}
+.custom-grid{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:stretch;margin-bottom:10px;}
+.cg-wheel canvas{width:100%;max-width:250px;height:auto;border-radius:50%;touch-action:none;display:block;}
+.cg-vsl{display:flex;gap:16px;align-items:stretch;justify-content:center;padding:6px 4px 16px;}
+.vsl{position:relative;width:30px;}
+.vsl input{position:absolute;top:50%;left:50%;width:190px;height:24px;transform:translate(-50%,-50%) rotate(-90deg);}
+.vsl-l{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--tx3);font-weight:800;}
+.quick-colors{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;}
+.qc{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.15);cursor:pointer;}
+.crow{display:flex;gap:8px;flex-wrap:wrap;}
+.crow-btn{width:42px;height:42px;border-radius:50%;border:2px solid var(--bd2);color:#fff;font-size:13px;font-weight:800;text-shadow:0 1px 2px rgba(0,0,0,.7);}
+.crow-btn.active{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac-dim);}
+.palette-list{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.pal-row{position:relative;display:flex;align-items:center;gap:6px;background:var(--s1);border:1px solid var(--bd);border-radius:11px;padding:8px 6px 12px;overflow:hidden;}
+.pal-row .pradio{width:12px;height:12px;border-radius:50%;border:2px solid var(--bd2);flex-shrink:0;}
+.pal-row.active{border-color:var(--ac);}
+.pal-row.active .pradio{border-color:var(--ac);background:var(--ac);}
+.pal-row .pnum{font-size:8.5px;color:var(--tx3);width:14px;}
+.pal-row .pname{flex:1;text-align:center;font-size:11px;font-weight:600;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pal-row .pstrip{position:absolute;left:0;right:0;bottom:0;height:4px;}
+.sec-title{font-size:10px;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 6px;font-weight:700;}
+.fx-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+@media(min-width:420px){.fx-grid{grid-template-columns:repeat(3,1fr);}}
+.fx-item{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:10px 8px;font-size:11px;color:var(--tx);}
+.fx-item.active{border-color:var(--ac);background:var(--ac-dim);}
+.fx-item.unavailable{opacity:.38;cursor:not-allowed;border-style:dashed;}
+.fx-num{color:var(--tx3);font-size:9px;margin-right:3px;}
+.fx-name{font-weight:700;}
+.param-row{margin-bottom:12px;}
+.param-row input[type=range]{width:100%;}
+.param-label{display:flex;justify-content:space-between;font-size:11px;color:var(--tx2);margin-bottom:5px;}
+.foot-hint{font-size:11px;color:var(--tx3);text-align:center;padding:4px 0;}
+.restricted-swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+.rswatch{aspect-ratio:1;border-radius:10px;border:3px solid transparent;}
+.rswatch.active{border-color:#fff;}
+.restricted-note{font-size:11px;color:var(--tx3);text-align:center;padding:10px 0 4px;}
+.saved-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--bd);font-size:12px;}
+.saved-row:last-child{border-bottom:none;}
+.saved-row .sk{flex:1;color:var(--tx);}
+.saved-row .st{color:var(--tx3);}
+.saved-row .st.on{color:var(--ok);font-weight:700;}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + env(safe-area-inset-bottom) + 78px);transform:translateX(-50%);background:var(--s2);border:1px solid var(--bd2);color:var(--ok);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:60;opacity:0;transition:opacity .25s;pointer-events:none;}
+.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:70;display:none;align-items:center;justify-content:center;}
+.mbox{background:var(--s1);border:1px solid var(--bd2);border-radius:16px;padding:18px;width:82%;max-width:300px;}
+.mtitle{font-size:14px;font-weight:800;color:var(--tx);margin-bottom:4px;}
+.msub{font-size:12px;color:var(--tx2);margin-bottom:14px;}
+.mbtns{display:flex;gap:8px;}
+.mbtns .btn-sm{flex:1;}
+.btn-sm{padding:9px 14px;border-radius:8px;background:var(--s2);border:1px solid var(--bd2);font-size:12px;font-weight:700;color:var(--tx);}
+.btn-sm.primary{background:var(--ac);color:#0a0a0a;border-color:var(--ac);}
+input[type=range]{-webkit-appearance:none;appearance:none;background:transparent;height:18px;--p:50%;}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--ac) var(--p),var(--s3) var(--p));}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#fff;margin-top:-5px;box-shadow:0 1px 4px rgba(0,0,0,.6);}
+</style>
+</head>
+<body>
+<div class="freeze">
+<div id="mzH"></div>
+<div class="tabbar" id="tabbar">
+<button data-tab="welcoming">Welcoming</button>
+<button data-tab="riding" class="active">Riding</button>
+<button data-tab="sein">Sein</button>
+<button data-tab="rem">Rem</button>
+<button data-tab="hazard">Hazard</button>
+</div>
+<div class="control-panel" id="controlPanel">
+  <div class="control-caption side-caption">PILIH SISI LED</div>
+  <div class="control-caption action-caption">FUNGSI OUTPUT</div>
+  <div class="side-row" id="sideRow" role="group" aria-label="Pilih sisi lampu yang dikontrol">
+    <button class="side-btn" data-side="kiri" type="button" aria-label="Pilih lampu kiri">Kiri</button>
+    <button class="side-btn active" data-side="both" type="button" aria-label="Pilih kedua sisi">Semua</button>
+    <button class="side-btn" data-side="kanan" type="button" aria-label="Pilih lampu kanan">Kanan</button>
+  </div>
+  <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Menukar pemetaan output fisik kiri dan kanan">
+    <span class="tool-icon" aria-hidden="true">⇄</span><span class="tool-label">Posisi</span>
+  </button>
+  <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Membalik arah gerak animasi LED pada sisi yang aktif">
+    <span class="tool-icon" aria-hidden="true">↔</span><span class="tool-label">Arah</span>
+  </button>
+</div>
+<div class="preview-row">
+<canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
+<button class="live-btn on" id="liveToggle" title="Live preview on/off"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg></button>
+<canvas class="pv-canvas" id="pvKanan" width="48" height="1"></canvas>
+</div>
+<div class="info-row3">
+<div class="i3 left" id="ctxInfo">Kiri: -</div>
+<div class="i3 mid">
+<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+<input type="range" min="0" max="255" value="180" id="brightSlider">
+<span id="brightVal">180</span>
+</div>
+<div class="i3 right" id="savedInfo">Kanan: -</div>
+</div>
+</div>
+<div class="body-layout">
+<div class="subnav" id="subnav">
+<div class="nav-btns">
+<button class="nav-b active" data-sub="efek"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>Pilih Efek</button>
+<button class="nav-b" data-sub="template"><span class="icon"><svg viewBox="0 0 24 24"><path d="M12 2s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/></svg></span>Warna Template</button>
+<button class="nav-b" data-sub="custom"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 21v-7"/><path d="M4 10V3"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M20 21v-5"/><path d="M20 12V3"/><path d="M1 14h6"/><path d="M9 8h6"/><path d="M17 16h6"/></svg></span>Warna Custom</button>
+<button class="nav-b" data-sub="simpan"><span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg></span>Riwayat Simpan</button>
+</div>
+<div class="sub-save" id="subSave">
+<button id="btnSaveSub"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg><span class="dotd"></span></button>
+</div>
+</div>
+<div class="right-col">
+<div class="pane-head" id="headWarna" style="display:none;">
+<div class="mode-row">Mode aktif: <b id="modeAktif">Template</b></div>
+</div>
+<div class="pane-head" id="headEfek">
+<div class="fx-head-row">
+<span class="mode-row">Efek tersimpan:</span>
+<span class="fx-chip" id="fxSavedName">-</span>
+<input class="fx-search" id="fxSearch" placeholder="Cari efek...">
+</div>
+</div>
+<div class="pane-head" id="headTemplate" style="display:none;">
+<input class="search-box" id="searchBox" placeholder="Cari palette...">
+</div>
+<div class="pane-head" id="headSimpan" style="display:none;">
+<div class="mode-row">Preset tersimpan <b>permanen di ESP32</b> per kombinasi mode × sisi.</div>
+</div>
+<div class="pane-scroll" id="scrollTemplate" style="display:none;">
+<div class="palette-list" id="paletteGrid"></div>
+</div>
+<div class="pane-scroll" id="scrollCustom" style="display:none;">
+<div class="custom-grid">
+<div class="cg-wheel"><canvas id="colorWheel" width="220" height="220"></canvas></div>
+<div class="cg-vsl">
+<div class="vsl"><input type="range" min="0" max="100" value="100" id="valSlider"><span class="vsl-l">V</span></div>
+<div class="vsl"><input type="range" min="2000" max="10000" step="50" value="6500" id="kelvinSlider"><span class="vsl-l">K</span></div>
+</div>
+</div>
+<div class="quick-colors" id="quickColors"></div>
+<div class="crow" id="colorRow"></div>
+<div class="sec-title">Palette Custom (*)</div>
+<div class="palette-list" id="customPalGrid"></div>
+</div>
+<div class="pane-scroll" id="scrollRestricted" style="display:none;">
+<div class="restricted-swatches" id="restrictedGrid"></div>
+<div class="cg-wheel" style="max-width:200px;margin:0 auto;"><canvas id="wheelR" width="220" height="220"></canvas></div>
+<div class="restricted-note">Area abu-abu dibatasi otomatis sesuai regulasi lampu sinyal</div>
+</div>
+<div class="pane-scroll" id="scrollEfek">
+<div class="fx-grid" id="fxGrid"></div>
+</div>
+<div class="pane-scroll" id="scrollSimpan" style="display:none;">
+<div class="card"><div class="card-title">Status Simpan</div><div id="savedList"></div></div>
+</div>
+<div class="pane-foot" id="footEfek">
+<div id="fxParams"></div>
+<div class="foot-hint" id="footHint" style="display:none;">Efek ini tidak memiliki parameter tambahan.</div>
+</div>
+</div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="moverlay" id="saveModal">
+<div class="mbox">
+<div class="mtitle">Simpan perubahan?</div>
+<div class="msub" id="modalCtx"></div>
+<div class="mbtns">
+<button class="btn-sm" id="mDiscard">Buang</button>
+<button class="btn-sm" id="mCancel">Batal</button>
+<button class="btn-sm primary" id="mSave">Simpan</button>
+</div>
+</div>
+</div>
+<div id="mzN"></div>
+<script>
+/* WLED hanya melayani SATU request /json pada satu waktu (selebihnya 503). Semua request /json diantrekan satu per satu + retry. */
+let jqTail=Promise.resolve();
+function jtry(url,opt,n){return fetch(url,opt).then(function(r){if(r.status===503&&n<6)return new Promise(function(w){setTimeout(w,250);}).then(function(){return jtry(url,opt,n+1);});return r;});}
+function jfetch(url,opt){const task=jqTail.then(function(){return jtry(url,opt,0);});jqTail=task.catch(function(){});return task;}
+let activeTab=localStorage.getItem('mzActiveTab')||'riding';
+let activeSide='both',activeSub='efek',sideSwap=false,showReverse=false;
+let dirty=false,pendingAction=null,restrictedName='';
+let allFx=[],fxData=[],curList=[],palList=[],palNamesRaw=[],showNames=[],showDurations=[];
+let cur={fx:0,pal:0,col:null,palName:'',isShow:false,showIndex:0,params:{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}};
+let fxParamsCache={},fxPalCache={};
+function paramsFor(i){if(!fxParamsCache[i]){const d=fxData.length?fxDefs(i):{};const g=function(k,df){return d[k]!=null?d[k]:df;};const p={sx:g('sx',128),ix:g('ix',128),c1:g('c1',128),c2:g('c2',128),c3:g('c3',128),o1:g('o1',0),o2:g('o2',0),o3:g('o3',0)};if(!fxData.length)return p;fxParamsCache[i]=p;}return fxParamsCache[i];}
+cur.params=paramsFor(0);
+let wHue=0,wSat=1,wVal=1,liveEnabled=true;
+let segColors=[[255,165,0],[255,255,255],[255,26,0]],colorTarget=0,slotCount=3;
+const SEG_K=0,SEG_L=1;
+function mapSegId(logicalSide){const right=(logicalSide==='kanan');return (right!==sideSwap)?SEG_K:SEG_L;}
+function segById(state,id){if(!state||!state.seg)return null;return state.seg.find(function(x){return x&&x.id===id;})||state.seg[id]||null;}
+const HUE_RULES={sein:[25,60],hazard:[25,60],rem:[345,15]};
+const RESTRICTED_COLORS={sein:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}],rem:[{n:'Merah',h:'FF0000'},{n:'Merah Tua',h:'CC0000'},{n:'Merah Terang',h:'FF3333'},{n:'Merah Gelap',h:'8B0000'}],hazard:[{n:'Amber',h:'FFA500'},{n:'Kuning Tua',h:'FF8C00'},{n:'Amber Muda',h:'FFB347'},{n:'Kuning',h:'FFD700'}]};
+/* Filter default milik tab asli dipertahankan. Katalog khusus hanya berlaku di tab Welcoming. */
+const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
+const WELCOMING_NAMES=['Fade','Breathe','Wipe','Sweep','Chase','Chase Rainbow','Colorwaves','Rainbow','Rainbow Runner','Twinkle','Twinklefox','Sparkle','Glitter','Meteor','Meteor Smooth','Ripple','Ripple Rainbow','Pacifica','Aurora','Lake','Plasma','Colortwinkles','Sinelon','Sinelon Rainbow','Bpm','Sunrise','Phased','Dissolve','Noise Pal','Blends'];
+const RESTRICTED_FX=['Solid','Blink','Strobe','Chase','Chase Flash','Wipe','Fade','Breathe','Sweep','Strobe Mega'];
+const MZW_RE=/^(?:MZ\d\d|W\d\d) /; /* seluruh efek custom: MZ01..MZ05 + W01..W50 */
+const HIDE_AUDIO_FX=true; /* perilaku asli Riding: sembunyikan efek audio-reaktif */
+/* Whitelist 15 efek native ini hanya ditambahkan pada tab Welcoming (posisi 56..70). */
+const MIZUMA_NATIVE_FX=[
+  {match:'Bouncing Balls',label:'Bouncing Balls'},
+  {match:'Chase Rainbow',label:'Chase Rainbow'},
+  {match:'Colortwinkles',label:'Colortwinkles'},
+  {match:'Dissolve',label:'Dissolve'},
+  {match:'Drip',label:'Drip'},
+  {match:'Fireworks 1D',fallback:'PS Fireworks 1D',label:'Fireworks 1D'},
+  {match:'PacMan',label:'Pacman'},
+  {match:'PS 1D Balance',label:'PS 1D Balance'},
+  {match:'PS Spray 1D',label:'PS Spray 1D'},
+  {match:'PS Starburst',fallback:'Starburst',label:'PS Starburst'},
+  {match:'Shimmer',label:'Shimmer'},
+  {match:'Sinelon Dual',label:'Sinelon Dual'},
+  {match:'Sweep',label:'Sweep'},
+  {match:'Tetrix',label:'Tetrix'},
+  {match:'Wavesins',label:'Wavesins'}
+];
+const QUICK_COLORS=['FF0000','FFA500','FFD200','FFFFFF','000000','0000FF','00FF00'];
+/* Pairing efek->palette default (meniru perilaku UI WLED asli; bisa diperluas) */
+const FX_PAL_DEFAULTS={'Fire 2012':'Fire','Fireworks 1D':'Rainbow','Fireworks':'Rainbow','Noise 1':'Pastel','Noise':'Pastel','Pride':'Pride','Aurora':'Aurora','Pacifica':'Pacifica'};
+function palIdByName(n){return palNamesRaw.findIndex(function(x){return x===n;});}
+/* PAL_GRADS (gradient karangan manual) dihapus: thumbnail kini 100% dari /json/palx */
+function post(o){jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(o)}).catch(function(){});}
+function debounce(fn,ms){let t;return function(){const a=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,a);},ms);};}
+function segIds(){if(activeSide==='kanan')return[mapSegId('kanan')];if(activeSide==='kiri')return[mapSegId('kiri')];return[mapSegId('kanan'),mapSegId('kiri')];}
+function isRestrictedTab(){return activeTab==='sein'||activeTab==='rem'||activeTab==='hazard';}
+function cap(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+function markDirty(){dirty=true;document.getElementById('subSave').classList.add('dirty');}
+function clearDirty(){dirty=false;document.getElementById('subSave').classList.remove('dirty');}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(function(){t.style.opacity='0';},1800);}
+function paintRange(el){const min=+el.min||0,max=+el.max||255;el.style.setProperty('--p',(((+el.value-min)/(max-min))*100)+'%');}
+document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin'))paintRange(e.target);});
+/* ===== LIVE PREVIEW ===== */
+const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
+let segGeom=[{start:0,stop:48},{start:48,stop:96}],ledTotal=0;
+function captureSegs(j){const s=j&&j.seg;if(!s||!s.length)return;s.forEach(function(x,i){if(!x)return;const id=(x.id!=null)?x.id:i;if((id===0||id===1)&&x.stop>0)segGeom[id]={start:x.start||0,stop:x.stop};});if(segGeom[1].start<segGeom[0].stop&&segGeom[1].start>segGeom[0].start)segGeom[0].stop=segGeom[1].start;}
+function geomForSide(side){return segGeom[mapSegId(side)];}
+/* Frame WS Peek WLED: byte0='L'(76), byte1=versi (1: data mulai idx 2 | 2: matriks, data mulai idx 4), lalu RGB per LED (sudah diskala brightness) */
+function paintStrip(cv,sg,flat,off,cnt,step){const len=Math.max(1,sg.stop-sg.start);if(cv.width!==len)cv.width=len;const ctx=cv.getContext('2d'),img=ctx.createImageData(len,1);for(let i=0;i<len;i++){let px=Math.floor((sg.start+i)/step);if(px>=cnt)px=cnt-1;const k=off+px*3,o=i*4;img.data[o]=flat[k];img.data[o+1]=flat[k+1];img.data[o+2]=flat[k+2];img.data[o+3]=255;}ctx.putImageData(img,0,0);}
+function drawLive(flat,raw){let off=0;if(!raw&&flat[0]===76&&(flat[1]===1||flat[1]===2))off=(flat[1]===2)?4:2;const cnt=Math.floor((flat.length-off)/3);if(cnt<1)return;const step=(ledTotal>cnt)?ledTotal/cnt:1;paintStrip(pvR,geomForSide('kanan'),flat,off,cnt,step);paintStrip(pvL,geomForSide('kiri'),flat,off,cnt,step);}
+jfetch('/json/state').then(function(r){return r.json();}).then(captureSegs).catch(function(){});
+jfetch('/json/info').then(function(r){return r.json();}).then(function(j){if(j&&j.leds&&j.leds.count)ledTotal=j.leds.count;}).catch(function(){});
+let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
+function mzLiveCmd(on){try{if(mzWS&&mzWS.readyState===1)mzWS.send('{"lv":'+(on?'true':'false')+'}');}catch(e){}}
+function mzConnectLive(){if(mzWS||document.hidden)return;if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}try{mzWS=new WebSocket('ws://'+window.location.host+'/ws');}catch(e){mzWS=null;mzWSRetry=setTimeout(mzConnectLive,3000);return;}mzWS.binaryType='arraybuffer';mzWS.onopen=function(){if(liveEnabled)mzLiveCmd(true);};mzWS.onmessage=function(evt){if(!liveEnabled||!(evt.data instanceof ArrayBuffer))return;const now=performance.now();if(now-lastDraw<33)return;lastDraw=now;const flat=new Uint8Array(evt.data);if(flat.length<3)return;liveOk=true;drawLive(flat,false);};mzWS.onclose=function(){liveOk=false;mzWS=null;if(!document.hidden)mzWSRetry=setTimeout(mzConnectLive,2000);};mzWS.onerror=function(){try{mzWS.close();}catch(e){}};}
+mzConnectLive();
+document.addEventListener('visibilitychange',function(){if(document.hidden){mzLiveCmd(false);if(mzWS){try{mzWS.close();}catch(e){}}}else{mzConnectLive();}});
+window.addEventListener('beforeunload',function(){mzLiveCmd(false);if(mzWS)try{mzWS.close();}catch(e){}});
+/* Fallback bila WS Peek tidak aktif (mis. klien lain mengambil Peek): /json/live, lalu warna solid */
+function pollSolid(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);const f=function(cv,seg){if(!seg)return;const c=(seg.col&&seg.col[0])?seg.col[0]:[20,20,20];const ctx=cv.getContext('2d');ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';ctx.fillRect(0,0,cv.width,1);};f(pvR,segById(j,mapSegId('kanan')));f(pvL,segById(j,mapSegId('kiri')));}).catch(function(){});}
+function pollState(){if(!liveEnabled||document.hidden)return;jfetch('/json/live').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(j){const Ls=j&&j.leds;if(!Array.isArray(Ls)||!Ls.length||typeof Ls[0]!=='string')throw 0;const flat=new Uint8Array(Ls.length*3);for(let i=0;i<Ls.length;i++){const n=parseInt(String(Ls[i]).replace('#',''),16)||0;flat[i*3]=(n>>16)&255;flat[i*3+1]=(n>>8)&255;flat[i*3+2]=n&255;}drawLive(flat,true);}).catch(pollSolid);}
+setInterval(function(){if(liveOk&&performance.now()-lastDraw>3000)liveOk=false;if(!liveOk)pollState();},1000);
+document.getElementById('liveToggle').addEventListener('click',function(){liveEnabled=!liveEnabled;this.classList.toggle('on',liveEnabled);pvR.classList.toggle('off',!liveEnabled);pvL.classList.toggle('off',!liveEnabled);mzLiveCmd(liveEnabled);});
+/* ===== COLOR MATH ===== */
+function hsvToRgb(h,s,v){const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r,g,b;if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
+function rgb2hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d){if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}return[h,(mx?d/mx:0),mx];}
+function hueOk(h,r){if(!r)return true;if(r[0]<=r[1])return h>=r[0]&&h<=r[1];return h>=r[0]||h<=r[1];}
+function clampHue(h,r){if(!r)return h;if(r[0]<=r[1])return h<r[0]?r[0]:(h>r[1]?r[1]:h);if(h>r[1]&&h<r[0])return (h-r[1])<=(r[0]-h)?r[1]:r[0];return h;}
+const wheelImgs={};
+function buildWheelImg(cv,rule){const ctx=cv.getContext('2d'),wr=cv.width/2,img=ctx.createImageData(cv.width,cv.height);for(let y=0;y<cv.height;y++){for(let x=0;x<cv.width;x++){const dx=x-wr,dy=y-wr,d=Math.sqrt(dx*dx+dy*dy),idx=(y*cv.width+x)*4;if(d<=wr){const raw=Math.atan2(dy,dx)*180/Math.PI+180,hue=clampHue(raw,rule),sat=d/wr;if(rule&&!hueOk(raw,rule)){img.data[idx]=40;img.data[idx+1]=40;img.data[idx+2]=40;}else{const rgb=hsvToRgb(hue,sat,1);img.data[idx]=rgb[0];img.data[idx+1]=rgb[1];img.data[idx+2]=rgb[2];}img.data[idx+3]=255;}else{img.data[idx+3]=0;}}}wheelImgs[cv.id]={img:img};ctx.putImageData(img,0,0);}
+function paintWheel(cv,hue,sat){const e=wheelImgs[cv.id];if(!e)return;const ctx=cv.getContext('2d');ctx.putImageData(e.img,0,0);const wr=cv.width/2,th=(hue-180)*Math.PI/180,r=sat*(wr-2),x=wr+Math.cos(th)*r,y=wr+Math.sin(th)*r;ctx.beginPath();ctx.arc(x,y,6,0,6.2832);ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(x,y,8,0,6.2832);ctx.strokeStyle='rgba(0,0,0,.65)';ctx.lineWidth=1.5;ctx.stroke();}
+const wheel=document.getElementById('colorWheel');buildWheelImg(wheel,null);paintWheel(wheel,wHue,wSat);
+function wheelPick(e){const rect=wheel.getBoundingClientRect(),wr=wheel.width/2,x=(e.clientX-rect.left)*(wheel.width/rect.width),y=(e.clientY-rect.top)*(wheel.height/rect.height),dx=x-wr,dy=y-wr,d=Math.sqrt(dx*dx+dy*dy);if(d>wr)return;wHue=Math.atan2(dy,dx)*180/Math.PI+180;wSat=Math.min(1,d/wr);paintWheel(wheel,wHue,wSat);const rgb=hsvToRgb(wHue,wSat,wVal);setColor(rgb[0],rgb[1],rgb[2],false);}
+let dragging=false;
+wheel.addEventListener('pointerdown',function(e){dragging=true;wheel.setPointerCapture(e.pointerId);wheelPick(e);});
+wheel.addEventListener('pointermove',function(e){if(dragging)wheelPick(e);});
+wheel.addEventListener('pointerup',function(){dragging=false;});
+document.getElementById('valSlider').addEventListener('input',function(e){wVal=(+e.target.value)/100;const rgb=hsvToRgb(wHue,wSat,wVal);setColor(rgb[0],rgb[1],rgb[2],false);});
+function kelvinToRgb(k){k/=100;let r,g,b;if(k<=66){r=255;g=99.47*Math.log(k)-161.12;}else{r=329.7*Math.pow(k-60,-0.133);g=288.12*Math.pow(k-60,-0.0755);}if(k>=66)b=255;else if(k<=19)b=0;else b=138.52*Math.log(k-10)-305.04;const cl=function(v){return Math.max(0,Math.min(255,Math.round(v)));};return[cl(r),cl(g),cl(b)];}
+document.getElementById('kelvinSlider').addEventListener('input',function(e){document.getElementById('kelvinVal')?0:0;const rgb=kelvinToRgb(+e.target.value);setColor(rgb[0],rgb[1],rgb[2],false);});
+/* ===== STATE CONTROL ===== */
+function palNameById(id){const e=palList.find(function(x){return x.i===id;});return e?e.n:(palNamesRaw[id]||'');}
+function isStarPal(){const n=palNameById(cur.pal);return n.charAt(0)==='*';}
+function normalizeRestrictedState(forceDefault){if(!isRestrictedTab())return;colorTarget=0;cur.pal=0;cur.palName=palNamesRaw[0]||'Default';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;const defNum=parseInt(colors[0].h,16);const defRgb=[(defNum>>16)&255,(defNum>>8)&255,defNum&255];const current=segColors[0]||[0,0,0];const hsv=rgb2hsv(current[0],current[1],current[2]);if(forceDefault||!hueOk(hsv[0],HUE_RULES[activeTab])||(current[0]===0&&current[1]===0&&current[2]===0)){segColors[0]=defRgb;restrictedName=colors[0].n;}segColors[1]=[0,0,0];segColors[2]=[0,0,0];}
+function sendColor(r,g,b,silent){if(isRestrictedTab()){colorTarget=0;cur.pal=0;segColors[0]=[r,g,b];segColors[1]=[0,0,0];segColors[2]=[0,0,0];}else{segColors[colorTarget]=[r,g,b];}const cols=[segColors[0]||[255,255,255],segColors[1]||[0,0,0],segColors[2]||[0,0,0]];const segs=segIds().map(function(id){return{id:id,col:cols,pal:isRestrictedTab()?0:cur.pal};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();renderColorRow();updateSideInfo();}
+function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});if(activeTab==='welcoming'){fetch('/mizuma/show/palette?pal='+i+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)post({seg:segs});}).catch(function(){post({seg:segs});});}else post({seg:segs});cur.pal=i;fxPalCache[cur.fx]=i;markDirty();renderColorRow();updateSideInfo();}
+function renderShowInfo(){const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');const ms=Number(showDurations[cur.showIndex]||0);const sec=ms>0?(ms/1000).toFixed(2).replace('.',',')+' detik':'mengikuti seluruh tahap animasi';hint.textContent='Durasi: '+sec+'. Setiap animasi memiliki waktu berbeda dan berjalan sampai seluruh tahap selesai.';hint.style.display='block';}
+function sendShow(index){if(activeTab!=='welcoming'||index<0||index>=showNames.length)return;cur.isShow=true;cur.showIndex=index;cur.fx=0;document.getElementById('fxSavedName').textContent=showNames[index];fetch('/mizuma/show?index='+index+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('show rejected');markDirty();renderShowInfo();updateCtx();updateSideInfo();}).catch(function(){toast('Gagal menjalankan animasi Mizuma');});}
+function sendEffect(i){cur.isShow=false;cur.showIndex=0;if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);let palToSend=cur.pal;if(!isRestrictedTab()){let pi=-1;if(fxPalCache[i]!=null)pi=fxPalCache[i];else{const df=fxDefs(i);if(df.pal!=null)pi=df.pal;else{const nm=allFx[i]||'';if(FX_PAL_DEFAULTS[nm])pi=palIdByName(FX_PAL_DEFAULTS[nm]);}}if(pi>=0&&palNameById(pi)){cur.pal=pi;cur.palName=palNameById(pi);palToSend=pi;document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}}const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,rev:showReverse,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});const applyFx=function(){post({seg:segs});};if(activeTab==='welcoming'){fetch('/mizuma/show/stop?side='+encodeURIComponent(activeSide),{method:'POST'}).then(applyFx).catch(applyFx);}else applyFx();if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();renderParams(i);updateSideInfo();}
+const sendParamD=debounce(function(k,v){const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
+const sendBriD=debounce(function(v){post({bri:v});fetch('/mizuma/bri?v='+v,{method:'POST'}).catch(function(){});},80);
+/* ===== SIDE INFO (kiri/kanan dari state device) ===== */
+let usiT=null;
+function updateSideInfo(){if(usiT)return;usiT=setTimeout(function(){usiT=null;updateSideInfoNow();},350);}
+function updateSideInfoNow(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNameById(s.pal)||'Palette');};document.getElementById('ctxInfo').textContent=nm(segById(j,mapSegId('kiri')));document.getElementById('savedInfo').textContent=nm(segById(j,mapSegId('kanan')));}).catch(function(){});}
+/* ===== FX / BG / CS ===== */
+function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
+function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
+function renderColorRow(){const box=document.getElementById('colorRow');if(!box)return;box.innerHTML='';const star=isStarPal(),ps=isPSFx();const mk=function(label,idx){const b=document.createElement('button');b.className='crow-btn'+(colorTarget===idx?' active':'');b.textContent=label;b.style.background=gstr(segColors[idx]||[128,128,128]);b.addEventListener('click',function(){colorTarget=idx;renderColorRow();});box.appendChild(b);};if(!(ps&&!star))mk('Fx',0);mk('Bg',1);if(star&&slotCount>=3)mk('3',2);updateStarStrips();}
+(function(){const box=document.getElementById('quickColors');QUICK_COLORS.forEach(function(h){const d=document.createElement('div');d.className='qc';d.style.background='#'+h;d.addEventListener('click',function(){const n=parseInt(h,16);setColor((n>>16)&255,(n>>8)&255,n&255,false);});box.appendChild(d);});const r=document.createElement('div');r.className='qc';r.style.background='conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)';r.style.position='relative';r.innerHTML='<span style="position:absolute;inset:5px;border-radius:50%;background:var(--bg);color:var(--tx);display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;">R</span>';r.addEventListener('click',function(){setColor(Math.random()*256|0,Math.random()*256|0,Math.random()*256|0,false);});box.appendChild(r);})();
+function setColor(r,g,b,silent){const hv=rgb2hsv(r,g,b);wHue=hv[0];wSat=hv[1];wVal=hv[2];document.getElementById('valSlider').value=Math.round(wVal*100);paintRange(document.getElementById('valSlider'));paintWheel(wheel,wHue,wSat);sendColor(r,g,b,silent);updateModeAktif();}
+/* ===== RESTRICTED ===== */
+function buildRestricted(){const grid=document.getElementById('restrictedGrid');grid.innerHTML='';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;colors.forEach(function(c,i){const d=document.createElement('div');d.className='rswatch'+(i===0?' active':'');d.style.background='#'+c.h;d.addEventListener('click',function(){document.querySelectorAll('.rswatch').forEach(function(x){x.classList.remove('active');});d.classList.add('active');restrictedName=c.n;const n=parseInt(c.h,16);sendColor((n>>16)&255,(n>>8)&255,n&255,false);updateModeAktif();});grid.appendChild(d);});buildWheelImg(document.getElementById('wheelR'),HUE_RULES[activeTab]);restrictedName=colors[0].n;}
+document.getElementById('wheelR').addEventListener('pointerdown',function(e){const cv=document.getElementById('wheelR'),rect=cv.getBoundingClientRect(),wr=cv.width/2,x=(e.clientX-rect.left)*(cv.width/rect.width),y=(e.clientY-rect.top)*(cv.height/rect.height),dx=x-wr,dy=y-wr;if(Math.sqrt(dx*dx+dy*dy)>wr)return;const h=clampHue(Math.atan2(dy,dx)*180/Math.PI+180,HUE_RULES[activeTab]),sat=Math.min(1,Math.sqrt(dx*dx+dy*dy)/wr),rgb=hsvToRgb(h,sat,1);restrictedName='Wheel (dibatasi)';setColor(rgb[0],rgb[1],rgb[2],false);updateModeAktif();});
+/* ===== PALETTES ===== */
+const paletteGrid=document.getElementById('paletteGrid'),customPalGrid=document.getElementById('customPalGrid');
+/* Thumbnail palette = data /json/palx (sama dengan UI stock). Entri: [pos,r,g,b] | 'r' (acak) | 'c1'..'c3' (warna segmen) */
+let palRaw={},palSlot={},palRand={},palTry=0;
+function palGrad(id){const d=palRaw[id];if(!d||!d.length)return null;const st=[];for(let j=0;j<d.length;j++){const e=d[j];let c,idx=false;if(Array.isArray(e)){idx=e[0]/255*100;c=[e[1],e[2],e[3]];}else if(e==='r'){const key=id+'_'+j;c=palRand[key]||(palRand[key]=[Math.random()*255|0,Math.random()*255|0,Math.random()*255|0]);}else{c=segColors[(parseInt(String(e).charAt(1),10)||1)-1]||[0,0,0];}const rgb='rgb('+c[0]+','+c[1]+','+c[2]+')';st.push(idx===false?rgb:rgb+' '+idx+'%');}if(st.length===1)st.push(st[0]);return 'linear-gradient(90deg,'+st.join(',')+')';}
+function refreshPalStrips(all){document.querySelectorAll('.pal-row').forEach(function(row){const id=parseInt(row.dataset.pid,10);if(isNaN(id))return;if(!all&&!palSlot[id])return;const g=palGrad(id);if(g)row.querySelector('.pstrip').style.background=g;});}
+function updateStarStrips(){refreshPalStrips(false);}
+function loadPalX(page){page=page||0;jfetch('/json/palx?page='+page).then(function(r){return r.ok?r.json():Promise.reject();}).then(function(d){const map=d&&d.p;if(!map||typeof map!=='object')throw 0;Object.keys(map).forEach(function(k){const v=map[k];if(Array.isArray(v)){const id=parseInt(k,10);palRaw[id]=v;palSlot[id]=v.some(function(x){return typeof x==='string'&&x!=='r';});}});palTry=0;refreshPalStrips(true);if(typeof d.m==='number'&&page<d.m)loadPalX(page+1);else{palCacheSave();if(palInfo.cpal)renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());}}).catch(function(){if(palTry++<4)setTimeout(function(){loadPalX(page);},1500);});}
+function makePalRow(e,grid,numbered,seq){const row=document.createElement('div');row.className='pal-row'+(cur.palName===e.n?' active':'');row.dataset.name=e.n.toLowerCase();row.dataset.palname=e.n;row.dataset.pid=e.i;const grad=palGrad(e.i)||'var(--s3)';row.innerHTML='<span class="pradio"></span><span class="pnum">'+(numbered?(seq+1):'')+'</span><span class="pname">'+e.n+'</span><span class="pstrip" style="background:'+grad+'"></span>';row.addEventListener('click',function(){cur.palName=e.n;document.querySelectorAll('.pal-row').forEach(function(x){x.classList.remove('active');});row.classList.add('active');sendPalette(e.i);updateModeAktif();});grid.appendChild(row);}
+function renderPaletteRows(q){paletteGrid.innerHTML='';customPalGrid.innerHTML='';let t=0;palList.forEach(function(e){if(e.custom&&isPlaceholderPal(e.i))return;if(e.n.charAt(0)==='*'){makePalRow(e,customPalGrid,false,0);return;}if(q&&e.n.toLowerCase().indexOf(q)<0)return;makePalRow(e,paletteGrid,true,t);t++;});updateStarStrips();}
+let palInfo={cpal:0,um:[],major:0},palSig='';
+function palIdBase(){return palInfo.major>=16?200:255;}
+function isPlaceholderPal(id){const d=palRaw[id];if(!d||!d.length||!Array.isArray(d[0]))return false;const f=d[0];if(!(f[1]===f[2]&&f[2]===f[3]))return false;return d.every(function(e){return Array.isArray(e)&&e[1]===f[1]&&e[2]===f[2]&&e[3]===f[3];});}
+function palCacheLoad(sig){try{const c=JSON.parse(localStorage.getItem('mzPalCache')||'null');if(c&&c.sig===sig&&c.raw){palRaw=c.raw;Object.keys(palRaw).forEach(function(k){palSlot[k]=palRaw[k].some(function(x){return typeof x==='string'&&x!=='r';});});}}catch(e){}}
+function palCacheSave(){try{localStorage.setItem('mzPalCache',JSON.stringify({sig:palSig,raw:palRaw}));}catch(e){}}
+function loadPalettes(force){Promise.all([jfetch('/json/pal').then(function(r){return r.json();}),jfetch('/json/info').then(function(r){return r.json();})]).then(function(v){const names=v[0],inf=v[1]||{};palInfo.major=parseInt(String(inf.ver||'0'),10)||0;if(inf.umpalnames!==undefined||inf.cpalmax!==undefined)palInfo.major=Math.max(palInfo.major,16);palInfo.cpal=inf.cpalcount||0;palInfo.um=Array.isArray(inf.umpalnames)?inf.umpalnames:[];const sig=names.length+'|'+palInfo.cpal+'|'+palInfo.um.length+'|'+palInfo.major;if(!force&&sig===palSig)return;const first=(palSig==='');palSig=sig;if(first)palCacheLoad(sig);palNamesRaw=names;const arr=[];names.forEach(function(n,i){if(n!=='r')arr.push({n:n,i:i});});arr.sort(function(a,b){if(a.i===0)return -1;if(b.i===0)return 1;const sa=a.n.charAt(0)==='*',sb=b.n.charAt(0)==='*';if(sa&&sb)return a.i-b.i;return a.n.localeCompare(b.n);});for(let k=0;k<palInfo.cpal;k++)arr.push({n:'~ Custom '+(k+1)+' ~',i:palIdBase()-k,custom:true});if(palInfo.major>=16)palInfo.um.forEach(function(n,k){arr.push({n:n||('Usermod '+(k+1)),i:255-k,custom:true});});palList=arr;renderPaletteRows(document.getElementById('searchBox').value.toLowerCase());renderColorRow();palTry=0;loadPalX(0);updateSideInfo();}).catch(function(){setTimeout(function(){loadPalettes(force);},1500);});}
+loadPalettes(true);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)loadPalettes(false);});
+window.addEventListener('focus',function(){loadPalettes(false);});
+document.getElementById('searchBox').addEventListener('input',function(e){renderPaletteRows(e.target.value.toLowerCase());});
+/* ===== EFFECTS ===== */
+/* metadata efek WLED: "slider;warna;palette;flags;default" (sama seperti UI stock) */
+function fxPart(i,k){const m=(fxData[i]||'').split(';');return m.length>k?m[k]:null;}
+function fxUsesPal(i){const p=fxPart(i,2);return p===null?true:p!=='';}
+function fxDefs(i){const d={},s=fxPart(i,4);if(s)s.split(',').forEach(function(kv){const p=kv.split('=');if(p.length===2){const v=parseInt(p[1],10);if(!isNaN(v))d[p[0].trim()]=v;}});return d;}
+function isRsvd(n){const t=(n||'').toLowerCase();return t===''||t==='rsvd'||t==='-';}
+function fxFlags(i){return fxPart(i,3)||'';}
+function fxOk(i,name){if(isRsvd(name)||MZW_RE.test(name))return false;const t=name.toLowerCase();if(name.indexOf('2D')===0||FX_BLACKLIST.indexOf(t)>=0)return false;const f=fxFlags(i);if(f.indexOf('2')>=0&&f.indexOf('1')<0&&f.indexOf('0')<0)return false;if(HIDE_AUDIO_FX&&(f.indexOf('v')>=0||f.indexOf('f')>=0))return false;return true;}
+function lookupExact(n){const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase()===t;});}
+function lookup(n){const i=lookupExact(n);if(i>=0)return i;const t=n.toLowerCase();return allFx.findIndex(function(x){return x.toLowerCase().includes(t);});}
+function mzwOrder(name){const m=/^(MZ|W)(\d\d) /.exec(name);if(!m)return 999;return m[1]==='MZ'?parseInt(m[2],10):(5+parseInt(m[2],10));}
+/* Katalog 1..70 hanya untuk Welcoming. idx selalu ID asli WLED, bukan nomor urut tampilan. */
+function listForTab(){
+  if(activeTab==='welcoming'){
+    const custom=showNames.map(function(n,i){return{name:n,isShow:true,showIndex:i};});
+    const native=[];
+    MIZUMA_NATIVE_FX.forEach(function(spec){
+      let idx=lookupExact(spec.match);
+      if(idx<0&&spec.fallback)idx=lookupExact(spec.fallback);
+      if(idx>=0)native.push({name:spec.label,idx:idx,isShow:false});
+      else { native.push({name:spec.label+' (tidak tersedia)',idx:-1,isShow:false,unavailable:true}); console.warn('[Mizuma] Efek native tidak ditemukan pada firmware:',spec.match); }
+    });
+    return custom.concat(native);
+  }
+  /* Riding, Sein, Rem, dan Hazard kembali memakai penyaringan bawaan versi sebelumnya. */
+  if(activeTab==='riding')return allFx.map(function(n,i){return{name:n,idx:i};}).filter(function(e){return fxOk(e.idx,e.name);});
+  return RESTRICTED_FX.map(lookupExact).filter(function(i){return i>=0;}).map(function(i){return{name:allFx[i],idx:i};});
+}
+function parseFxData(meta){const parts=(meta||'').split(';'),labels=(parts[0]||'').split(','),def=['Speed','Intensity','Custom 1','Custom 2','Custom 3'],keys=['sx','ix','c1','c2','c3'],sl=[];for(let i=0;i<5;i++){let l=labels[i];if(l===undefined||l==='')continue;if(l==='!')l=def[i];sl.push({key:keys[i],label:l});}const tg=[];for(let i=0;i<3;i++){let l=labels[5+i];if(l===undefined||l==='')continue;if(l==='!')l='Opsi '+(i+1);tg.push({key:['o1','o2','o3'][i],label:l});}return{sl:sl,tg:tg};}
+function renderParams(idx){if(cur.isShow){renderShowInfo();return;}const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');hint.textContent='Efek ini tidak memiliki parameter tambahan.';const p=parseFxData(fxData[idx]||'');const iv=function(k){return cur.params[k]!=null?cur.params[k]:128;};p.sl.forEach(function(s){const v=iv(s.key);const row=document.createElement('div');row.className='param-row';row.innerHTML='<div class="param-label"><span>'+s.label+'</span><span>'+v+'</span></div><input type="range" min="0" max="255" value="'+v+'">';const inp=row.querySelector('input');inp.addEventListener('input',function(e){row.querySelectorAll('.param-label span')[1].textContent=e.target.value;sendParamD(s.key,+e.target.value);});box.appendChild(row);paintRange(inp);});p.tg.forEach(function(s){const on0=cur.params[s.key]===1;const row=document.createElement('div');row.className='param-row';row.style.cssText='display:flex;justify-content:space-between;align-items:center;';row.innerHTML='<span style="font-size:12px;color:var(--tx2);">'+s.label+'</span><button class="btn-sm'+(on0?' primary':'')+'" data-on="'+(on0?'1':'0')+'">'+(on0?'On':'Off')+'</button>';const b=row.querySelector('button');b.addEventListener('click',function(){const on=b.dataset.on==='1';b.dataset.on=on?'0':'1';b.textContent=on?'Off':'On';b.className=on?'btn-sm':'btn-sm primary';sendParamD(s.key,on?0:1);});box.appendChild(row);});document.getElementById('footHint').style.display=(p.sl.length===0&&p.tg.length===0)?'block':'none';}
+function buildEffects(){const grid=document.getElementById('fxGrid');grid.innerHTML='';if(!allFx.length){grid.innerHTML='<div class="foot-hint">Memuat daftar efek...</div>';return;}if(activeTab==='welcoming'&&!showNames.length){grid.innerHTML='<div class="foot-hint">Katalog animasi Mizuma belum termuat. Muat ulang halaman.</div>';return;}curList=listForTab();if(activeTab!=='welcoming'){curList=curList.slice().sort(function(a,b){if(a.idx===0)return -1;if(b.idx===0)return 1;const wa=MZW_RE.test(a.name),wb=MZW_RE.test(b.name);if(wa!==wb)return wa?-1:1;return a.name.localeCompare(b.name);});} /* Welcoming: 55 show + 15 FX native; tab lain tetap memakai filter lama. */curList.forEach(function(e,i){const el=document.createElement('div');el.className='fx-item'+(e.unavailable?' unavailable':'');if(e.isShow)el.dataset.showIndex=e.showIndex;else if(e.idx>=0)el.dataset.fxIndex=e.idx;el.innerHTML='<span class="fx-num">'+(i+1)+'.</span><span class="fx-name">'+e.name+'</span>';if(!e.unavailable)el.addEventListener('click',function(){document.querySelectorAll('.fx-item').forEach(function(x){x.classList.remove('active');});el.classList.add('active');document.getElementById('fxSavedName').textContent=e.name;if(e.isShow){sendShow(e.showIndex);renderShowInfo();}else{sendEffect(e.idx);renderParams(e.idx);}updateCtx();});else el.title='Efek ini tidak tersedia pada build WLED saat ini';grid.appendChild(el);});updateCtx();}
+document.getElementById('fxSearch').addEventListener('input',function(e){const q=e.target.value.toLowerCase();document.querySelectorAll('#fxGrid .fx-item').forEach(function(el){el.style.display=el.querySelector('.fx-name').textContent.toLowerCase().indexOf(q)>=0?'':'none';});});
+function loadFxData(cb){Promise.all([jfetch('/json/eff').then(function(r){return r.json();}),jfetch('/json/fxdata').then(function(r){return r.json();}),fetch('/mizuma/shows').then(function(r){if(!r.ok)throw new Error('shows');return r.json();}),fetch('/mizuma/show-durations').then(function(r){if(!r.ok)throw new Error('show durations');return r.json();})]).then(function(v){allFx=v[0];fxData=v[1];showNames=v[2]||[];showDurations=v[3]||[];cb(true);}).catch(function(){cb(false);});}
+function captureParams(s){if(s.sx!=null)cur.params.sx=s.sx;if(s.ix!=null)cur.params.ix=s.ix;if(s.c1!=null)cur.params.c1=s.c1;if(s.c2!=null)cur.params.c2=s.c2;if(s.c3!=null)cur.params.c3=s.c3;if(s.o1!=null)cur.params.o1=s.o1?1:0;if(s.o2!=null)cur.params.o2=s.o2?1:0;if(s.o3!=null)cur.params.o3=s.o3?1:0;}
+/* ===== LABELS & CONTEXT ===== */
+function sideLabel(){return{kanan:'Kanan',kiri:'Kiri',both:'Semua'}[activeSide];}
+function tabLabel(){return{welcoming:'Welcoming',riding:'Riding',sein:'Sein',rem:'Rem',hazard:'Hazard'}[activeTab];}
+function subLabel(){return{template:'Warna Template',custom:'Warna Custom',efek:'Pilih Efek',simpan:'Riwayat Simpan'}[activeSub];}
+function updateCtx(){document.getElementById('fxSavedName')?0:0;}
+function updateModeAktif(){if(isRestrictedTab()){document.getElementById('modeAktif').textContent='Terbatas \u2014 '+restrictedName+' ('+tabLabel()+')';return;}if(activeTab==='welcoming'&&cur.isShow){document.getElementById('modeAktif').textContent='Animasi Mizuma \u2014 '+(showNames[cur.showIndex]||('MZ'+String(cur.showIndex+1).padStart(2,'0')));return;}if(activeSub==='custom'){document.getElementById('modeAktif').textContent='Custom \u2014 warna manual';}else{document.getElementById('modeAktif').textContent='Template \u2014 '+(cur.palName||'-')+(fxUsesPal(cur.fx)?'':' (efek ini tidak memakai palette)');}}
+function refreshSavedInfo(){updateSideInfo();}
+/* ===== SAVE ===== */
+function doSave(){if(isRestrictedTab())normalizeRestrictedState(false);const sides=activeSide==='both'?['Kanan','Kiri']:[cap(activeSide)];const c0=segColors[0]||[255,255,255],c1=isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),c2=isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0]);const params=new URLSearchParams({fx:cur.fx,pal:isRestrictedTab()?0:cur.pal,isShow:(activeTab==='welcoming'&&cur.isShow)?1:0,showIndex:(activeTab==='welcoming'&&cur.isShow)?cur.showIndex:0,r:c0[0],g:c0[1],b:c0[2],r1:c1[0],g1:c1[1],b1:c1[2],r2:c2[0],g2:c2[1],b2:c2[2],sx:cur.params.sx!=null?cur.params.sx:128,ix:cur.params.ix!=null?cur.params.ix:128,c1:cur.params.c1!=null?cur.params.c1:128,c2:cur.params.c2!=null?cur.params.c2:128,c3:cur.params.c3!=null?cur.params.c3:128,o1:cur.params.o1!=null?cur.params.o1:0,o2:cur.params.o2!=null?cur.params.o2:0,o3:cur.params.o3!=null?cur.params.o3:0});sides.forEach(function(sd){fetch('/mizuma/preset?slot='+encodeURIComponent(activeTab+sd)+'&'+params.toString(),{method:'POST'}).catch(function(){});});clearDirty();const d=new Date();toast('\u2713 Tersimpan '+('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2));renderSavedList();refreshSavedInfo();}
+function renderSavedList(){const box=document.getElementById('savedList');box.innerHTML='Memuat...';fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){box.innerHTML='';['welcoming','riding','sein','rem','hazard'].forEach(function(t){['Kanan','Kiri'].forEach(function(s){const st=d[t+s];const row=document.createElement('div');row.className='saved-row';const on=!!(st&&st.valid);const txt=on?'Tersimpan':'Default';row.innerHTML='<span class="sk">'+cap(t)+' \u2014 '+s+'</span><span class="st'+(on?' on':'')+'">'+txt+'</span>';box.appendChild(row);});});}).catch(function(){box.innerHTML='Gagal memuat status.';});}
+document.getElementById('btnSaveSub').addEventListener('click',doSave);
+/* ===== MODAL ===== */
+function showModal(action){pendingAction=action;document.getElementById('modalCtx').textContent=tabLabel()+' \u2014 '+sideLabel();document.getElementById('saveModal').style.display='flex';}
+document.getElementById('mSave').addEventListener('click',function(){doSave();document.getElementById('saveModal').style.display='none';if(pendingAction)pendingAction();pendingAction=null;});
+document.getElementById('mDiscard').addEventListener('click',function(){clearDirty();document.getElementById('saveModal').style.display='none';if(pendingAction)pendingAction();pendingAction=null;});
+document.getElementById('mCancel').addEventListener('click',function(){document.getElementById('saveModal').style.display='none';pendingAction=null;});
+/* ===== PRESET APPLY & UI UPDATE ===== */
+function updateControlsFromPreset(tab,st){if(!st)return;cur.isShow=(tab==='welcoming'&&!!st.isShow);cur.showIndex=cur.isShow?Math.max(0,Math.min(showNames.length-1,Number(st.showIndex)||0)):0;cur.fx=cur.isShow?0:(st.fx!=null?st.fx:0);cur.pal=(tab==='sein'||tab==='rem'||tab==='hazard')?0:(st.pal!=null?st.pal:0);const np=paramsFor(cur.fx);np.sx=st.sx!=null?st.sx:128;np.ix=st.ix!=null?st.ix:128;np.c1=st.c1!=null?st.c1:128;np.c2=st.c2!=null?st.c2:128;np.c3=st.c3!=null?st.c3:128;np.o1=st.o1!=null?st.o1:0;np.o2=st.o2!=null?st.o2:0;np.o3=st.o3!=null?st.o3:0;cur.params=np;if(st.col&&st.col.length){const cols=Array.isArray(st.col[0])?st.col:[st.col];for(let i=0;i<3;i++){if(cols[i])segColors[i]=[cols[i][0],cols[i][1],cols[i][2]];}slotCount=cols.length;}const pName=palNameById(cur.pal);cur.palName=pName;if(isRestrictedTab())normalizeRestrictedState(false);renderColorRow();if(cur.isShow)renderShowInfo();else renderParams(cur.fx);document.querySelectorAll('.fx-item').forEach(function(el){const match=cur.isShow?(Number(el.dataset.showIndex)===cur.showIndex):(el.dataset.fxIndex!=null&&Number(el.dataset.fxIndex)===cur.fx);el.classList.toggle('active',match);});document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});updateModeAktif();if(cur.isShow)document.getElementById('fxSavedName').textContent=showNames[cur.showIndex]||'Animasi Mizuma';}
+function applySaved(tab){fetch('/mizuma/presets').then(function(r){return r.json();}).then(function(d){const uiSide=activeSide==='kiri'?'Kiri':'Kanan';const st=d[tab+uiSide];updateControlsFromPreset(tab,st);if(activeSide!==''){fetch('/mizuma/apply?mode='+encodeURIComponent(tab)+'&side='+encodeURIComponent(activeSide),{method:'POST'}).catch(function(){});}
+/* FOKUS SISI: matikan sisi yang tidak diedit */
+if(activeSide==='kanan'){post({seg:[{id:mapSegId('kiri'),on:false}]});}
+else if(activeSide==='kiri'){post({seg:[{id:mapSegId('kanan'),on:false}]});}
+updateCtx();updateSideInfo();}).catch(function(){});}
+/* ===== NAVIGATION ===== */
+function setSub(k){activeSub=k;const r=isRestrictedTab();
+document.getElementById('headEfek').style.display=k==='efek'?'flex':'none';
+document.getElementById('headWarna').style.display=((k==='template'||k==='custom')&&!r)?'flex':'none';
+document.getElementById('headTemplate').style.display=(k==='template'&&!r)?'flex':'none';
+document.getElementById('headSimpan').style.display=k==='simpan'?'flex':'none';
+document.getElementById('scrollEfek').style.display=k==='efek'?'block':'none';
+document.getElementById('scrollTemplate').style.display=(k==='template'&&!r)?'block':'none';
+document.getElementById('scrollCustom').style.display=(k==='custom'&&!r)?'block':'none';
+document.getElementById('scrollRestricted').style.display=((k==='template'||k==='custom')&&r)?'block':'none';
+document.getElementById('scrollSimpan').style.display=k==='simpan'?'block':'none';
+document.getElementById('footEfek').style.display=k==='efek'?'block':'none';
+if(r&&(k==='template'||k==='custom')){buildRestricted();normalizeRestrictedState(false);}
+if(k==='simpan')renderSavedList();
+if(k==='template'||k==='custom')loadPalettes(false);
+updateModeAktif();}
+function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
+function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
+function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=sideSwap?'Ditukar':'Posisi';b.title=sideSwap?'Output fisik kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Menukar pemetaan output fisik kiri dan kanan.';}
+function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');const label=b.querySelector('.tool-label');if(label)label.textContent=showReverse?'Dibalik':'Arah';b.title=showReverse?'Arah gerak animasi sedang dibalik. Tekan untuk mengembalikan.':'Membalik urutan gerak animasi LED pada sisi yang aktif.';}
+function loadSideSwap(){return jfetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
+function requestSideSwap(){const next=!sideSwap;const b=document.getElementById('swapSideBtn');if(b)b.disabled=true;jfetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('swap rejected');sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');}).finally(function(){if(b)b.disabled=false;});}
+function loadShowReverse(){return jfetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();}).catch(function(){updateDirectionButton();});}
+function requestShowReverse(){const previous=showReverse,next=!previous,b=document.getElementById('reverseFxBtn');/* Perbarui state UI lebih dulu agar efek yang dipilih saat request menunggu ikut memakai arah baru. */showReverse=next;updateDirectionButton();if(b)b.disabled=true;jfetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('reverse rejected');showReverse=!!d.enabled;updateDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah animasi dibalik':'↔ Arah animasi normal');}).catch(function(){showReverse=previous;updateDirectionButton();toast('Gagal mengubah arah LED');}).finally(function(){if(b)b.disabled=false;});}
+document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
+document.getElementById('controlPanel').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;/* Posisi dan arah adalah kontrol langsung, bukan perubahan preset: jangan ditahan dialog Simpan. */if(btn.dataset.action==='swap'){requestSideSwap();return;}if(btn.dataset.action==='reverse'){requestShowReverse();return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
+document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
+document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
+/* ===== INIT ===== */
+document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
+updateDirectionButton();
+setSub(activeSub);renderSavedList();
+loadFxData(function(ok){if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}else{initFromState();}});
+function initFromState(){loadSideSwap().then(loadShowReverse).then(function(){return jfetch('/json/state');}).then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=segById(j,mapSegId('kanan'));if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
+</script>
+<script>
+(function(){
+function inj(url,cb){fetch(url).then(function(r){return r.text();}).then(cb).catch(function(){});}
+inj('/mizuma/frag/header',function(t){const el=document.getElementById('mzH');if(el)el.outerHTML=t;
+inj('/mizuma/frag/nav',function(t2){const el2=document.getElementById('mzN');if(el2)el2.outerHTML=t2;const a=document.querySelector('.bottomnav a[href="/led"]');if(a)a.classList.add('active');
+inj('/mizuma/frag/script',function(t3){eval(t3);});});});
+window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{navigator.sendBeacon('/json/state',new Blob([JSON.stringify({seg:[{id:SEG_K,on:true},{id:SEG_L,on:true}]})],{type:'application/json'}));}catch(e){}});
+})();
+</script>
+</body>
+</html>
+)rawliteral";
+
+
+// =====================================================================================================================================
+// BLOK 6 — FINAL v3 (konsolidasi + FIX: brightness permanen via /mizuma/bri)
+// =====================================================================================================================================
+    #ifndef USERMOD_ID_MIZUMA_SYSTEM
+    #define USERMOD_ID_MIZUMA_SYSTEM 0x9001
+    #endif
+    class MizumaSmartSystem : public Usermod {
+    private:
+    String vehicleName = "";
+    String vehicleBrand = "";
+    uint16_t vehicleYear = 0;
+    String vehiclePlate = "";
+    struct ReminderItem { unsigned long lastServiceEpoch = 0; uint16_t intervalDays = 0; };
+    ReminderItem oliMesin, oliRem, oliGardan, cvt, filter;
+    struct PresetSlot {
+    bool valid = false;
+    bool isShow = false;
+    uint8_t showIndex = 0;
+    uint8_t fx = 0; uint8_t pal = 0;
+    uint8_t r = 255, g = 255, b = 255;
+    uint8_t r1 = 0, g1 = 0, b1 = 0;
+    uint8_t r2 = 0, g2 = 0, b2 = 0;
+    uint8_t sx = 128, ix = 128;
+    uint8_t c1 = 128, c2 = 128, c3 = 128;
+    uint8_t o1 = 0, o2 = 0, o3 = 0;
+    uint8_t bri = 180;
+    };
+    PresetSlot pslots[10];
+    static const uint16_t NATIVE_WELCOME_FALLBACK_MS = 7000; // hanya untuk preset boot WLED native, bukan show Mizuma
+    int bootStage = 0;
+    uint32_t bootT = 0;
+    uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
+    uint8_t  showFxResolved = 0;              // jumlah nama efek WLED yang berhasil dipetakan
+    uint8_t  showModeIds[MZ_FXN_COUNT];       // indeks aktual efek WLED, di-resolve saat boot
+    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint32_t startedAt=0; };
+    ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
+    bool bootDone = false;
+    bool usingNativeWelcomePreset = false;
+    bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
+    bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
+
+    /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
+       Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
+    uint8_t savedBri = 180;
+    bool cfgSavePending = false;
+    unsigned long cfgSaveT = 0;
+    void queueSave(){cfgSavePending=true;cfgSaveT=millis();}
+    
+    const char* slotKey(int i){
+    switch(i){
+    case 0: return "welcomingKanan"; case 1: return "welcomingKiri";
+    case 2: return "ridingKanan";    case 3: return "ridingKiri";
+    case 4: return "seinKanan";      case 5: return "seinKiri";
+    case 6: return "remKanan";       case 7: return "remKiri";
+    case 8: return "hazardKanan";    default: return "hazardKiri";}}
+    int slotIdx(const String &k){for(int i=0;i<10;i++)if(k==slotKey(i))return i;return -1;}
+    bool isRestrictedSlot(int i){return i>=4&&i<=9;}
+    PresetSlot defaultSlot(int idx){
+    PresetSlot p;p.valid=true;p.fx=0;p.pal=0;
+    if(idx<=1){p.isShow=true;p.showIndex=0;p.r=255;p.g=165;p.b=0;p.r1=255;p.g1=255;p.b1=255;p.r2=255;p.g2=26;p.b2=0;}
+    else {p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
+      if(idx==4||idx==5||idx==8||idx==9){p.r=255;p.g=165;p.b=0;}
+      else if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}
+      else{p.r=255;p.g=255;p.b=255;}}
+    p.sx=128;p.ix=128;p.c1=128;p.c2=128;p.c3=128;p.o1=0;p.o2=0;p.o3=0;p.bri=180;
+    return p;}
+    void normalizeRestrictedSlot(PresetSlot &p,int idx){
+    if(!isRestrictedSlot(idx))return;
+    p.pal=0;p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
+    if(p.r==0&&p.g==0&&p.b==0){if(idx==6||idx==7){p.r=255;p.g=0;p.b=0;}else{p.r=255;p.g=165;p.b=0;}}}
+    PresetSlot getEffectiveSlot(int idx){
+    if(idx<0||idx>9)idx=2;
+    PresetSlot p=pslots[idx].valid?pslots[idx]:defaultSlot(idx);
+    normalizeRestrictedSlot(p,idx);
+    return p;}
+    uint8_t argU8(AsyncWebServerRequest *req,const char *key,uint8_t def){
+    if(!req->hasArg(key))return def;
+    return (uint8_t)constrain(req->arg(key).toInt(),0,255);}
+    
+    void addSegmentFromSlot(JsonArray seg,uint8_t segId,uint8_t slotIdx){
+    PresetSlot p=getEffectiveSlot(slotIdx);
+    JsonObject s=seg.createNestedObject();
+    s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["rev"]=showReverse;s["sx"]=p.sx;s["ix"]=p.ix;
+    s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
+JsonArray col=s.createNestedArray("col");
+JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
+JsonArray c1=col.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
+JsonArray c2=col.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);}
+uint8_t physicalSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?0:1;}
+void applySingleSlot(uint8_t slotIdx){
+bool rightSide=(slotIdx%2)==0;uint8_t segId=physicalSegForLogicalSide(rightSide);
+StaticJsonDocument<1024> doc;JsonObject root=doc.to<JsonObject>();
+root["on"]=true;if(bri==0)root["bri"]=savedBri;
+JsonArray seg=root.createNestedArray("seg");
+addSegmentFromSlot(seg,segId,slotIdx);
+deserializeState(root);}
+void applyTwoSlots(uint8_t rightSlot,uint8_t leftSlot,uint16_t transition100ms=0){
+StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
+root["on"]=true;root["transition"]=transition100ms;if(bri==0)root["bri"]=savedBri;
+JsonArray seg=root.createNestedArray("seg");
+addSegmentFromSlot(seg,physicalSegForLogicalSide(true),rightSlot);
+addSegmentFromSlot(seg,physicalSegForLogicalSide(false),leftSlot);
+deserializeState(root);}
+int modeBase(const String &mode){
+if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 4;
+if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
+bool applyModeSide(const String &mode,const String &side,uint16_t transition100ms=0){
+if(mode=="welcoming")return applyWelcomeModeSide(side);
+stopShowRunners("both");
+int base=modeBase(mode);if(base<0)return false;
+if(side=="both"){applyTwoSlots(base,base+1,transition100ms);return true;}
+if(side=="kanan"){applySingleSlot(base);return true;}
+if(side=="kiri"){applySingleSlot(base+1);return true;}
+return false;}
+
+// ---------------- MIZUMA SHOW ENGINE (WLED 16.0.1) ----------------
+char lowerAscii(char c){return (c>='A'&&c<='Z')?(char)(c+('a'-'A')):c;}
+int findWledModeByNameExact(const char *wanted){
+  if(!wanted||!*wanted)return -1;
+  const size_t wantedLen=strlen(wanted);
+  for(uint16_t id=0;id<strip.getModeCount();id++){
+    const char *meta=strip.getModeData(id);
+    if(!meta)continue;
+    size_t j=0;
+    for(;j<wantedLen;j++){
+      char m=(char)pgm_read_byte(meta+j);
+      if(m=='\0'||m=='@'||lowerAscii(m)!=lowerAscii(wanted[j]))break;
+    }
+    if(j==wantedLen){char tail=(char)pgm_read_byte(meta+j);if(tail=='@'||tail=='\0')return (int)id;}
+  }
+  return -1;
+}
+int findWledModeByName(const char *wanted){
+  int id=findWledModeByNameExact(wanted);
+  if(id>=0||!wanted)return id;
+  // WLED can replace the legacy effect with its Particle-System equivalent
+  // when PARTICLESYSTEM1D is enabled. Keep show recipe labels stable.
+  if(strcmp(wanted,"Fireworks 1D")==0)return findWledModeByNameExact("PS Fireworks 1D");
+  if(strcmp(wanted,"PS Starburst")==0)return findWledModeByNameExact("Starburst");
+  if(strcmp(wanted,"Fire 2012")==0)return findWledModeByNameExact("PS Fire 1D");
+  return -1;
+}
+uint8_t resolveShowEffects(){
+  uint8_t found=0;
+  for(uint8_t i=0;i<MZ_FXN_COUNT;i++){
+    int id=findWledModeByName(MZ_FXN[i]);
+    showModeIds[i]=(id>=0&&id<255)?(uint8_t)id:255;
+    if(id>=0){found++;}
+    else{DEBUG_PRINTF_P(PSTR("[Mizuma] Efek show tidak ditemukan di WLED: %s\n"),MZ_FXN[i]);}
+  }
+  return found;
+}
+uint32_t resolveStageColor(uint32_t code,Segment &seg,uint8_t colorIndex,uint8_t userPalette,bool &keep){
+  keep=false;
+  if((code&0xFF000000UL)==0xFF000000UL){keep=true;return 0;}
+
+  static const uint8_t palettePos[3]={18,128,238};
+  const bool useUserPalette=(userPalette!=0);
+  bool dim=false;
+  uint8_t sample=palettePos[(colorIndex<3)?colorIndex:0];
+
+  if((code&0xFF000000UL)==0xFE000000UL){
+    uint8_t slot=(uint8_t)(code&0xFFU);if(slot>2)slot=0;
+    dim=(code&0x100UL)!=0;
+    if(!useUserPalette){
+      uint32_t c=seg.colors[slot];
+      if(dim)c=color_fade(c,128,true);
+      return c;
+    }
+    sample=palettePos[slot];
+  }else{
+    const uint32_t rgb=code&0x00FFFFFFUL;
+    // Black remains the designed background; white remains a neutral flash/highlight.
+    if(rgb==0x000000UL||rgb==0xFFFFFFUL||!useUserPalette)return rgb;
+  }
+
+  uint32_t c=seg.color_from_palette(sample,false,true,0,255)&0x00FFFFFFUL;
+  if(dim)c=color_fade(c,128,true)&0x00FFFFFFUL;
+  return c;
+}
+
+void applyShowStageColors(const MzStage &st,Segment &seg,uint8_t userPalette){
+  const bool useUserPalette=(userPalette!=0);
+  if(useUserPalette)seg.beginDraw(); // rebuild palette sampling after setPalette()
+  uint32_t resolved[3]={0,0,0};
+  bool keep[3]={false,false,false};
+  for(uint8_t c=0;c<3;c++)resolved[c]=resolveStageColor(st.col[c],seg,c,userPalette,keep[c]);
+  for(uint8_t c=0;c<3;c++)if(!keep[c])seg.setColor(c,resolved[c]);
+}
+
+void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
+  if(st.fx>=MZ_FXN_COUNT)return;
+  const uint8_t modeId=showModeIds[st.fx];
+  if(modeId==255)return; // FX tidak ada pada build WLED ini: lewati tahap secara aman
+  const uint8_t segId=physicalSegForLogicalSide(logicalRight);
+  if(segId>=strip.getSegmentsNum())return;
+  Segment &seg=strip.getSegment(segId);
+  if(!seg.isActive())return;
+
+  // userPalette disimpan terpisah dari seg.palette: 0 = Mizuma Original,
+  // sedangkan nilai nonzero = palette global pilihan pengguna.
+  const uint16_t previousTransition=strip.getTransition();
+  const uint16_t stageTransition=(uint16_t)st.tt*10U; // tt disimpan dalam satuan 10 ms
+  strip.setTransition(stageTransition);
+
+  if(seg.mode!=modeId)seg.setMode(modeId,true); // muat default parameter efek WLED
+  else if(st.t==0)seg.markForReset();
+  if(userPalette!=0){
+    if(seg.palette!=userPalette)seg.setPalette(userPalette);
+  }else{
+    const uint8_t recipePalette=(st.pal>=0)?(uint8_t)st.pal:0;
+    if(seg.palette!=recipePalette)seg.setPalette(recipePalette); // 0 = default palette efek WLED
+  }
+  if(st.sx>=0)seg.speed=(uint8_t)constrain(st.sx,0,255);
+  if(st.ix>=0)seg.intensity=(uint8_t)constrain(st.ix,0,255);
+  if(st.c1>=0)seg.custom1=(uint8_t)constrain(st.c1,0,255);
+  if(st.c2>=0)seg.custom2=(uint8_t)constrain(st.c2,0,255);
+  if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
+  if(st.o>=0)seg.check1=(st.o!=0);
+  const bool stageReverse=(((st.flags&1U)!=0) ^ showReverse); // resep dan pilihan pengguna digabungkan
+  if(seg.reverse!=stageReverse){seg.reverse=stageReverse;seg.markForReset();}
+  seg.on=true;
+
+  applyShowStageColors(st,seg,userPalette);
+
+  if(st.flags&2U){
+    // WLED Tetrix normally spends 2000 ms fading the old frame. TBJ starts its first brick immediately.
+    seg.deallocateData();seg.reset=false;seg.step=0;seg.call=1;seg.aux0=0;seg.aux1=0;
+    seg.fill(seg.colors[1]);
+  }
+  if(st.tb>=0)strip.timebase=(unsigned long)(uint16_t)st.tb-(unsigned long)millis();
+  strip.trigger();
+  stateUpdated(CALL_MODE_DIRECT_CHANGE);
+  strip.setTransition(previousTransition); // restore WLED's global/default transition time
+}
+
+void startShowRunner(bool logicalRight,uint8_t showIndex){
+  if(showIndex>=MZ_SHOW_COUNT)return;
+  ShowRunner &r=showRunner[logicalRight?0:1];
+  r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;
+  const uint8_t segId=physicalSegForLogicalSide(logicalRight);
+  r.userPalette=(segId<strip.getSegmentsNum())?strip.getSegment(segId).palette:0;
+  r.startedAt=millis();
+}
+void stopShowRunners(const String &side){
+  if(side=="both"||side=="kanan"){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;}
+  if(side=="both"||side=="kiri"){showRunner[1].active=false;showRunner[1].hasCurrentShow=false;showRunner[1].currentStageIndex=255;}
+}
+void tickShowEngine(){
+  const uint32_t now=millis();
+  for(uint8_t rIdx=0;rIdx<2;rIdx++){
+    ShowRunner &r=showRunner[rIdx];if(!r.active||r.showIndex>=MZ_SHOW_COUNT)continue;
+    const MzShow &show=MZ_SHOWS[r.showIndex];const uint32_t elapsed=now-r.startedAt;
+    while(r.stageIndex<show.n&&elapsed>=show.st[r.stageIndex].t){
+      const MzStage &st=show.st[r.stageIndex];
+      if(st.side==0||st.side==(r.logicalRight?1:2)){
+        applyShowStage(st,r.logicalRight,r.userPalette);
+        r.currentStageIndex=r.stageIndex;
+      }
+      r.stageIndex++;
+    }
+    if(elapsed>=show.durationMs)r.active=false; // selesai setelah cue terakhir + waktu penutup show
+  }
+}
+bool startShowPreview(int index,const String &side){
+  if(index<0||index>=MZ_SHOW_COUNT)return false;
+  if(side!="both"&&side!="kanan"&&side!="kiri")return false;
+  stopShowRunners(side); // jangan biarkan runner preview sebelumnya hidup pada sisi lain
+  if(bri==0){bri=savedBri?savedBri:180;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+  if(side=="both"){
+    startShowRunner(true,(uint8_t)index);startShowRunner(false,(uint8_t)index);
+  }else if(side=="kanan")startShowRunner(true,(uint8_t)index);
+  else if(side=="kiri")startShowRunner(false,(uint8_t)index);
+  else return false;
+  tickShowEngine();
+  return true;
+}
+void addShowBaseSegment(JsonArray seg,uint8_t segId,uint8_t slotIdx){
+  // Seed segment colors/settings first; the show engine changes the FX stage immediately after this JSON is applied.
+  addSegmentFromSlot(seg,segId,slotIdx);
+}
+bool applyWelcomeModeSide(const String &side){
+  if(side!="both"&&side!="kanan"&&side!="kiri")return false;
+  stopShowRunners("both");
+  StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();root["on"]=true;
+  if(bri==0)root["bri"]=savedBri;
+  JsonArray seg=root.createNestedArray("seg");
+  PresetSlot rightSlot,leftSlot;bool useRight=(side=="both"||side=="kanan"),useLeft=(side=="both"||side=="kiri");
+  if(useRight){rightSlot=getEffectiveSlot(0);addShowBaseSegment(seg,physicalSegForLogicalSide(true),0);}
+  if(useLeft){leftSlot=getEffectiveSlot(1);addShowBaseSegment(seg,physicalSegForLogicalSide(false),1);}
+  deserializeState(root);
+  if(useRight&&rightSlot.isShow)startShowRunner(true,rightSlot.showIndex);
+  if(useLeft&&leftSlot.isShow)startShowRunner(false,leftSlot.showIndex);
+  tickShowEngine();
+  return true;
+}
+void handleShow(AsyncWebServerRequest *req){
+  if(!req->hasArg("index")){req->send(400,"application/json","{\"ok\":false,\"error\":\"index required\"}");return;}
+  int index=req->arg("index").toInt();String side=req->hasArg("side")?req->arg("side"):String("both");
+  bool ok=startShowPreview(index,side);
+  req->send(ok?200:400,"application/json",ok?"{\"ok\":true}":"{\"ok\":false}");
+}
+void handleShowPalette(AsyncWebServerRequest *req){
+  if(!req->hasArg("pal")){req->send(400,"application/json","{\"ok\":false,\"error\":\"pal required\"}");return;}
+  const int requested=req->arg("pal").toInt();
+  if(requested<0||requested>255){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette\"}");return;}
+  const uint8_t pal=(uint8_t)requested;
+  const String side=req->hasArg("side")?req->arg("side"):String("both");
+  if(side!="both"&&side!="kanan"&&side!="kiri") {req->send(400,"application/json","{\"ok\":false}");return;}
+
+  const uint16_t previousTransition=strip.getTransition();
+  strip.setTransition(220); // 220 ms saat pengguna mengganti palette
+  for(uint8_t logical=0;logical<2;logical++){
+    const bool rightSide=(logical==0);
+    if(side!="both" && side!=(rightSide?String("kanan"):String("kiri")))continue;
+    const uint8_t segId=physicalSegForLogicalSide(rightSide);
+    if(segId>=strip.getSegmentsNum())continue;
+    Segment &seg=strip.getSegment(segId);
+    if(!seg.isActive())continue;
+    ShowRunner &runner=showRunner[logical];
+    runner.userPalette=pal;
+    const MzStage *currentStage=nullptr;
+    if(runner.hasCurrentShow && runner.showIndex<MZ_SHOW_COUNT && runner.currentStageIndex<MZ_SHOWS[runner.showIndex].n){
+      currentStage=&MZ_SHOWS[runner.showIndex].st[runner.currentStageIndex];
+    }
+    const uint8_t effectivePalette=(pal==0 && currentStage && currentStage->pal>=0)?(uint8_t)currentStage->pal:pal;
+    seg.setPalette(effectivePalette);
+    if(currentStage)applyShowStageColors(*currentStage,seg,pal);
+  }
+  strip.trigger();
+  stateUpdated(CALL_MODE_DIRECT_CHANGE);
+  strip.setTransition(previousTransition);
+  req->send(200,"application/json","{\"ok\":true}");
+}
+
+void handleShowStop(AsyncWebServerRequest *req){
+  String side=req->hasArg("side")?req->arg("side"):String("both");
+  if(side!="both"&&side!="kanan"&&side!="kiri"){req->send(400,"application/json","{\"ok\":false}");return;}
+  stopShowRunners(side);req->send(200,"application/json","{\"ok\":true}");
+}
+uint8_t applyCurrentShowDirection(){
+  // Arah global diterapkan ke kedua segmen aktif pada semua tab.
+  // Pada show Mizuma, flag arah khusus stage digabungkan dengan pilihan global (XOR).
+  // Reset runtime memastikan efek yang menyimpan state internal membaca arah baru.
+  uint8_t activeSegments=0;
+  bool changed=false;
+  for(uint8_t logical=0;logical<2;logical++){
+    const bool logicalRight=(logical==0);
+    const uint8_t segId=physicalSegForLogicalSide(logicalRight);
+    if(segId>=strip.getSegmentsNum())continue;
+    Segment &seg=strip.getSegment(segId);
+    if(!seg.isActive())continue;
+    activeSegments++;
+
+    bool targetReverse=showReverse;
+    ShowRunner &r=showRunner[logical];
+    if(r.hasCurrentShow && r.showIndex<MZ_SHOW_COUNT && r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
+      const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
+      targetReverse=(((st.flags&1U)!=0) ^ showReverse);
+    }
+    if(seg.reverse!=targetReverse){
+      seg.reverse=targetReverse;
+      seg.markForReset();
+      changed=true;
+    }
+  }
+  if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+  return activeSegments;
+}
+void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){
+    String json=String("{\"enabled\":")+(showReverse?"true":"false")+"}";
+    req->send(200,"application/json",json);return;
+  }
+  if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}
+  showReverse=(req->arg("enabled")=="1"||req->arg("enabled")=="true");
+  const uint8_t activeSegments=applyCurrentShowDirection();
+  queueSave();
+  String json=String("{\"ok\":true,\"enabled\":")+(showReverse?"true":"false")+String(",\"activeSegments\":")+String(activeSegments)+"}";
+  req->send(200,"application/json",json);
+}
+
+String jsonEscape(const String &s){
+String o;o.reserve(s.length()+4);
+for(size_t k=0;k<s.length();k++){char c=s[k];
+if(c=='"'||c=='\\'){o+='\\';o+=c;}
+else if((uint8_t)c<0x20){o+=' ';}
+else o+=c;}
+return o;}
+
+void handlePreset(AsyncWebServerRequest *req){
+String slotName=req->arg("slot");
+int i=slotIdx(slotName);
+if(i<0){req->send(400,"application/json","{\"ok\":false}");return;}
+PresetSlot p;p.valid=true;
+p.isShow=(i<=1&&req->hasArg("isShow")&&(req->arg("isShow")=="1"||req->arg("isShow")=="true"));
+p.showIndex=(i<=1)?(uint8_t)constrain(req->arg("showIndex").toInt(),0,MZ_SHOW_COUNT-1):0;
+p.fx=p.isShow?0:argU8(req,"fx",0);p.pal=argU8(req,"pal",0);
+p.r=argU8(req,"r",255);p.g=argU8(req,"g",255);p.b=argU8(req,"b",255);
+p.r1=argU8(req,"r1",0);p.g1=argU8(req,"g1",0);p.b1=argU8(req,"b1",0);
+p.r2=argU8(req,"r2",0);p.g2=argU8(req,"g2",0);p.b2=argU8(req,"b2",0);
+p.sx=argU8(req,"sx",128);p.ix=argU8(req,"ix",128);
+p.c1=argU8(req,"c1",128);p.c2=argU8(req,"c2",128);p.c3=argU8(req,"c3",128);
+p.o1=req->hasArg("o1")?(req->arg("o1").toInt()?1:0):0;
+p.o2=req->hasArg("o2")?(req->arg("o2").toInt()?1:0):0;
+p.o3=req->hasArg("o3")?(req->arg("o3").toInt()?1:0):0;
+p.bri=argU8(req,"bri",180);if(p.bri==0)p.bri=180;
+if(isRestrictedSlot(i)){p.pal=0;p.r1=0;p.g1=0;p.b1=0;p.r2=0;p.g2=0;p.b2=0;
+if(p.r==0&&p.g==0&&p.b==0){if(i==6||i==7){p.r=255;p.g=0;p.b=0;}else{p.r=255;p.g=165;p.b=0;}}}
+pslots[i]=p;
+queueSave();
+req->send(200,"application/json","{\"ok\":true}");}
+
+void handleApply(AsyncWebServerRequest *req){
+if(!req->hasArg("mode")||!req->hasArg("side")){req->send(400,"application/json","{\"ok\":false}");return;}
+bool ok=applyModeSide(req->arg("mode"),req->arg("side"));
+req->send(200,"application/json",ok?"{\"ok\":true}":"{\"ok\":false}");}
+
+/* FIX BUG 1: handler brightness permanen */
+void handleBri(AsyncWebServerRequest *req){
+if(!req->hasArg("v")){req->send(400,"application/json","{\"ok\":false}");return;}
+savedBri=(uint8_t)constrain(req->arg("v").toInt(),1,255);
+bri = savedBri;
+stateUpdated(CALL_MODE_DIRECT_CHANGE);
+queueSave();
+req->send(200,"application/json","{\"ok\":true}");}
+
+/*
+ * Startup R6:
+ * - beginStrip() WLED sudah mengantrekan bootPreset melalui applyPreset().
+ * - Jika Boot Preset native bernama "Mizuma Welcoming", konsumsi antrean itu
+ *   di sini memakai handler preset bawaan WLED, lalu render sebelum Wi-Fi.
+ * - Jika belum ada / namanya berbeda, gunakan slot Welcoming Mizuma sebagai
+ *   fallback. Boot preset lain tidak dibiarkan menimpa fallback.
+ * - Tidak ada ketergantungan Wi-Fi/HTTP dan tidak mengubah sistem palette.
+ */
+void startWelcomeSequence(){
+  usingNativeWelcomePreset = false;
+
+  if (bootPreset > 0) {
+    String nativeName;
+    const bool presetReadable = getPresetName(bootPreset, nativeName);
+
+    // beginStrip() telah memanggil applyPreset(bootPreset, CALL_MODE_INIT).
+    // handlePresets() menyelesaikan state tersebut sekarang, sebelum Wi-Fi.
+    handlePresets();
+
+    if (presetReadable && nativeName == "Mizuma Welcoming") {
+      usingNativeWelcomePreset = true;
+      DEBUG_PRINTLN(F("[Mizuma] Native WLED Welcome preset loaded."));
+    } else {
+      DEBUG_PRINTLN(F("[Mizuma] Native boot preset bukan 'Mizuma Welcoming'; memakai fallback slot Mizuma."));
+    }
+  }
+
+  if (!usingNativeWelcomePreset) {
+    // beginStrip() mengawali WLED dengan bri=0 pada mode tertentu.
+    // Pulihkan brightness Mizuma hanya untuk fallback; native preset memiliki
+    // brightness sendiri sehingga tidak ditimpa.
+    bri = savedBri ? savedBri : 180;
+    applyModeSide("welcoming", "both");
+  }
+
+  // Paksa frame awal dijadwalkan sebelum WLED meneruskan startup jaringan.
+  // Tunggu hanya sebentar agar transfer frame sebelumnya tidak bertabrakan.
+  strip.trigger();
+  const uint32_t renderWaitStart = millis();
+  while (strip.isUpdating() && (uint32_t)(millis() - renderWaitStart) < 40U) {
+    delay(1);
+  }
+  if (!strip.isUpdating()) {
+    strip.service();
+  }
+
+  bootStage = 1;
+  bootDone = false;
+  bootT = millis(); // awal durasi dihitung sesudah render frame Welcome dijadwalkan
+  tWelcomeMs = bootT;
+}
+
+void applyCommonReplacements(String &html,const char* activeKey){
+html.replace("%HEADER%",FPSTR(MIZUMA_HEADER_HTML));
+String navHtml=FPSTR(MIZUMA_BOTTOMNAV_HTML);
+navHtml.replace("__ACTIVE_BERANDA__",strcmp(activeKey,"beranda")==0?"active":"");
+navHtml.replace("__ACTIVE_LAMPU__",strcmp(activeKey,"lampu")==0?"active":"");
+navHtml.replace("__ACTIVE_SERVIS__",strcmp(activeKey,"servis")==0?"active":"");
+navHtml.replace("__ACTIVE_KEAMANAN__",strcmp(activeKey,"keamanan")==0?"active":"");
+navHtml.replace("__ACTIVE_PENGATURAN__",strcmp(activeKey,"pengaturan")==0?"active":"");
+html.replace("%BOTTOMNAV%",navHtml);
+html.replace("%VEHICLE_NAME%",vehicleName.length()?vehicleName:String("Motor Anda"));
+html.replace("%VEHICLE_BRAND%",vehicleBrand.length()?vehicleBrand:String("-"));
+html.replace("%VEHICLE_YEAR%",vehicleYear?String(vehicleYear):String("-"));
+html.replace("%VEHICLE_PLATE%",vehiclePlate.length()?vehiclePlate:String("-"));}
+String renderPage(const char* pageTemplate,const char* activeKey){
+String html=FPSTR(pageTemplate);applyCommonReplacements(html,activeKey);return html;}
+String renderPlaceholder(const char* title,const char* icon,const char* activeKey){
+String html=FPSTR(MIZUMA_PLACEHOLDER_HTML);
+html.replace("%PAGE_TITLE%",title);html.replace("%PAGE_ICON%",icon);
+applyCommonReplacements(html,activeKey);return html;}
+
+public:
+void setup() override {
+// Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
+tSetupMs=millis();
+showFxResolved=resolveShowEffects();
+DEBUG_PRINTF_P(PSTR("[Mizuma] %u/%u efek WLED siap untuk 55 show\n"),(unsigned)showFxResolved,(unsigned)MZ_FXN_COUNT);
+if(showFxResolved<MZ_FXN_COUNT)DEBUG_PRINTLN(F("[Mizuma] PERINGATAN: beberapa tahap akan dilewati karena nama FX tidak ditemukan pada build ini."));
+startWelcomeSequence();
+apBehavior=AP_BEHAVIOR_ALWAYS;
+DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
+server.on("/mizuma.css",HTTP_GET,[](AsyncWebServerRequest *req){
+AsyncWebServerResponse *res=req->beginResponse_P(200,"text/css",MIZUMA_SHARED_CSS);
+res->addHeader("Cache-Control","max-age=86400");req->send(res);});
+server.on("/mizuma.js",HTTP_GET,[](AsyncWebServerRequest *req){
+AsyncWebServerResponse *res=req->beginResponse_P(200,"text/javascript",MIZUMA_HEADER_SCRIPT);
+res->addHeader("Cache-Control","max-age=86400");req->send(res);});
+server.on("/led",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/html",MIZUMA_LED_HTML);});
+server.on("/app",HTTP_GET,[this](AsyncWebServerRequest *req){req->send(200,"text/html",renderPage(MIZUMA_HOME_HTML,"beranda"));});
+server.on("/pengaturan",HTTP_GET,[this](AsyncWebServerRequest *req){req->send(200,"text/html",renderPage(MIZUMA_SETTINGS_HTML,"pengaturan"));});
+server.on("/servis",HTTP_GET,[this](AsyncWebServerRequest *req){req->send(200,"text/html",renderPlaceholder("Servis","🛠","servis"));});
+server.on("/keamanan",HTTP_GET,[this](AsyncWebServerRequest *req){req->send(200,"text/html",renderPlaceholder("Keamanan & GPS","🔒","keamanan"));});
+server.on("/mizuma/frag/header",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/html",MIZUMA_HEADER_HTML);});
+server.on("/mizuma/frag/script",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/javascript",MIZUMA_HEADER_SCRIPT);});
+server.on("/mizuma/frag/nav",HTTP_GET,[](AsyncWebServerRequest *req){req->send_P(200,"text/html",MIZUMA_BOTTOMNAV_HTML);});
+server.on("/mizuma/status",HTTP_GET,[this](AsyncWebServerRequest *req){
+  const bool apOn = (WiFi.softAPgetStationNum() > 0);
+  const bool staOn = (WiFi.status() == WL_CONNECTED);
+  const String staIP = staOn ? WiFi.localIP().toString() : String("");
+  const String ssid = staOn ? WiFi.SSID() : String("Mizuma Smart System");
+
+  // Susun JSON tanpa literal escape quote agar aman saat file dipindahkan/disalin.
+  String json = "{";
+  json += char(34); json += "ap"; json += char(34); json += ':';
+  json += (apOn ? "true" : "false");
+  json += ',';
+  json += char(34); json += "sta"; json += char(34); json += ':';
+  json += (staOn ? "true" : "false");
+  json += ',';
+  json += char(34); json += "staIP"; json += char(34); json += ':';
+  json += char(34); json += jsonEscape(staIP); json += char(34);
+  json += ',';
+  json += char(34); json += "ssid"; json += char(34); json += ':';
+  json += char(34); json += jsonEscape(ssid); json += char(34);
+  json += '}';
+
+  req->send(200, "application/json", json);
+});
 server.on("/mizuma/debug",HTTP_GET,[this](AsyncWebServerRequest *req){
 char buf[288];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u,\"showFxResolved\":%u,\"maxShowMs\":%u}",
 (unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis(),(unsigned)showFxResolved,(unsigned)MZ_SHOW_MAX_DURATION_MS);
