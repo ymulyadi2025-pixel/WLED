@@ -302,6 +302,48 @@ add('Mizuma Grand Finale', 'Campuran', 'Final megah: Strobe, Fireworks 1D, Sinel
 # validasi, pembuatan header C++ dan katalog
 # =====================================================================================================
 SHOW_MS = 7000
+# Jadwal animasi dinormalisasi agar semua show sudah mencapai frame penutup
+# sebelum perpindahan ke Riding. Stage terakhir dikunci pada 6250 ms, lalu
+# ditahan sampai transisi boot pada 7000 ms.
+SHOW_FINAL_LOCK_MS = 6250
+SHOW_TIME_SCALE = 0.80
+
+TRANSITION_BASE_MS = {
+    'Signature Tetrix': 480,
+    'Kedipan Cepat': 140,
+    'Keindahan': 560,
+    'Campuran': 360,
+}
+
+def prepare_show_timing(shows):
+    """Rapikan jadwal dan hitung crossfade per stage. tt disimpan dalam 10 ms."""
+    for sh in shows:
+        # Skala hanya timestamp resep asli; script selalu dijalankan dari definisi,
+        # jadi tidak akan mengompres header berulang kali.
+        for st in sh.stages:
+            st.t = int(round((st.t * SHOW_TIME_SCALE) / 10.0) * 10)
+
+        # Setiap show memiliki keadaan akhir stabil. Ini mencegah animasi tampak
+        # terpotong saat sistem beralih ke Riding pada detik ke-7.
+        sh.stages = [st for st in sh.stages if st.t < SHOW_FINAL_LOCK_MS]
+        sh.stages.append(solid(SHOW_FINAL_LOCK_MS, 'A1'))
+        sh.stages.sort(key=lambda x: (x.t, x.side))
+
+        times = sorted({st.t for st in sh.stages})
+        base = TRANSITION_BASE_MS.get(sh.cat, 320)
+        for st in sh.stages:
+            next_times = [t for t in times if t > st.t]
+            next_t = next_times[0] if next_times else SHOW_MS
+            gap = max(0, next_t - st.t)
+            # Jangan biarkan crossfade melewati cue berikutnya. Untuk cue cepat,
+            # transisi dibuat pendek agar ritmenya tetap tegas.
+            if gap < 100:
+                transition_ms = 0
+            else:
+                transition_ms = min(base, int(gap * 0.38))
+            transition_ms = max(0, (transition_ms // 10) * 10)
+            st.tt = min(255, transition_ms // 10)
+
 
 def validate(reg):
     errs, warns = [], []
@@ -319,9 +361,10 @@ def validate(reg):
             if st.c3 is not None and not 0 <= st.c3 <= 31: errs.append('%s: c3=%s (0..31)' % (tag, st.c3))
             if st.pal is not None and not 0 <= st.pal <= 72: errs.append('%s: pal=%s' % (tag, st.pal))
             if st.side not in (0, 1, 2): errs.append(tag + ': side')
+            if not 0 <= st.tt <= 255: errs.append('%s: transition tt=%s (0..255)' % (tag, st.tt))
         ts = sorted({s.t for s in sh.stages})
         for a, b in zip(ts, ts[1:]):
-            if b - a < 100: warns.append('%s: jarak tahap %d ms (%d->%d) sangat pendek' % (tag, b - a, a, b))
+            if b - a < 80: warns.append('%s: jarak tahap %d ms (%d->%d) sangat pendek' % (tag, b - a, a, b))
         both = [s for s in sh.stages if s.side == 0]
         final = [s for s in sh.stages if s.t == ts[-1]]
         if ts[-1] < 4200: warns.append('%s: tahap terakhir mulai %d ms (cukup awal?)' % (tag, ts[-1]))
@@ -352,6 +395,8 @@ def emit(shows, fx_names):
     L.append('#include <stdint.h>')
     L.append('')
     L.append('#define MZ_SHOW_COUNT %d' % len(shows))
+    L.append('#define MZ_SHOW_TOTAL_MS %d' % SHOW_MS)
+    L.append('#define MZ_SHOW_FINAL_LOCK_MS %d' % SHOW_FINAL_LOCK_MS)
     L.append('// Nama efek WLED yang dipakai (dicari berdasarkan NAMA saat boot, bukan nomor, jadi tahan terhadap pergeseran ID).')
     L.append('static const char* const MZ_FXN[] = {')
     for n in fx_names: L.append('  "%s",' % n)
@@ -364,7 +409,7 @@ def emit(shows, fx_names):
     L.append('// 0xFF000000 = biarkan, 0xFE000000|n = warna aksen pengguna n (bit 0x100 = versi redup).')
     L.append('struct MzStage {')
     L.append('  uint16_t t;  uint8_t fx;  uint8_t flags;   // flags: 1 = balik arah (rev), 2 = lompat timebase (lewati tunggu Tetrix)')
-    L.append('  int16_t sx, ix, c1, c2, c3, pal;  int8_t o;  uint8_t side;  uint8_t tt;  int16_t tb;')
+    L.append('  int16_t sx, ix, c1, c2, c3, pal;  int8_t o;  uint8_t side;  uint8_t tt;  int16_t tb; // tt = transisi ms/10')
     L.append('  uint32_t col[3];')
     L.append('};')
     L.append('struct MzShow { const char* name; const MzStage* st; uint8_t n; };')
@@ -389,8 +434,10 @@ def emit(shows, fx_names):
 def catalog(shows):
     cats = []
     out = ['# Katalog 55 animasi Welcoming Mizuma', '',
-           'Setiap animasi adalah **rangkaian efek asli WLED** (tahap demi tahap). Waktu dalam milidetik dari awal show (total ±7000 ms).',
-           'Warna `A1/A2/A3` = tiga warna aksen yang Anda atur di UI (default: amber / putih / oranye-merah). `d` = versi redup.', '']
+           'Setiap animasi adalah **rangkaian efek asli WLED** (tahap demi tahap). Semua show dinormalisasi ke 7000 ms.',
+           'Stage penutup stabil dimulai pada 6250 ms dan ditahan sebelum perpindahan ke Riding. Transisi antartahap memakai crossfade WLED sesuai kategori dan jeda cue.',
+           'Palette yang dipilih pengguna di UI menjadi palette global saat show berjalan. Nilai palette di resep dipertahankan sebagai metadata/original look, bukan memaksa pilihan pengguna.',
+           'Warna `A1/A2/A3` menjadi aksen yang dipetakan ke palette aktif; hitam dan putih tetap menjadi latar/highlight.', '']
     for i, sh in enumerate(shows, 1):
         if sh.cat not in cats:
             cats.append(sh.cat); out += ['', '## %s' % sh.cat, '']
@@ -403,7 +450,8 @@ def catalog(shows):
             if st.tb not in ('auto', -1, None) and st.tb != 0: notes.append('mulai di fasa %d ms' % st.tb)
             for k in ('sx', 'ix'):
                 if getattr(st, k) is not None: notes.append('%s=%d' % (k, getattr(st, k)))
-            if st.pal not in (None,): notes.append('pal=%d' % st.pal)
+            if st.pal not in (None,): notes.append('resep-pal=%d' % st.pal)
+            if st.tt: notes.append('crossfade=%dms' % (st.tt * 10))
             side = {0: 'L+R', 1: 'Kanan', 2: 'Kiri'}[st.side]
             out.append('| %d | %s | %s | %s |' % (st.t, st.fx, side, ', '.join(notes)))
         out.append('')
@@ -413,6 +461,7 @@ if __name__ == '__main__':
     here = os.path.dirname(os.path.abspath(__file__))
     regp = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, 'reg_default.json')
     reg = json.load(open(regp)) if os.path.exists(regp) else None
+    prepare_show_timing(SHOWS)
     resolve_defaults(SHOWS)
     errs, warns = validate(reg)
     print('show: %d | validasi efek: %s' % (len(SHOWS), 'AKTIF (%d efek terdaftar)' % len(reg) if reg else 'dilewati'))

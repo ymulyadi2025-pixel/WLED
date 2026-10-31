@@ -38,6 +38,15 @@ HASIL YANG DIHARAPKAN
   runner yang sedang berjalan dihentikan sebelum pemetaan diubah.
 - Show memakai nama efek WLED yang di-resolve saat boot, bukan nomor FX
   hard-coded, sehingga lebih tahan terhadap perubahan indeks efek WLED.
+- Palette di UI tetap sama. Pada tab Welcoming, palette nonzero menjadi
+  palette global bagi semua stage; warna aksen RGB di stage dipetakan ke
+  tiga posisi palette. Memilih palette "Default" (ID 0) mengembalikan resep
+  warna asli per-stage Mizuma.
+- Setiap perpindahan stage menggunakan crossfade WLED dengan durasi sesuai
+  kategori dan jarak cue. UI tidak berubah.
+- Jadwal semua show dinormalisasi: stage penutup stabil dimulai pada 6250 ms,
+  ditahan sampai 7000 ms, lalu transisi ke Riding berlangsung 400 ms. Ini
+  mencegah penutup animasi terpotong oleh perpindahan boot.
 
 PENTING: PARTICLE SYSTEM 1D
 Untuk memperoleh 15 native FX secara lengkap, jangan mendefinisikan
@@ -64,11 +73,14 @@ MENGUBAH RESEP ANIMASI
 
 CATATAN STATUS PENGUJIAN
 - Python generator: py_compile berhasil; menghasilkan 55 show, 52 nama FX,
-  dan 311 stage.
-- Header C++: kompilasi mandiri C++11 dan pemeriksaan semua stage berhasil.
-- Show runner: kompilasi dan uji mock API WLED berhasil untuk resolusi nama,
-  MZ01 stage/timing/TB, MZ08 kiri-kanan, dan side swap.
-- Empat blok JavaScript di UI: node --check berhasil.
+  dan 366 stage (311 resep asli + 55 stage penutup stabil).
+- Header C++: kompilasi mandiri C++11 dengan -Wall -Wextra -Werror berhasil.
+- Audit jadwal: semua 55 show mulai pada 0 ms dan memiliki final lock pada
+  6250 ms; durasi boot disinkronkan ke 7000 ms.
+- Helper palette dan fungsi perpindahan stage berhasil dikompilasi serta
+  diuji dengan mock Segment/strip: palette global nonzero mengalahkan pal
+  resep, Default mengembalikan palette resep asli, dan durasi transisi pulih.
+- Tujuh blok JavaScript inline lolos pemeriksaan sintaks Node.js.
 - Build firmware penuh ESP32-C3 belum diverifikasi dalam lingkungan ini,
   karena executable PlatformIO (pio/platformio) tidak tersedia. Lakukan
   clean build dan upload pada proyek lokal sebelum dipakai di motor.

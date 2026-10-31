@@ -746,7 +746,7 @@ function palNameById(id){const e=palList.find(function(x){return x.i===id;});ret
 function isStarPal(){const n=palNameById(cur.pal);return n.charAt(0)==='*';}
 function normalizeRestrictedState(forceDefault){if(!isRestrictedTab())return;colorTarget=0;cur.pal=0;cur.palName=palNamesRaw[0]||'Default';const colors=RESTRICTED_COLORS[activeTab]||RESTRICTED_COLORS.sein;const defNum=parseInt(colors[0].h,16);const defRgb=[(defNum>>16)&255,(defNum>>8)&255,defNum&255];const current=segColors[0]||[0,0,0];const hsv=rgb2hsv(current[0],current[1],current[2]);if(forceDefault||!hueOk(hsv[0],HUE_RULES[activeTab])||(current[0]===0&&current[1]===0&&current[2]===0)){segColors[0]=defRgb;restrictedName=colors[0].n;}segColors[1]=[0,0,0];segColors[2]=[0,0,0];}
 function sendColor(r,g,b,silent){if(isRestrictedTab()){colorTarget=0;cur.pal=0;segColors[0]=[r,g,b];segColors[1]=[0,0,0];segColors[2]=[0,0,0];}else{segColors[colorTarget]=[r,g,b];}const cols=[segColors[0]||[255,255,255],segColors[1]||[0,0,0],segColors[2]||[0,0,0]];const segs=segIds().map(function(id){return{id:id,col:cols,pal:isRestrictedTab()?0:cur.pal};});post({seg:segs});cur.col=[r,g,b];if(!silent)markDirty();renderColorRow();updateSideInfo();}
-function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});post({seg:segs});cur.pal=i;fxPalCache[cur.fx]=i;markDirty();renderColorRow();updateSideInfo();}
+function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});if(activeTab==='welcoming'){fetch('/mizuma/show/palette?pal='+i+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)post({seg:segs});}).catch(function(){post({seg:segs});});}else post({seg:segs});cur.pal=i;fxPalCache[cur.fx]=i;markDirty();renderColorRow();updateSideInfo();}
 function renderShowInfo(){const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');hint.textContent='Animasi Mizuma multi-stage: efek WLED berganti otomatis dalam satu rangkaian sekitar 7 detik.';hint.style.display='block';}
 function sendShow(index){if(activeTab!=='welcoming'||index<0||index>=showNames.length)return;cur.isShow=true;cur.showIndex=index;cur.fx=0;document.getElementById('fxSavedName').textContent=showNames[index];fetch('/mizuma/show?index='+index+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('show rejected');markDirty();renderShowInfo();updateCtx();updateSideInfo();}).catch(function(){toast('Gagal menjalankan animasi Mizuma');});}
 function sendEffect(i){cur.isShow=false;cur.showIndex=0;if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);let palToSend=cur.pal;if(!isRestrictedTab()){let pi=-1;if(fxPalCache[i]!=null)pi=fxPalCache[i];else{const df=fxDefs(i);if(df.pal!=null)pi=df.pal;else{const nm=allFx[i]||'';if(FX_PAL_DEFAULTS[nm])pi=palIdByName(FX_PAL_DEFAULTS[nm]);}}if(pi>=0&&palNameById(pi)){cur.pal=pi;cur.palName=palNameById(pi);palToSend=pi;document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}}const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});const applyFx=function(){post({seg:segs});};if(activeTab==='welcoming'){fetch('/mizuma/show/stop?side='+encodeURIComponent(activeSide),{method:'POST'}).then(applyFx).catch(applyFx);}else applyFx();if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();renderParams(i);updateSideInfo();}
@@ -915,13 +915,13 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     uint8_t bri = 180;
     };
     PresetSlot pslots[10];
-    uint16_t welcomeDur = 7000;
+    uint16_t welcomeDur = MZ_SHOW_TOTAL_MS;
     int bootStage = 0;
     uint32_t bootT = 0;
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
     uint8_t  showFxResolved = 0;              // jumlah nama efek WLED yang berhasil dipetakan
     uint8_t  showModeIds[MZ_FXN_COUNT];       // indeks aktual efek WLED, di-resolve saat boot
-    struct ShowRunner { bool active=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint32_t startedAt=0; };
+    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint32_t startedAt=0; };
     ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
@@ -982,9 +982,9 @@ root["on"]=true;if(bri==0)root["bri"]=savedBri;
 JsonArray seg=root.createNestedArray("seg");
 addSegmentFromSlot(seg,segId,slotIdx);
 deserializeState(root);}
-void applyTwoSlots(uint8_t rightSlot,uint8_t leftSlot){
+void applyTwoSlots(uint8_t rightSlot,uint8_t leftSlot,uint16_t transition100ms=0){
 StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
-root["on"]=true;root["transition"]=0;if(bri==0)root["bri"]=savedBri;
+root["on"]=true;root["transition"]=transition100ms;if(bri==0)root["bri"]=savedBri;
 JsonArray seg=root.createNestedArray("seg");
 addSegmentFromSlot(seg,physicalSegForLogicalSide(true),rightSlot);
 addSegmentFromSlot(seg,physicalSegForLogicalSide(false),leftSlot);
@@ -992,11 +992,11 @@ deserializeState(root);}
 int modeBase(const String &mode){
 if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 4;
 if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
-bool applyModeSide(const String &mode,const String &side){
+bool applyModeSide(const String &mode,const String &side,uint16_t transition100ms=0){
 if(mode=="welcoming")return applyWelcomeModeSide(side);
 stopShowRunners("both");
 int base=modeBase(mode);if(base<0)return false;
-if(side=="both"){applyTwoSlots(base,base+1);return true;}
+if(side=="both"){applyTwoSlots(base,base+1,transition100ms);return true;}
 if(side=="kanan"){applySingleSlot(base);return true;}
 if(side=="kiri"){applySingleSlot(base+1);return true;}
 return false;}
@@ -1038,18 +1038,45 @@ uint8_t resolveShowEffects(){
   }
   return found;
 }
-uint32_t resolveStageColor(uint32_t code,const Segment &seg,bool &keep){
+uint32_t resolveStageColor(uint32_t code,Segment &seg,uint8_t colorIndex,uint8_t userPalette,bool &keep){
   keep=false;
   if((code&0xFF000000UL)==0xFF000000UL){keep=true;return 0;}
+
+  static const uint8_t palettePos[3]={18,128,238};
+  const bool useUserPalette=(userPalette!=0);
+  bool dim=false;
+  uint8_t sample=palettePos[(colorIndex<3)?colorIndex:0];
+
   if((code&0xFF000000UL)==0xFE000000UL){
     uint8_t slot=(uint8_t)(code&0xFFU);if(slot>2)slot=0;
-    uint32_t c=seg.colors[slot];
-    if(code&0x100UL){uint8_t r=(uint8_t)(c>>16),g=(uint8_t)(c>>8),b=(uint8_t)c;c=((uint32_t)(r/2)<<16)|((uint32_t)(g/2)<<8)|(uint32_t)(b/2);}
-    return c;
+    dim=(code&0x100UL)!=0;
+    if(!useUserPalette){
+      uint32_t c=seg.colors[slot];
+      if(dim)c=color_fade(c,128,true);
+      return c;
+    }
+    sample=palettePos[slot];
+  }else{
+    const uint32_t rgb=code&0x00FFFFFFUL;
+    // Black remains the designed background; white remains a neutral flash/highlight.
+    if(rgb==0x000000UL||rgb==0xFFFFFFUL||!useUserPalette)return rgb;
   }
-  return code&0x00FFFFFFUL;
+
+  uint32_t c=seg.color_from_palette(sample,false,true,0,255)&0x00FFFFFFUL;
+  if(dim)c=color_fade(c,128,true)&0x00FFFFFFUL;
+  return c;
 }
-void applyShowStage(const MzStage &st,bool logicalRight){
+
+void applyShowStageColors(const MzStage &st,Segment &seg,uint8_t userPalette){
+  const bool useUserPalette=(userPalette!=0);
+  if(useUserPalette)seg.beginDraw(); // rebuild palette sampling after setPalette()
+  uint32_t resolved[3]={0,0,0};
+  bool keep[3]={false,false,false};
+  for(uint8_t c=0;c<3;c++)resolved[c]=resolveStageColor(st.col[c],seg,c,userPalette,keep[c]);
+  for(uint8_t c=0;c<3;c++)if(!keep[c])seg.setColor(c,resolved[c]);
+}
+
+void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   if(st.fx>=MZ_FXN_COUNT)return;
   const uint8_t modeId=showModeIds[st.fx];
   if(modeId==255)return; // FX tidak ada pada build WLED ini: lewati tahap secara aman
@@ -1058,9 +1085,20 @@ void applyShowStage(const MzStage &st,bool logicalRight){
   Segment &seg=strip.getSegment(segId);
   if(!seg.isActive())return;
 
-  if(seg.mode!=modeId)seg.setMode(modeId,true); // true = ambil default slider/checkbox efek WLED
-  else if(st.t==0)seg.markForReset(); // pilih ulang show yang kebetulan diawali efek yang sama
-  if(st.pal>=0)seg.setPalette((uint8_t)st.pal);
+  // userPalette disimpan terpisah dari seg.palette: 0 = Mizuma Original,
+  // sedangkan nilai nonzero = palette global pilihan pengguna.
+  const uint16_t previousTransition=strip.getTransition();
+  const uint16_t stageTransition=(uint16_t)st.tt*10U; // tt disimpan dalam satuan 10 ms
+  strip.setTransition(stageTransition);
+
+  if(seg.mode!=modeId)seg.setMode(modeId,true); // muat default parameter efek WLED
+  else if(st.t==0)seg.markForReset();
+  if(userPalette!=0){
+    if(seg.palette!=userPalette)seg.setPalette(userPalette);
+  }else{
+    const uint8_t recipePalette=(st.pal>=0)?(uint8_t)st.pal:0;
+    if(seg.palette!=recipePalette)seg.setPalette(recipePalette); // 0 = default palette efek WLED
+  }
   if(st.sx>=0)seg.speed=(uint8_t)constrain(st.sx,0,255);
   if(st.ix>=0)seg.intensity=(uint8_t)constrain(st.ix,0,255);
   if(st.c1>=0)seg.custom1=(uint8_t)constrain(st.c1,0,255);
@@ -1070,10 +1108,7 @@ void applyShowStage(const MzStage &st,bool logicalRight){
   seg.reverse=(st.flags&1U)!=0;
   seg.on=true;
 
-  for(uint8_t c=0;c<3;c++){
-    bool keep=false;uint32_t color=resolveStageColor(st.col[c],seg,keep);
-    if(!keep)seg.setColor(c,color);
-  }
+  applyShowStageColors(st,seg,userPalette);
 
   if(st.flags&2U){
     // WLED Tetrix normally spends 2000 ms fading the old frame. TBJ starts its first brick immediately.
@@ -1083,15 +1118,20 @@ void applyShowStage(const MzStage &st,bool logicalRight){
   if(st.tb>=0)strip.timebase=(unsigned long)(uint16_t)st.tb-(unsigned long)millis();
   strip.trigger();
   stateUpdated(CALL_MODE_DIRECT_CHANGE);
+  strip.setTransition(previousTransition); // restore WLED's global/default transition time
 }
+
 void startShowRunner(bool logicalRight,uint8_t showIndex){
   if(showIndex>=MZ_SHOW_COUNT)return;
   ShowRunner &r=showRunner[logicalRight?0:1];
-  r.active=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.startedAt=millis();
+  r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;
+  const uint8_t segId=physicalSegForLogicalSide(logicalRight);
+  r.userPalette=(segId<strip.getSegmentsNum())?strip.getSegment(segId).palette:0;
+  r.startedAt=millis();
 }
 void stopShowRunners(const String &side){
-  if(side=="both"||side=="kanan")showRunner[0].active=false;
-  if(side=="both"||side=="kiri")showRunner[1].active=false;
+  if(side=="both"||side=="kanan"){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;}
+  if(side=="both"||side=="kiri"){showRunner[1].active=false;showRunner[1].hasCurrentShow=false;showRunner[1].currentStageIndex=255;}
 }
 void tickShowEngine(){
   const uint32_t now=millis();
@@ -1100,7 +1140,10 @@ void tickShowEngine(){
     const MzShow &show=MZ_SHOWS[r.showIndex];const uint32_t elapsed=now-r.startedAt;
     while(r.stageIndex<show.n&&elapsed>=show.st[r.stageIndex].t){
       const MzStage &st=show.st[r.stageIndex];
-      if(st.side==0||st.side==(r.logicalRight?1:2))applyShowStage(st,r.logicalRight);
+      if(st.side==0||st.side==(r.logicalRight?1:2)){
+        applyShowStage(st,r.logicalRight,r.userPalette);
+        r.currentStageIndex=r.stageIndex;
+      }
       r.stageIndex++;
     }
     if(r.stageIndex>=show.n)r.active=false; // leave the final WLED effect running
@@ -1144,6 +1187,39 @@ void handleShow(AsyncWebServerRequest *req){
   bool ok=startShowPreview(index,side);
   req->send(ok?200:400,"application/json",ok?"{\"ok\":true}":"{\"ok\":false}");
 }
+void handleShowPalette(AsyncWebServerRequest *req){
+  if(!req->hasArg("pal")){req->send(400,"application/json","{\"ok\":false,\"error\":\"pal required\"}");return;}
+  const int requested=req->arg("pal").toInt();
+  if(requested<0||requested>255){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette\"}");return;}
+  const uint8_t pal=(uint8_t)requested;
+  const String side=req->hasArg("side")?req->arg("side"):String("both");
+  if(side!="both"&&side!="kanan"&&side!="kiri") {req->send(400,"application/json","{\"ok\":false}");return;}
+
+  const uint16_t previousTransition=strip.getTransition();
+  strip.setTransition(220); // 220 ms saat pengguna mengganti palette
+  for(uint8_t logical=0;logical<2;logical++){
+    const bool rightSide=(logical==0);
+    if(side!="both" && side!=(rightSide?String("kanan"):String("kiri")))continue;
+    const uint8_t segId=physicalSegForLogicalSide(rightSide);
+    if(segId>=strip.getSegmentsNum())continue;
+    Segment &seg=strip.getSegment(segId);
+    if(!seg.isActive())continue;
+    ShowRunner &runner=showRunner[logical];
+    runner.userPalette=pal;
+    const MzStage *currentStage=nullptr;
+    if(runner.hasCurrentShow && runner.showIndex<MZ_SHOW_COUNT && runner.currentStageIndex<MZ_SHOWS[runner.showIndex].n){
+      currentStage=&MZ_SHOWS[runner.showIndex].st[runner.currentStageIndex];
+    }
+    const uint8_t effectivePalette=(pal==0 && currentStage && currentStage->pal>=0)?(uint8_t)currentStage->pal:pal;
+    seg.setPalette(effectivePalette);
+    if(currentStage)applyShowStageColors(*currentStage,seg,pal);
+  }
+  strip.trigger();
+  stateUpdated(CALL_MODE_DIRECT_CHANGE);
+  strip.setTransition(previousTransition);
+  req->send(200,"application/json","{\"ok\":true}");
+}
+
 void handleShowStop(AsyncWebServerRequest *req){
   String side=req->hasArg("side")?req->arg("side"):String("both");
   if(side!="both"&&side!="kanan"&&side!="kiri"){req->send(400,"application/json","{\"ok\":false}");return;}
@@ -1309,6 +1385,8 @@ server.on("/mizuma/shows",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(1800);out+="[";for(uint8_t i=0;i<MZ_SHOW_COUNT;i++){if(i)out+=",";out+='"';out+=jsonEscape(String(MZ_SHOWS[i].name));out+='"';}out+="]";req->send(200,"application/json",out);});
 server.on("/mizuma/show",HTTP_GET,[this](AsyncWebServerRequest *req){handleShow(req);});
 server.on("/mizuma/show",HTTP_POST,[this](AsyncWebServerRequest *req){handleShow(req);});
+server.on("/mizuma/show/palette",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowPalette(req);});
+server.on("/mizuma/show/palette",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowPalette(req);});
 server.on("/mizuma/show/stop",HTTP_GET,[this](AsyncWebServerRequest *req){handleShowStop(req);});
 server.on("/mizuma/show/stop",HTTP_POST,[this](AsyncWebServerRequest *req){handleShowStop(req);});
 server.on("/mizuma/preset",HTTP_GET,[this](AsyncWebServerRequest *req){handlePreset(req);});
@@ -1338,7 +1416,7 @@ void loop() override {
   if(bootDone || bootStage != 1) return;
 
   if((uint32_t)(millis() - bootT) >= welcomeDur){
-    applyModeSide("riding", "both");
+    applyModeSide("riding", "both", 4); // 400 ms crossfade setelah welcoming selesai
     bootStage = 2;
     bootDone = true;
   }
@@ -1392,7 +1470,7 @@ pslots[i].sx=s["sx"]|128;pslots[i].ix=s["ix"]|128;
 pslots[i].c1=s["c1"]|128;pslots[i].c2=s["c2"]|128;pslots[i].c3=s["c3"]|128;
 pslots[i].o1=s["o1"]|0;pslots[i].o2=s["o2"]|0;pslots[i].o3=s["o3"]|0;
 pslots[i].bri=s["bri"]|180;}}
-welcomeDur = 7000; // dikunci 7 detik (abaikan nilai lama yg tersimpan)
+welcomeDur = MZ_SHOW_TOTAL_MS; // diselaraskan dengan durasi show dari generator
 savedBri=top["bri"]|180;
 sideSwap=top["sideSwap"]|false;
 return true;}
