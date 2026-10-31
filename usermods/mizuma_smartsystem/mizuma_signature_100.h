@@ -245,18 +245,15 @@ static inline uint8_t mz_dist(uint8_t a, uint8_t b) { return dist8(a, b); }
 static inline uint8_t mz_peak(uint8_t distance, uint8_t width) { return peak8(distance, width); }
 static inline uint8_t mz_hash(uint16_t x, uint8_t t, uint8_t seed) { return hash8(x, t, seed); }
 
-static inline uint32_t color0() {
-  uint32_t c = SEGCOLOR(0);
-  return c ? c : 0x00FF8A18UL; // amber Mizuma default (RGB; W=0)
+// Sample three stable points from the active WLED palette. Palette 0 (Default)
+// still follows the segment color slots; all other built-in/custom palettes are
+// sampled directly, so changing the palette changes the Signature 100 output.
+static inline uint32_t paletteColor(uint8_t position) {
+  return SEGMENT.color_from_palette(position, false, true, 0, 255) & 0x00FFFFFFUL;
 }
-static inline uint32_t color1() {
-  uint32_t c = SEGCOLOR(1);
-  return c ? c : 0x00FFD38AUL; // warm highlight (RGB; W=0)
-}
-static inline uint32_t color2() {
-  uint32_t c = SEGCOLOR(2);
-  return c ? c : 0x00FF4A0AUL; // ember accent (RGB; W=0)
-}
+static inline uint32_t color0() { return paletteColor(18U); }
+static inline uint32_t color1() { return paletteColor(128U); }
+static inline uint32_t color2() { return paletteColor(238U); }
 
 // -----------------------------------------------------------------------------
 // Stateful algorithms: persistent memory is segment-local and allocated only
@@ -391,7 +388,13 @@ static void renderReactionFilament(uint16_t len, uint32_t now) {
 static void renderBrownianTrail(uint16_t len, uint32_t now) {
   if (!SEGENV.allocateData(len)) { SEGMENT.fill(color0()); return; }
   uint8_t *trail = SEGENV.data;
-  if (SEGENV.call == 0U) { memset(trail, 0, len); SEGENV.aux0 = len / 2U; SEGENV.aux1 = 1U; SEGENV.step = now; }
+  if (SEGENV.call == 0U) {
+    memset(trail, 0, len);
+    SEGENV.aux0 = len / 2U;
+    // aux1 bit 0 stores direction; retain the Signature algorithm tag in bits 1..15.
+    SEGENV.aux1 = (uint16_t)((SEGENV.aux1 & 0xFFFEU) | 1U);
+    SEGENV.step = now;
+  }
   const uint16_t interval = (uint16_t)(42U - ((uint16_t)SEGMENT.speed * 25U) / 255U);
   if ((uint32_t)(now - SEGENV.step) >= interval) {
     SEGENV.step = now;
@@ -404,7 +407,7 @@ static void renderBrownianTrail(uint16_t len, uint32_t now) {
     while (pos < 0) pos += len;
     while (pos >= len) pos -= len;
     SEGENV.aux0 = (uint16_t)pos;
-    SEGENV.aux1 = (dir > 0) ? 1U : 0U;
+    SEGENV.aux1 = (uint16_t)((SEGENV.aux1 & 0xFFFEU) | ((dir > 0) ? 1U : 0U));
     trail[pos] = 255U;
     if (pos > 0) trail[pos - 1] = max8(trail[pos - 1], 130U);
     if (pos + 1 < len) trail[pos + 1] = max8(trail[pos + 1], 130U);
@@ -588,11 +591,24 @@ static void renderAlgorithm(uint8_t id) {
 // A single WLED effect entry exposes all 100 algorithms via c1 (0..99).
 static void mode_mizuma_signature_100(void) {
   const uint8_t index = clampIndex(SEGMENT.custom1);
+  // Segment-local algorithm marker: changing c1 must reset the selected
+  // algorithm's private animation state even though the WLED FX ID stays same.
+  // Bit 0 is reserved for BrownianTrail direction; the remaining bits are tag.
+  const uint16_t algorithmTag = (uint16_t)(0xA500U | ((uint16_t)(index & 0x7FU) << 1U));
+  if ((SEGENV.aux1 & 0xFFFEU) != algorithmTag) {
+    SEGENV.call = 0U;
+    SEGENV.step = 0U;
+    SEGENV.aux0 = 0U;
+    SEGENV.aux1 = algorithmTag;
+  }
+  SEGMENT.beginDraw(); // refresh palette cache before sampling the active palette
   renderAlgorithm(index);
 }
 
+// WLED metadata sections: parameters; color slots; palette; 1D flag; defaults.
+// c1 chooses the internal algorithm; c2/c3 control density and detail.
 static const char MZ_SIGNATURE_100_METADATA[] PROGMEM =
-  "MZ | Signature 100@!,Intensity,Algorithm ID,Detail;!,!;;;ix=180,c1=0,c2=160";
+  "MZ | Signature 100@!,Intensity,Algorithm ID,Density,Detail;!,!;!;1;sx=128,ix=180,c1=0,c2=160,c3=16,pal=0";
 
 static inline uint8_t registerWLEDEffect(void) {
   // Call once from MizumaSmartSystem::setup().
