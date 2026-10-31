@@ -256,344 +256,310 @@ static inline uint32_t color1() { return paletteColor(128U); }
 static inline uint32_t color2() { return paletteColor(238U); }
 
 // -----------------------------------------------------------------------------
-// Stateful algorithms: persistent memory is segment-local and allocated only
-// while that particular algorithm is selected.
+// MIZUMA SIGNATURE 100 — premium 1D render core
+// 10 visual families x 10 variations. Each family has a distinct visual language:
+// motion ribbons, resonance, embers/particles, geometry, atmosphere, racing,
+// premium illumination, portals, experimental fields, and signature composites.
+// All outputs are full-width light fields; particles are layered over a luminous
+// body so the result does not collapse into isolated dots on short LED strips.
 // -----------------------------------------------------------------------------
-static void renderEmberline(uint16_t len, uint32_t now) {
-  const unsigned bytes = (unsigned)len * 2U;
-  if (!SEGENV.allocateData(bytes)) { SEGMENT.fill(color0()); return; }
-  uint8_t *heat = SEGENV.data;
-  uint8_t *next = SEGENV.data + len;
-  if (SEGENV.call == 0U) { memset(heat, 0, bytes); SEGENV.step = now; }
-  const uint16_t interval = (uint16_t)(58U - ((uint16_t)SEGMENT.speed * 42U) / 255U);
-  if ((uint32_t)(now - SEGENV.step) >= interval) {
-    SEGENV.step = now;
-    const uint8_t cooling = (uint8_t)(3U + (SEGMENT.custom2 >> 3U));
-    for (uint16_t i = 0; i < len; i++) {
-      const uint8_t l = heat[(i == 0U) ? i : (i - 1U)];
-      const uint8_t r = heat[(i + 1U < len) ? (i + 1U) : i];
-      const uint8_t d = (uint8_t)(((uint16_t)l + (uint16_t)heat[i] * 2U + r) >> 2U);
-      next[i] = (d > cooling) ? (uint8_t)(d - cooling) : 0U;
-    }
-    const uint8_t sparks = (uint8_t)(1U + (SEGMENT.intensity >> 6U));
-    for (uint8_t s = 0; s < sparks; s++) {
-      const uint16_t p = (uint16_t)(((uint16_t)hw_random8() * len) >> 8U);
-      next[p] = max8(next[p], (uint8_t)(170U + (hw_random8() >> 2U)));
-    }
-    memcpy(heat, next, len);
-  }
-  const uint32_t c0 = color0(), c2 = color2();
-  for (uint16_t i = 0; i < len; i++) {
-    const uint8_t h = heat[i];
-    uint32_t c = (h > 185U) ? color_blend(c0, c2, (uint8_t)(h - 120U)) : c0;
-    SEGMENT.setPixelColor(i, color_fade(c, h));
-  }
+static inline uint8_t mz_satAdd(uint8_t a, uint8_t b) {
+  const uint16_t v = (uint16_t)a + (uint16_t)b;
+  return (v > 255U) ? 255U : (uint8_t)v;
 }
 
-static void renderFireflySwarm(uint16_t len, uint32_t now) {
-  if (!SEGENV.allocateData(len)) { SEGMENT.fill(color0()); return; }
-  uint8_t *trail = SEGENV.data;
-  if (SEGENV.call == 0U) { memset(trail, 0, len); SEGENV.step = now; SEGENV.aux0 = len / 2U; }
-  const uint16_t interval = (uint16_t)(35U + ((255U - SEGMENT.speed) >> 2U));
-  if ((uint32_t)(now - SEGENV.step) >= interval) {
-    SEGENV.step = now;
-    for (uint16_t i = 0; i < len; i++) trail[i] = scale8(trail[i], 218U);
-    const uint8_t count = (uint8_t)(1U + (SEGMENT.intensity >> 5U));
-    for (uint8_t s = 0; s < count; s++) {
-      uint16_t p = (uint16_t)(((uint16_t)hw_random8() * len) >> 8U);
-      trail[p] = 255U;
-      if (p > 0U) trail[p - 1U] = max8(trail[p - 1U], 95U);
-      if (p + 1U < len) trail[p + 1U] = max8(trail[p + 1U], 95U);
-    }
-  }
-  for (uint16_t i = 0; i < len; i++) {
-    const uint8_t v = trail[i];
-    uint32_t c = color_blend(color0(), color1(), v);
-    SEGMENT.setPixelColor(i, color_fade(c, v));
-  }
+static inline uint8_t mz_lerp8(uint8_t a, uint8_t b, uint8_t amount) {
+  return (uint8_t)(((uint16_t)a * (255U - amount) + (uint16_t)b * amount) / 255U);
 }
 
-static void renderCellularRule(uint16_t len, uint32_t now) {
-  const unsigned bytes = (unsigned)len * 2U;
-  if (!SEGENV.allocateData(bytes)) { SEGMENT.fill(color0()); return; }
-  uint8_t *state = SEGENV.data;
-  uint8_t *next = SEGENV.data + len;
-  if (SEGENV.call == 0U) {
-    memset(state, 0, bytes);
-    state[len / 2U] = 1U;
-    if (len > 8U) { state[len / 2U - 3U] = 1U; state[len / 2U + 3U] = 1U; }
-    SEGENV.step = now;
-  }
-  const uint16_t interval = (uint16_t)(110U - ((uint16_t)SEGMENT.speed * 82U) / 255U);
-  if ((uint32_t)(now - SEGENV.step) >= interval) {
-    SEGENV.step = now;
-    for (uint16_t i = 0; i < len; i++) {
-      const uint8_t l = state[(i == 0U) ? (len - 1U) : (i - 1U)];
-      const uint8_t c = state[i];
-      const uint8_t r = state[(i + 1U == len) ? 0U : (i + 1U)];
-      // Elementary cellular automaton Rule 30, not a palette animation.
-      next[i] = (uint8_t)(l ^ (c | r));
-    }
-    memcpy(state, next, len);
-  }
-  for (uint16_t i = 0; i < len; i++) {
-    const uint8_t on = state[i] ? 255U : 0U;
-    const uint32_t c = color_blend(color0(), color1(), (uint8_t)(on ? 220U : 0U));
-    SEGMENT.setPixelColor(i, color_fade(c, on));
-  }
+static inline uint8_t mz_blob(uint8_t position, uint8_t center, uint8_t radius) {
+  return peak8(dist8(position, center), radius);
 }
 
-static void renderReactionFilament(uint16_t len, uint32_t now) {
-  const unsigned bytes = (unsigned)len * 4U;
-  if (!SEGENV.allocateData(bytes)) { SEGMENT.fill(color0()); return; }
-  uint8_t *u = SEGENV.data;
-  uint8_t *v = u + len;
-  uint8_t *un = v + len;
-  uint8_t *vn = un + len;
-  if (SEGENV.call == 0U) {
-    memset(u, 220, len); memset(v, 0, len);
-    for (uint8_t k = 0; k < 3U; k++) {
-      const uint16_t p = (uint16_t)(((uint16_t)(70U + k * 61U) * len) / 255U);
-      v[(p < len) ? p : (len - 1U)] = 210U;
-    }
-    SEGENV.step = now;
-  }
-  const uint16_t interval = (uint16_t)(70U - ((uint16_t)SEGMENT.speed * 48U) / 255U);
-  if ((uint32_t)(now - SEGENV.step) >= interval) {
-    SEGENV.step = now;
-    const int feed = 5 + (SEGMENT.custom2 >> 5U);
-    const int kill = 28 + (SEGMENT.custom3 >> 1U);
-    for (uint16_t i = 0; i < len; i++) {
-      const uint16_t il = (i == 0U) ? (len - 1U) : (i - 1U);
-      const uint16_t ir = (i + 1U == len) ? 0U : (i + 1U);
-      const int lapU = (int)u[il] + (int)u[ir] - 2 * (int)u[i];
-      const int lapV = (int)v[il] + (int)v[ir] - 2 * (int)v[i];
-      const int reaction = ((int)u[i] * (int)v[i] * (int)v[i]) / 65025;
-      int du = (lapU * 3) / 4 - reaction + (feed * (255 - (int)u[i])) / 255;
-      int dv = (lapV * 1) / 3 + reaction - ((feed + kill) * (int)v[i]) / 255;
-      int nu = (int)u[i] + du;
-      int nv = (int)v[i] + dv;
-      un[i] = (uint8_t)((nu < 0) ? 0 : ((nu > 255) ? 255 : nu));
-      vn[i] = (uint8_t)((nv < 0) ? 0 : ((nv > 255) ? 255 : nv));
-    }
-    memcpy(u, un, len); memcpy(v, vn, len);
-  }
-  for (uint16_t i = 0; i < len; i++) {
-    const uint8_t chemical = v[i];
-    uint32_t c = color_blend(color0(), color2(), chemical);
-    SEGMENT.setPixelColor(i, color_fade(c, (uint8_t)(55U + chemical * 200U / 255U)));
-  }
+static inline uint8_t mz_tail(uint8_t position, uint8_t head, uint8_t length) {
+  const uint8_t behind = (uint8_t)(head - position);
+  if (behind >= length) return 0U;
+  return (uint8_t)(255U - ((uint16_t)behind * 255U) / (length ? length : 1U));
 }
 
-static void renderBrownianTrail(uint16_t len, uint32_t now) {
-  if (!SEGENV.allocateData(len)) { SEGMENT.fill(color0()); return; }
-  uint8_t *trail = SEGENV.data;
-  if (SEGENV.call == 0U) {
-    memset(trail, 0, len);
-    SEGENV.aux0 = len / 2U;
-    // aux1 bit 0 stores direction; retain the Signature algorithm tag in bits 1..15.
-    SEGENV.aux1 = (uint16_t)((SEGENV.aux1 & 0xFFFEU) | 1U);
-    SEGENV.step = now;
-  }
-  const uint16_t interval = (uint16_t)(42U - ((uint16_t)SEGMENT.speed * 25U) / 255U);
-  if ((uint32_t)(now - SEGENV.step) >= interval) {
-    SEGENV.step = now;
-    for (uint16_t i = 0; i < len; i++) trail[i] = scale8(trail[i], 232U);
-    int pos = (int)SEGENV.aux0;
-    int dir = (SEGENV.aux1 & 1U) ? 1 : -1;
-    const uint8_t rnd = hw_random8();
-    if (rnd < 86U) dir = -dir;
-    pos += dir * (1 + (rnd >> 6U));
-    while (pos < 0) pos += len;
-    while (pos >= len) pos -= len;
-    SEGENV.aux0 = (uint16_t)pos;
-    SEGENV.aux1 = (uint16_t)((SEGENV.aux1 & 0xFFFEU) | ((dir > 0) ? 1U : 0U));
-    trail[pos] = 255U;
-    if (pos > 0) trail[pos - 1] = max8(trail[pos - 1], 130U);
-    if (pos + 1 < len) trail[pos + 1] = max8(trail[pos + 1], 130U);
-  }
-  for (uint16_t i = 0; i < len; i++) {
-    uint32_t c = color_blend(color0(), color1(), trail[i]);
-    SEGMENT.setPixelColor(i, color_fade(c, trail[i]));
-  }
+static inline uint8_t mz_smoothNoise(uint16_t x, uint8_t time, uint8_t seed, uint8_t cellSize) {
+  if (cellSize < 2U) cellSize = 2U;
+  const uint16_t cell = x / cellSize;
+  const uint8_t fraction = (uint8_t)(((uint16_t)(x % cellSize) * 255U) / cellSize);
+  const uint8_t a = hash8(cell, time, seed);
+  const uint8_t b = hash8((uint16_t)(cell + 1U), time, seed);
+  return mz_lerp8(a, b, fraction);
 }
 
-// -----------------------------------------------------------------------------
-// Generic analytic renderer. Each case below is a separate spatial/temporal
-// equation and has its own named motion structure. It does not invoke native FX.
-// -----------------------------------------------------------------------------
+static inline uint8_t mz_bed(uint8_t wave, uint8_t floorLevel, uint8_t gain) {
+  return mz_satAdd(floorLevel, scale8(wave, gain));
+}
+
+static inline uint8_t mz_softMask(uint8_t value, uint8_t threshold, uint8_t width) {
+  if (value <= threshold) return 0U;
+  const uint16_t rise = (uint16_t)(value - threshold) * 255U;
+  return (uint8_t)((rise / (width ? width : 1U) > 255U) ? 255U : rise / (width ? width : 1U));
+}
+
 static void renderAlgorithm(uint8_t id) {
   const uint16_t len = SEGLEN;
   if (len == 0U) return;
-  const uint32_t now = strip.now;
-  if (len < 2U) { SEGMENT.setPixelColor(0, color0()); return; }
+  if (len == 1U) {
+    SEGMENT.setPixelColor(0, SEGMENT.color_from_palette(128U, false, true, 0, 255));
+    return;
+  }
 
-  if (id == 20U) { renderEmberline(len, now); return; }
-  if (id == 21U) { renderFireflySwarm(len, now); return; }
-  if (id == 83U) { renderCellularRule(len, now); return; }
-  if (id == 85U) { renderReactionFilament(len, now); return; }
-  if (id == 86U) { renderBrownianTrail(len, now); return; }
-
+  const uint8_t family = (uint8_t)(id / 10U);
+  const uint8_t variant = (uint8_t)(id % 10U);
   const uint8_t speed = SEGMENT.speed;
   const uint8_t intensity = SEGMENT.intensity;
-  const uint8_t density = (uint8_t)(1U + (SEGMENT.custom2 >> 4U));
-  const uint8_t frameDiv = (uint8_t)(20U + ((255U - speed) * 2U) / 7U);
-  const uint8_t ph = (uint8_t)(now / frameDiv);
-  const uint8_t slow = (uint8_t)(now / (uint16_t)(90U + ((255U - speed) >> 1U)));
-  const uint8_t ph2 = (uint8_t)(now / (uint16_t)(31U + ((255U - speed) >> 2U)));
-  const uint32_t c0 = color0(), c1 = color1(), c2 = color2();
-  const uint8_t width = (uint8_t)(10U + (SEGMENT.custom2 >> 2U));
+  const uint8_t density = SEGMENT.custom2;
   const uint8_t detail = SEGMENT.custom3;
+
+  // At maximum speed the phase clock advances roughly 4x faster than at the
+  // minimum. The real LED refresh rate remains controlled by WLED's main loop.
+  const uint16_t frameDiv = (uint16_t)(18U - ((uint16_t)speed * 14U) / 255U); // 18..4 ms
+  const uint32_t tick32 = strip.now / frameDiv;
+  const uint8_t tick = (uint8_t)tick32;
+  const uint8_t slowTick = (uint8_t)(strip.now / (uint16_t)(frameDiv * 4U + 11U));
+  const uint8_t spatialScale = (uint8_t)(2U + (density >> 5U)); // 2..9
+  const uint8_t width = (uint8_t)(14U + (density >> 3U) + detail); // broad form width
+  const uint8_t levelGain = (uint8_t)(88U + ((uint16_t)intensity * 167U) / 255U);
+  const uint8_t noiseCell = (uint8_t)(2U + ((255U - density) >> 5U));
+
+  // Scratch layout: raw light, palette coordinate and persistent afterglow.
+  // At 300 LEDs this consumes 900 bytes, acceptable for ESP32-C3 class boards.
+  const unsigned renderBytes = (unsigned)len * 3U;
+  if (!SEGENV.allocateData(renderBytes)) {
+    SEGMENT.fill(SEGMENT.color_from_palette(128U, false, true, 0, 255));
+    return;
+  }
+  uint8_t *rawLevel = SEGENV.data;
+  uint8_t *rawHue = SEGENV.data + len;
+  uint8_t *afterglow = SEGENV.data + (unsigned)len * 2U;
+  if (SEGENV.call == 0U) memset(afterglow, 0, len);
+
+  const uint8_t phase = (uint8_t)(tick * (uint8_t)(1U + (variant % 3U)));
+  const uint8_t phase2 = (uint8_t)(tick * (uint8_t)(2U + (variant % 4U)) + 73U);
+  const uint8_t slowPhase = (uint8_t)(slowTick * (uint8_t)(1U + (variant % 2U)));
+  const uint8_t trailFade = (family == 2U || family == 8U) ? 207U :
+                            (family == 6U || family == 4U) ? 235U : 222U;
 
   for (uint16_t x = 0; x < len; x++) {
     const uint8_t p = (uint8_t)(((uint32_t)x * 255U) / (len - 1U));
-    const uint8_t u = (uint8_t)(p * density);
-    const uint8_t a = mz_sin8((uint8_t)(u + ph));
-    const uint8_t b = mz_sin8((uint8_t)(u * 2U - ph * 2U + 37U));
-    const uint8_t c = mz_cos8((uint8_t)(u * 3U + ph / 2U + 91U));
-    const uint8_t triWave = triwave8((uint8_t)(u + ph2));
-    const uint8_t e = mz_sin8((uint8_t)(u * 5U + ph2 * 3U + 19U));
-    const uint8_t ramp = (uint8_t)(u + ph);
-    const uint8_t hash = hash8(x, slow, id);
-    const uint8_t center = peak8(absdiff8(p, 128U), 128U);
-    const uint8_t edge = (uint8_t)(255U - center);
-    uint8_t level = 0U, mix = 0U;
+    const uint8_t q = (uint8_t)(p * spatialScale);
+    const uint8_t w1 = mz_sin8((uint8_t)(q + phase));
+    const uint8_t w2 = mz_sin8((uint8_t)(q * 2U - phase2 + 41U));
+    const uint8_t w3 = mz_cos8((uint8_t)(q * 3U + phase / 2U + 91U));
+    const uint8_t w4 = mz_sin8((uint8_t)(q / 2U - slowPhase + 17U));
+    const uint8_t tri = triwave8((uint8_t)(q + phase2));
+    const uint8_t noise = mz_smoothNoise(x, slowTick, (uint8_t)(id + 17U), noiseCell);
+    const uint8_t grain = hash8((uint16_t)(x + variant * 11U), (uint8_t)(slowTick + phase / 5U), id);
+    const uint8_t edge = (uint8_t)(255U - peak8(absdiff8(p, 128U), 128U));
+    uint8_t level = 0U;
+    uint8_t hue = (uint8_t)(p + phase / 3U + id * 13U);
 
-    switch (id) {
-      case 0U: { uint8_t d=mz_dist(p,ph); level=mz_peak(d, uint8_t(24U+(intensity>>2))); mix=(d<18U)?220U:35U; break; }
-      case 1U: { uint8_t d1=mz_dist(p,ph), d2=mz_dist(p,uint8_t(ph+128U)); level=mz_max(mz_peak(d1,34),mz_peak(d2,34)); mix=(d1<d2)?48U:218U; break; }
-      case 2U: { uint8_t tail=(uint8_t)(uint8_t(p-ph)); level=(tail<110U)?(uint8_t)(255U-(uint16_t)tail*2U):0U; mix=(tail<18U)?240U:80U; break; }
-      case 3U: { uint8_t cross=mz_absdiff(a,b); level=(uint8_t)(255U-cross); mix=a; break; }
-      case 4U: { uint8_t cell=(uint8_t)((u+ph)&63U); level=mz_peak(cell, width); mix=(u&64U)?190U:55U; break; }
-      case 5U: {
-        const uint8_t h1 = mz_sin8((uint8_t)(u + ph));
-        const uint8_t h2 = mz_sin8((uint8_t)(u + ph + 85U));
-        level = mz_avg(h1, h2);
-        mix = (h1 > h2) ? 220U : 35U;
+    switch (family) {
+      // 0 — Arah & Kecepatan: broad moving ribbons, swept beams and streams.
+      case 0U:
+        switch (variant) {
+          case 0U: level = mz_bed(mz_avg(w1, w4), 44U, 172U); level = mz_satAdd(level, scale8(mz_blob(p, (uint8_t)(phase + 128U), width), 150U)); hue = (uint8_t)(p + phase); break;
+          case 1U: level = mz_satAdd(24U, mz_max(scale8(mz_blob(p, phase, width), 235U), scale8(mz_blob(p, (uint8_t)(phase + 128U), width), 210U))); hue = (uint8_t)(p * 2U + phase); break;
+          case 2U: { const uint8_t tail = mz_tail(p, phase, 150U); level = mz_satAdd(18U, scale8(tail, 225U)); level = mz_satAdd(level, scale8(mz_blob(p, phase, 22U), 100U)); hue = (uint8_t)(phase + tail / 3U); break; }
+          case 3U: level = mz_satAdd(28U, scale8(mz_absdiff(w1, w2), 205U)); level = mz_satAdd(level, scale8(mz_blob(p, (uint8_t)(phase + 64U), 32U), 80U)); hue = mz_avg(w1, w2); break;
+          case 4U: { const uint8_t rail = mz_sin8((uint8_t)(q * 2U + phase * 2U)); const uint8_t gate = mz_softMask(rail, 155U, 90U); level = mz_bed(w1, 20U, 75U); level = mz_satAdd(level, scale8(gate, 220U)); hue = (uint8_t)(q + phase * 2U); break; }
+          case 5U: { const uint8_t warp = (uint8_t)(q + mz_sin8((uint8_t)(q * 2U - phase)) / 3U); level = mz_bed(mz_sin8((uint8_t)(warp + phase)), 22U, 190U); level = mz_satAdd(level, scale8(mz_sin8((uint8_t)(warp * 3U - phase2)), 65U)); hue = warp; break; }
+          case 6U: { const uint8_t cell = (uint8_t)((q + phase * 2U) & 63U); const uint8_t dash = (cell < 38U) ? (uint8_t)(255U - cell * 5U) : 0U; level = mz_satAdd(28U, scale8(dash, 205U)); level = mz_satAdd(level, scale8(w2, 70U)); hue = (uint8_t)(cell * 4U + variant * 17U); break; }
+          case 7U: { const uint8_t head = (uint8_t)(phase + mz_sin8((uint8_t)(phase / 2U)) / 4U); const uint8_t tail = mz_tail(p, head, 112U); level = mz_satAdd(16U, scale8(tail, 225U)); level = mz_satAdd(level, scale8(mz_blob(p, head, 18U), 115U)); hue = (uint8_t)(head + tail / 2U); break; }
+          case 8U: level = mz_satAdd(26U, scale8(mz_mul(w1, w2), 225U)); level = mz_satAdd(level, scale8(mz_blob(p, (uint8_t)(phase + 128U), 34U), 100U)); hue = mz_avg(w1, w3); break;
+          default: level = mz_bed(mz_avg(w1, w3), 38U, 190U); level = mz_satAdd(level, scale8(mz_absdiff(w2, w4), 92U)); hue = (uint8_t)(phase + q / 2U); break;
+        }
         break;
-      }
-      case 6U: { uint8_t cell=(uint8_t)((u/3U+ph/2U)&31U); level=(cell<13U)?uint8_t(255U-cell*18U):0U; mix=(uint8_t)((u/32U&1U)?210U:40U); break; }
-      case 7U: { uint8_t arc=(uint8_t)(p+((uint16_t)(p*(255U-p))>>7)+ph); level=mz_peak(mz_dist(arc,128U),42U); mix=arc; break; }
-      case 8U: { uint8_t gate=mz_min(a,b); level=mz_mul(gate,c); mix=mz_max(a,b); break; }
-      case 9U: { uint8_t drift=mz_sin8((uint8_t)(p+ph/2U+mz_sin8((uint8_t)(p*3U+slow))/3U)); level=drift; mix=mz_sin8((uint8_t)(p*2U-ph)); break; }
-      case 10U: { level=mz_avg(mz_sin8((uint8_t)(u+ph)),mz_sin8((uint8_t)(u*2U-ph*2U+71U))); mix=b; break; }
-      case 11U: { level=mz_mul(mz_sin8((uint8_t)(u+ph)),mz_sin8((uint8_t)(u+128U))); mix=level; break; }
-      case 12U: {
-        const uint8_t slowWave = mz_sin8((uint8_t)(u + slow));
-        const uint8_t fastWave = mz_sin8((uint8_t)(u + ph));
-        level = mz_peak(mz_absdiff(slowWave, fastWave), 110U);
-        mix = slowWave;
+
+      // 1 — Gelombang & Resonansi: standing waves, beats and layered harmonics.
+      case 1U:
+        switch (variant) {
+          case 0U: level = mz_bed(mz_avg(w1, w2), 35U, 205U); level = mz_satAdd(level, scale8(mz_absdiff(w1, w3), 80U)); hue = mz_avg(w1, w2); break;
+          case 1U: level = mz_satAdd(18U, scale8(mz_mul(w1, mz_sin8((uint8_t)(q + 128U))), 238U)); level = mz_satAdd(level, scale8(w3, 52U)); hue = q; break;
+          case 2U: { const uint8_t beat = mz_absdiff(mz_sin8((uint8_t)(phase * 2U)), mz_sin8((uint8_t)(phase * 2U + 31U))); level = mz_bed(w1, 26U, 105U); level = mz_satAdd(level, scale8(mz_mul(w2, beat), 210U)); hue = (uint8_t)(q + beat / 2U); break; }
+          case 3U: level = mz_satAdd(22U, scale8(mz_mul(mz_sin8((uint8_t)(q * 2U + phase)), mz_sin8((uint8_t)(q * 3U - phase2))), 230U)); hue = mz_sin8((uint8_t)(q * 2U + phase)); break;
+          case 4U: level = mz_bed((uint8_t)((w1 / 3U + w2 / 3U + w3 / 3U)), 24U, 210U); hue = (uint8_t)(q * 3U + phase); break;
+          case 5U: { const uint8_t r = mz_blob(p, phase, 48U); const uint8_t r2 = mz_blob(p, (uint8_t)(phase + 78U), 30U); level = mz_satAdd(12U, mz_max(r, scale8(r2, 190U))); level = mz_satAdd(level, scale8(w4, 60U)); hue = (uint8_t)(phase + r2); break; }
+          case 6U: { const uint8_t knot = mz_absdiff(w1, w3); level = mz_bed(knot, 24U, 220U); level = mz_satAdd(level, scale8(mz_mul(w2, w4), 70U)); hue = (uint8_t)(knot + q); break; }
+          case 7U: { const uint8_t pend = mz_sin8((uint8_t)(phase / 2U)); level = mz_satAdd(20U, scale8(mz_blob(p, pend, 54U), 210U)); level = mz_satAdd(level, scale8(mz_blob(p, (uint8_t)(pend + 128U), 24U), 75U)); hue = pend; break; }
+          case 8U: level = mz_bed(mz_mul(mz_sin8((uint8_t)(q + phase / 3U)), mz_sin8((uint8_t)(q / 2U - phase / 4U))), 30U, 210U); hue = (uint8_t)(w1 + w4 / 2U); break;
+          default: { const uint8_t polar = mz_max(mz_blob(p, 0U, 44U), mz_blob(p, 128U, 44U)); level = mz_satAdd(18U, scale8(mz_mul(polar, mz_sin8((uint8_t)(phase + q))), 220U)); hue = (uint8_t)(q + phase); break; }
+        }
         break;
-      }
-      case 13U: { uint8_t lattice=mz_sin8((uint8_t)(u*2U+ph/2U)); level=mz_mul(lattice,mz_sin8((uint8_t)(u*3U-ph))); mix=lattice; break; }
-      case 14U: { uint8_t h=(uint8_t)((a/3U+b/3U+c/4U+e/4U)); level=h; mix=(uint8_t)(mz_sin8((uint8_t)(u*5U+ph))); break; }
-      case 15U: { uint8_t d=mz_dist(p,ph), pulse=mz_peak(d,38U); level=mz_max(pulse,mz_peak(mz_dist(p,uint8_t(ph+96U)),24U)); mix=(d<38U)?230U:70U; break; }
-      case 16U: { uint8_t knot=mz_absdiff(a,c); level=mz_peak(knot,90U); mix=(uint8_t)(a^b); break; }
-      case 17U: { uint8_t pend=mz_sin8((uint8_t)(ph/2U)); uint8_t d=mz_dist(p,pend); level=mz_peak(d,42U); mix=mz_sin8((uint8_t)(pend+64U)); break; }
-      case 18U: { uint8_t tide=mz_sin8((uint8_t)(ph/3U)); level=mz_mul(mz_sin8((uint8_t)(u+tide)),mz_sin8((uint8_t)(u/2U-ph/4U))); mix=tide; break; }
-      case 19U: { uint8_t polar=mz_max(mz_peak(p,36U),mz_peak(uint8_t(255U-p),36U)); level=mz_mul(polar,edge); level=mz_mul(level,mz_sin8((uint8_t)(ph+u*2U))); mix=uint8_t(ph+u); break; }
-      case 22U: { uint8_t cascade=mz_peak(uint8_t((u+ph)&31U),uint8_t(4U+(intensity>>5)+(detail>>2U))); level=mz_max(cascade,mz_peak(uint8_t((u+ph+11U)&63U),10U)); mix=(u&32U)?230U:70U; break; }
-      case 23U: { uint8_t vein=mz_sin8((uint8_t)(u+mz_sin8((uint8_t)(u/2U+ph)))); level=mz_peak(vein,70U); mix=uint8_t(100U+vein/2U); break; }
-      case 24U: { uint8_t ash=mz_hash(x,uint8_t(slow/2U),id); uint8_t fall=uint8_t(p+ph/2U); level=(ash>210U)?uint8_t(ash):mz_peak(uint8_t(fall&63U),12U); mix=ash; break; }
-      case 25U: { uint8_t plasma=mz_avg(mz_sin8((uint8_t)(u+ph)),mz_sin8((uint8_t)(u*3U-ph))); level=mz_max(plasma,mz_peak(mz_absdiff(a,b),70U)); mix=c; break; }
-      case 26U: { uint8_t lava=mz_peak(mz_dist(p,uint8_t(ph/2U)),52U); level=mz_max(lava,mz_peak(mz_dist(p,uint8_t(255U-ph/3U)),29U)); mix=(uint8_t)(a/2U+128U); break; }
-      case 27U: { uint8_t star=mz_hash(x,uint8_t(slow+ph/5U),id); level=(star>230U)?255U:((star>205U)?120U:8U); mix=(star&1U)?250U:45U; break; }
-      case 28U: { uint8_t m1=mz_peak(mz_dist(p,ph),20U),m2=mz_peak(mz_dist(p,uint8_t(ph+53U)),15U),m3=mz_peak(mz_dist(p,uint8_t(ph+139U)),23U); level=mz_max(m1,mz_max(m2,m3)); mix=(m2>m1)?180U:245U; break; }
-      case 29U: { uint8_t aur=mz_sin8((uint8_t)(u+ph)); uint8_t spark=mz_hash(x,slow,id); level=mz_mul(aur,uint8_t(100U+(spark>>1U))); mix=spark; break; }
-      case 30U: { uint8_t prism=uint8_t((u/2U+ph)&255U); level=mz_sin8(prism); mix=prism; break; }
-      case 31U: { uint8_t bits=uint8_t((x^(uint16_t)(ph/3U))&0x55U); level=(bits)?220U:12U; mix=(bits&4U)?235U:32U; break; }
-      case 32U: { uint8_t morse=uint8_t((u/8U+ph/12U)%16U); level=((morse==1U||morse==4U||morse==7U||morse==10U)?255U:((morse==2U||morse==5U)?90U:0U)); mix=(morse&1U)?220U:40U; break; }
-      case 33U: { uint8_t bar=uint8_t((u*3U+ph)&31U); level=(bar<5U||bar>27U)?255U:25U; mix=(u&32U)?210U:30U; break; }
-      case 34U: { uint8_t chev=mz_sin8((uint8_t)(u+ph+(p<128U?p:uint8_t(255U-p)))); level=mz_peak(mz_absdiff(chev,128U),80U); mix=chev; break; }
-      case 35U: { uint8_t tile=uint8_t(((x/3U)^(ph/16U))&7U); level=uint8_t((tile*25U)+ramp/4U); mix=uint8_t(tile*32U); break; }
-      case 36U: { uint8_t fold=mz_min(p,uint8_t(255U-p)); uint8_t fract=mz_sin8(uint8_t(fold*7U+ph)); level=mz_mul(fract,triWave); mix=fract; break; }
-      case 37U: { uint8_t fib=uint8_t((x*13U+x/2U+ph)&255U); level=mz_peak(mz_dist(fib,128U),46U); mix=fib; break; }
-      case 38U: { uint8_t para=mz_sin8(uint8_t(u+ph/2U)); uint8_t para2=mz_sin8(uint8_t(u/2U-ph)); level=mz_absdiff(para,para2); mix=para; break; }
-      case 39U: { uint8_t step=uint8_t(((u/16U)+(ph/16U))&15U); level=uint8_t((step<8U)?step*32U:(15U-step)*32U); mix=uint8_t(step*17U); break; }
-      case 40U: { uint8_t neb=mz_sin8(uint8_t(u+mz_sin8(uint8_t(u*2U+slow))/2U+ph)); level=mz_mul(neb,hash); mix=neb; break; }
-      case 41U: { uint8_t veil=mz_sin8(uint8_t(u+ph/3U)); level=mz_avg(veil,mz_sin8(uint8_t(u/2U-ph/5U))); mix=mz_sin8(uint8_t(ph+u/3U)); break; }
-      case 42U: { uint8_t silk=mz_sin8(uint8_t(u+mz_sin8(uint8_t(ph+u/4U)))); level=mz_mul(silk,mz_sin8(uint8_t(u*2U-ph/2U))); mix=silk; break; }
-      case 43U: { uint8_t chrome=mz_sin8(uint8_t(u*4U+ph)); uint8_t glint=mz_peak(mz_absdiff(chrome,240U),36U); level=mz_max(chrome/3U,glint); mix=glint; break; }
-      case 44U: { uint8_t vapor=mz_sin8(uint8_t(u+ph)); uint8_t tail=mz_sin8(uint8_t(u/3U-ph/2U)); level=mz_mul(vapor,tail); mix=tail; break; }
-      case 45U: { uint8_t cloud=mz_avg(mz_sin8(uint8_t(u+ph/2U)),mz_sin8(uint8_t(u/3U+ph))); level=mz_max(cloud,mz_peak(hash,60U)); mix=cloud; break; }
-      case 46U: { uint8_t ocean=uint8_t(80U+((uint16_t)mz_sin8(uint8_t(u+ph/3U))*175U)/255U); level=mz_mul(ocean,mz_sin8(uint8_t(u*2U-ph/4U))); mix=uint8_t(130U+mz_sin8(uint8_t(ph+u))/2U); break; }
-      case 47U: { uint8_t rain=mz_hash(x,uint8_t(slow+x/4U),id); uint8_t streak=uint8_t(u+ph/2U+e/6U); level=(rain>210U)?255U:mz_peak(uint8_t(streak&31U),7U); mix=rain; break; }
-      case 48U: { uint8_t haze=mz_sin8(uint8_t(u/2U+ph/4U)); level=uint8_t(30U+(uint16_t)haze*(3U+(detail>>3U))/4U); mix=mz_sin8(uint8_t(u+ph)); break; }
-      case 49U: { uint8_t opal=mz_sin8(uint8_t(u+ph)); uint8_t sheen=mz_cos8(uint8_t(u*3U-ph/2U)); level=mz_avg(opal,sheen); mix=mz_avg(opal,hash); break; }
-      case 50U: { uint8_t beat=mz_sin8(uint8_t(ph*2U)); level=(beat>210U)?255U:((beat>165U)?uint8_t(beat):25U); mix=(beat>210U)?245U:70U; break; }
-      case 51U: { uint8_t idle=mz_sin8(uint8_t(ph/5U+mz_sin8(uint8_t(ph/2U)))); level=uint8_t(100U+idle/2U); mix=idle; break; }
-      case 52U: { uint8_t tach=mz_sin8(uint8_t(u*2U+ph)); level=(u<ph)?255U:((u<uint8_t(ph+32U))?150U:22U); mix=tach; break; }
-      case 53U: { uint8_t rev=uint8_t((u+ph*2U)&255U); level=mz_peak(uint8_t(rev&63U),width); mix=(rev>192U)?245U:80U; break; }
-      case 54U: { uint8_t gear=uint8_t((ph/20U)%5U); uint8_t zone=mz_peak(mz_absdiff(u,uint8_t(gear*51U)),25U); level=mz_max(zone,uint8_t((gear==4U)?a/2U:15U)); mix=uint8_t(gear*50U); break; }
-      case 55U: { uint8_t ladder=uint8_t((u+ph)&255U); level=(ladder<32U)?255U:((ladder<64U)?uint8_t(160U):0U); mix=ladder; break; }
-      case 56U: { uint8_t count=uint8_t((ph/32U)%4U); uint8_t d=mz_dist(u,uint8_t(count*64U)); level=mz_peak(d,18U); mix=(count&1U)?210U:60U; break; }
-      case 57U: { uint8_t burn=mz_sin8(uint8_t(u*3U+ph)); level=mz_mul(burn,uint8_t(120U+mz_sin8(uint8_t(ph+u/2U))/2U)); mix=burn; break; }
-      case 58U: { uint8_t spiral=mz_sin8(uint8_t(u*2U+ph+mz_sin8(uint8_t(u*4U-ph))/3U)); level=spiral; mix=mz_sin8(uint8_t(u*3U-ph)); break; }
-      case 59U: { uint8_t pit=uint8_t((u+ph)&127U); level=(pit<8U)?255U:((pit<20U)?90U:14U); mix=(pit<8U)?240U:30U; break; }
-      case 60U: { uint8_t bubbles=mz_hash(x,uint8_t(slow+x/9U),id); level=(bubbles>224U)?255U:uint8_t(30U+bubbles/5U); mix=uint8_t(170U+bubbles/3U); break; }
-      case 61U: { uint8_t velvet=mz_sin8(uint8_t(u+ph/7U)); level=uint8_t(35U+velvet/3U+edge/5U); mix=uint8_t(80U+velvet/2U); break; }
-      case 62U: { uint8_t sun=mz_sin8(uint8_t(ph/3U)); level=mz_mul(uint8_t(120U+sun/2U),mz_sin8(uint8_t(u+ph/8U))); mix=uint8_t(150U+sun/3U); break; }
-      case 63U: { uint8_t pearl=mz_peak(mz_dist(p,uint8_t(ph+mz_sin8(uint8_t(ph/4U))/3U)),32U); level=mz_max(55U,pearl); mix=pearl; break; }
-      case 64U: { uint8_t satin=mz_sin8(uint8_t(u+mz_sin8(uint8_t(ph+u/5U))/2U)); level=uint8_t(75U+((uint16_t)satin*180U)/255U); mix=mz_sin8(uint8_t(u*2U+ph)); break; }
-      case 65U: { uint8_t opal=mz_sin8(uint8_t(u+ph)); uint8_t shimmer=mz_hash(x,uint8_t(slow/3U),id); level=mz_max(opal,uint8_t(shimmer>220U?255U:0U)); mix=shimmer; break; }
-      case 66U: { uint8_t chrome=mz_sin8(uint8_t(u*5U+ph/2U)); level=mz_peak(mz_absdiff(chrome,128U),48U); mix=uint8_t(128U+chrome/2U); break; }
-      case 67U: { uint8_t flame=mz_sin8(uint8_t(u+ph)); uint8_t candle=mz_hash(x,uint8_t(slow+u),id); level=mz_mul(flame,uint8_t(170U+candle/3U)); mix=candle; break; }
-      case 68U: { uint8_t halo=mz_peak(mz_dist(p,128U),128U); uint8_t breathe=mz_sin8(uint8_t(ph/3U)); level=mz_mul(halo,breathe); mix=breathe; break; }
-      case 69U: { uint8_t crown=mz_peak(mz_absdiff(p,128U),96U); level=mz_mul(crown,mz_sin8(uint8_t(ph+u))); mix=uint8_t(200U-crown/2U); break; }
-      case 70U: { uint8_t d=mz_absdiff(p,128U); uint8_t wave=mz_sin8(uint8_t(ph+u)); level=mz_peak(d, uint8_t(20U+wave/3U)); mix=wave; break; }
-      case 71U: { uint8_t d=mz_absdiff(p,128U); uint8_t open=mz_sin8(uint8_t(ph/2U)); level=mz_peak(mz_absdiff(d,open/2U),36U); mix=open; break; }
-      case 72U: { uint8_t mzCenter72=mz_peak(mz_absdiff(p,128U),128U); level=mz_mul(mzCenter72,mz_sin8(uint8_t(ph/2U))); mix=mzCenter72; break; }
-      case 73U: { uint8_t mzEdge73=mz_peak(mz_min(p,uint8_t(255U-p)),128U); level=mz_mul(mzEdge73,mz_sin8(uint8_t(ph/2U))); mix=mzEdge73; break; }
-      case 74U: { uint8_t l=mz_peak(mz_dist(p,ph),20U),r=mz_peak(mz_dist(p,uint8_t(255U-ph)),20U); level=mz_max(l,r); mix=(l>r)?40U:220U; break; }
-      case 75U: { uint8_t w=ramp; level=(w>70U&&w<184U)?255U:18U; mix=w; break; }
-      case 76U: { uint8_t aperture=mz_sin8(uint8_t(ph/2U)); uint8_t apertureDist76=mz_absdiff(p,aperture); level=mz_peak(apertureDist76,28U); mix=aperture; break; }
-      case 77U: { uint8_t gate=uint8_t((u+ph)&63U); level=(gate<5U)?255U:((gate<14U)?100U:0U); mix=uint8_t(gate*4U); break; }
-      case 78U: { uint8_t beacon=mz_dist(p,ph); level=mz_peak(beacon, uint8_t(12U+(intensity>>3U)+(detail>>1U))); mix=(beacon<10U)?250U:110U; break; }
-      case 79U: { uint8_t x1=mz_peak(mz_dist(p,ph),16U),x2=mz_peak(mz_dist(p,uint8_t(ph+85U)),12U),x3=mz_peak(mz_dist(p,uint8_t(ph+170U)),16U); level=mz_max(x1,mz_max(x2,x3)); mix=mz_avg(x1,x3); break; }
-      case 80U: { uint8_t q=mz_hash(x,uint8_t(slow+ph),id); level=(q>180U)?uint8_t(q):uint8_t(q/6U); mix=(q&32U)?225U:25U; break; }
-      case 81U: { uint8_t phaseA=mz_sin8(uint8_t(u+ph)); uint8_t phaseB=mz_sin8(uint8_t(u-ph/2U)); level=mz_absdiff(phaseA,phaseB); mix=phaseB; break; }
-      case 82U: { uint8_t noise1=mz_hash(x,uint8_t(slow),id),noise2=mz_hash(uint16_t(x+17U),uint8_t(slow+23U),id+9U); level=mz_mul(noise1,noise2); mix=noise2; break; }
-      case 84U: { uint8_t bit=uint8_t((x*5U+ph/7U)^(x>>1U)); level=(bit&8U)?220U:20U; mix=uint8_t(bit*13U); break; }
-      case 87U: { uint8_t logistic=mz_sin8(uint8_t(u*3U+ph)); level=mz_mul(logistic,uint8_t(255U-logistic/2U)); mix=logistic; break; }
-      case 88U: { const uint8_t mz88Left=mz_sin8(uint8_t(u+ph)); const uint8_t mz88Right=mz_sin8(uint8_t(u*2U-ph/2U)); level=mz_avg(mz_mul(mz88Left,mz88Right),mz_absdiff(mz88Left,mz88Right)); level=mz_avg(level,e); mix=mz88Right; break; }
-      case 89U: { uint8_t cell=uint8_t((u+ph)&31U); level=(cell<16U)?uint8_t(cell*16U):uint8_t((31U-cell)*16U); mix=hash; break; }
-      case 90U: { uint8_t bolt=mz_hash(x,uint8_t(slow+x/3U),id); level=(bolt>242U)?255U:((bolt>226U)?190U:0U); mix=(bolt>230U)?245U:80U; break; }
-      case 91U: { uint8_t flare=mz_peak(mz_dist(p,ph),45U); level=mz_max(flare,uint8_t(mz_sin8(uint8_t(u+ph/3U))/3U)); mix=(flare>170U)?245U:130U; break; }
-      case 92U: { uint8_t field=mz_sin8(uint8_t(u+ph)); uint8_t pole=mz_cos8(uint8_t(u*2U-ph)); level=mz_absdiff(field,pole); mix=field; break; }
-      case 93U: { uint8_t rippleA=mz_peak(mz_dist(p,ph),22U); uint8_t rippleB=mz_peak(mz_dist(p,uint8_t(ph+64U)),16U); level=mz_max(rippleA,rippleB); mix=mz_avg(rippleA,rippleB); break; }
-      case 94U: { uint8_t warped=uint8_t(u+mz_sin8(uint8_t(u*2U+ph))/2U); level=mz_sin8(uint8_t(warped+ph)); mix=warped; break; }
-      case 95U: { uint8_t bands=uint8_t((u+ph)&127U); level=mz_peak(uint8_t(bands&31U),18U); mix=uint8_t((bands/16U)*36U); break; }
-      case 96U: { uint8_t ion=mz_sin8(uint8_t(u*4U+ph)); uint8_t packet=mz_hash(x,uint8_t(slow+ph/7U),id); level=mz_mul(ion,packet); mix=packet; break; }
-      case 97U: { uint8_t gravity=mz_peak(mz_absdiff(p,uint8_t(128U+mz_sin8(uint8_t(ph/3U))/4U)),120U); level=mz_mul(gravity,mz_sin8(uint8_t(ph+u/2U))); mix=gravity; break; }
-      case 98U: { uint8_t horizon=mz_sin8(uint8_t(u/2U+ph)); uint8_t line=mz_peak(mz_dist(p,ph),14U); level=mz_max(uint8_t(horizon/2U),line); mix=line; break; }
-      case 99U: {
-        // Gunakan deklarasi terpisah dan nama unik agar tidak berbenturan
-        // dengan macro/simbol sigB atau sigC dari header lain.
-        const uint8_t mzSigA99 = mz_sin8(uint8_t(u + ph));
-        const uint8_t mzSigB99 = mz_sin8(uint8_t(u * 3U - ph));
-        const uint8_t mzSigC99 = mz_hash(x, slow, id);
-        level = mz_max(mz_mul(mzSigA99, mzSigB99),
-                       uint8_t(mzSigC99 > 238U ? 255U : 0U));
-        mix = mz_avg(mzSigA99, mzSigC99);
+
+      // 2 — Partikel & Bara: particles are clusters/streaks over continuous heat.
+      case 2U:
+        switch (variant) {
+          case 0U: { const uint8_t heat = mz_smoothNoise(x, slowTick, 20U, 5U); const uint8_t ember = mz_softMask(heat, 158U, 70U); level = mz_bed(mz_sin8((uint8_t)(q / 2U - phase / 3U)), 34U, 92U); level = mz_satAdd(level, scale8(ember, 188U)); hue = (uint8_t)(190U + heat / 4U); break; }
+          case 1U: { const uint8_t aPos = (uint8_t)(phase * 2U); const uint8_t bPos = (uint8_t)(255U - phase * 3U); const uint8_t aGlow = mz_blob(p, aPos, 28U); const uint8_t bGlow = mz_blob(p, bPos, 23U); level = mz_satAdd(24U, mz_max(scale8(aGlow, 220U), scale8(bGlow, 205U))); level = mz_satAdd(level, scale8(w2, 60U)); hue = (uint8_t)(aGlow > bGlow ? aPos : bPos); break; }
+          case 2U: { const uint8_t cascade = mz_sin8((uint8_t)(q + phase * 3U)); const uint8_t shards = mz_softMask(cascade, 174U, 54U); level = mz_bed(w1, 18U, 95U); level = mz_satAdd(level, scale8(shards, 225U)); level = mz_satAdd(level, scale8(mz_blob(p, (uint8_t)(phase + 100U), 25U), 85U)); hue = (uint8_t)(cascade + phase); break; }
+          case 3U: { const uint8_t vein = mz_sin8((uint8_t)(q * 2U + mz_sin8((uint8_t)(q + phase)) / 2U)); const uint8_t core = mz_softMask(vein, 170U, 55U); level = mz_bed(vein, 26U, 130U); level = mz_satAdd(level, scale8(core, 115U)); hue = (uint8_t)(150U + vein / 3U); break; }
+          case 4U: { const uint8_t ash = mz_smoothNoise(x, (uint8_t)(slowTick + x / 3U), 24U, 3U); const uint8_t streak = mz_blob(p, (uint8_t)(phase + ash / 5U), 32U); level = mz_bed(w4, 20U, 70U); level = mz_satAdd(level, scale8(streak, 145U)); level = mz_satAdd(level, scale8(mz_softMask(ash, 205U, 45U), 120U)); hue = (uint8_t)(ash + 80U); break; }
+          case 5U: { const uint8_t neb = mz_mul(mz_sin8((uint8_t)(q + phase)), mz_sin8((uint8_t)(q * 3U - phase2))); const uint8_t flare = mz_softMask(noise, 186U, 60U); level = mz_bed(neb, 20U, 170U); level = mz_satAdd(level, scale8(flare, 165U)); hue = (uint8_t)(neb + noise / 3U); break; }
+          case 6U: { const uint8_t lava = mz_sin8((uint8_t)(q + mz_sin8((uint8_t)(q / 2U + phase)) / 3U - phase / 2U)); level = mz_bed(lava, 35U, 185U); level = mz_satAdd(level, scale8(mz_blob(p, (uint8_t)(phase * 2U), 37U), 95U)); hue = (uint8_t)(175U + lava / 4U); break; }
+          case 7U: { const uint8_t meteorHead = (uint8_t)(phase * 3U); const uint8_t meteorTail = mz_tail(p, meteorHead, 86U); level = mz_satAdd(10U, scale8(meteorTail, 245U)); level = mz_satAdd(level, scale8(mz_blob(p, meteorHead, 13U), 160U)); hue = (uint8_t)(meteorHead + 24U); break; }
+          case 8U: { const uint8_t p1 = (uint8_t)(phase * 2U); const uint8_t p2 = (uint8_t)(phase * 2U + 91U); const uint8_t tails = mz_max(mz_tail(p, p1, 72U), mz_tail(p, p2, 54U)); level = mz_satAdd(16U, scale8(tails, 215U)); hue = (uint8_t)(p1 + tails / 2U); break; }
+          default: { const uint8_t curtain = mz_avg(mz_sin8((uint8_t)(q + phase / 2U)), mz_sin8((uint8_t)(q / 2U - phase))); const uint8_t sparks = mz_softMask(grain, 222U, 33U); level = mz_bed(curtain, 32U, 175U); level = mz_satAdd(level, scale8(sparks, 145U)); hue = (uint8_t)(curtain + grain / 2U); break; }
+        }
         break;
-      }
-      default: level = a; mix = b; break;
+
+      // 3 — Geometri & Pola: deliberate blocks, chevrons, bands and symmetry.
+      case 3U:
+        switch (variant) {
+          case 0U: { const uint8_t band = (uint8_t)(q + phase); level = mz_satAdd(26U, scale8(mz_sin8(band), 205U)); hue = band; break; }
+          case 1U: { const uint8_t block = (uint8_t)(((x / (2U + (density >> 5U))) + tick / 5U) & 7U); const uint8_t digital = (block & 1U) ? 205U : 55U; level = mz_satAdd(digital, scale8(w2, 55U)); hue = (uint8_t)(block * 32U + phase); break; }
+          case 2U: { const uint8_t symbol = (uint8_t)(((q / 8U) + tick / 7U) & 15U); const bool on = (symbol == 1U || symbol == 2U || symbol == 5U || symbol == 6U || symbol == 9U || symbol == 10U); level = on ? 238U : 24U; level = mz_satAdd(level, scale8(w3, 35U)); hue = (uint8_t)(symbol * 16U + phase); break; }
+          case 3U: { const uint8_t bar = (uint8_t)((q / 3U + phase) & 63U); level = (bar < 22U) ? (uint8_t)(235U - bar * 4U) : 20U; hue = (uint8_t)(bar * 4U + q); break; }
+          case 4U: { const uint8_t fold = (p < 128U) ? p : (uint8_t)(255U - p); const uint8_t chevron = mz_sin8((uint8_t)(fold * 3U + phase)); level = mz_satAdd(32U, scale8(mz_peak(absdiff8(chevron, 128U), 86U), 220U)); hue = (uint8_t)(fold * 2U + phase); break; }
+          case 5U: { const uint8_t tile = (uint8_t)(((x / 3U) + (tick / 9U)) & 7U); const uint8_t quilt = (uint8_t)(tile * 27U + mz_sin8((uint8_t)(q + phase)) / 3U); level = mz_satAdd(34U, quilt); hue = (uint8_t)(tile * 31U + phase); break; }
+          case 6U: { const uint8_t fold = (p < 128U) ? p : (uint8_t)(255U - p); const uint8_t fract = mz_sin8((uint8_t)(fold * 7U + phase)); level = mz_bed(mz_mul(fract, tri), 24U, 220U); hue = (uint8_t)(fract + fold); break; }
+          case 7U: { const uint8_t fib = (uint8_t)(x * 13U + x / 2U + phase); level = mz_satAdd(24U, scale8(mz_peak(dist8(fib, 128U), 72U), 220U)); hue = fib; break; }
+          case 8U: { const uint8_t a = mz_sin8((uint8_t)(q + phase / 2U)); const uint8_t b = mz_sin8((uint8_t)(q / 2U - phase)); level = mz_satAdd(24U, scale8(mz_absdiff(a, b), 215U)); hue = a; break; }
+          default: { const uint8_t mirror = (p < 128U) ? p : (uint8_t)(255U - p); const uint8_t step = (uint8_t)(((mirror / 8U) + phase / 8U) & 15U); const uint8_t diamond = (step < 8U) ? (uint8_t)(step * 29U) : (uint8_t)((15U - step) * 29U); level = mz_satAdd(32U, diamond); hue = (uint8_t)(step * 17U + phase); break; }
+        }
+        break;
+
+      // 4 — Atmosfer & Cairan: slow cloud volumes, curtains and liquid contours.
+      case 4U:
+        switch (variant) {
+          case 0U: { const uint8_t cloudA = mz_smoothNoise(x, (uint8_t)(slowTick + phase / 4U), 40U, 9U); const uint8_t cloudB = mz_smoothNoise(x, (uint8_t)(slowTick / 2U + phase / 7U), 41U, 17U); level = mz_bed(mz_avg(cloudA, cloudB), 34U, 195U); hue = mz_avg(cloudA, cloudB); break; }
+          case 1U: { const uint8_t veil = mz_sin8((uint8_t)(q / 2U + phase / 3U)); const uint8_t curtain = mz_sin8((uint8_t)(q / 5U - phase / 2U + veil / 3U)); level = mz_bed(mz_avg(veil, curtain), 38U, 195U); level = mz_satAdd(level, scale8(mz_peak(absdiff8(veil, 128U), 45U), 60U)); hue = (uint8_t)(curtain + q / 4U); break; }
+          case 2U: { const uint8_t silk = mz_sin8((uint8_t)(q + mz_sin8((uint8_t)(phase + q / 5U)) / 2U)); level = mz_bed(silk, 42U, 190U); level = mz_satAdd(level, scale8(mz_sin8((uint8_t)(q * 2U - phase / 2U)), 65U)); hue = silk; break; }
+          case 3U: { const uint8_t chrome = mz_sin8((uint8_t)(q * 3U + phase + mz_sin8((uint8_t)(q + phase / 2U)) / 3U)); const uint8_t glint = mz_peak(absdiff8(chrome, 128U), 28U); level = mz_bed(chrome, 28U, 145U); level = mz_satAdd(level, scale8(glint, 145U)); hue = (uint8_t)(chrome + glint); break; }
+          case 4U: { const uint8_t vapor = mz_avg(mz_sin8((uint8_t)(q + phase / 2U)), mz_sin8((uint8_t)(q / 3U - phase))); const uint8_t turbulence = mz_smoothNoise(x, slowTick, 44U, 7U); level = mz_bed(vapor, 35U, 178U); level = mz_satAdd(level, scale8(turbulence, 45U)); hue = (uint8_t)(vapor + turbulence / 3U); break; }
+          case 5U: { const uint8_t cloud = mz_smoothNoise(x, (uint8_t)(slowTick / 2U + phase / 6U), 45U, 13U); level = mz_bed(cloud, 48U, 190U); level = mz_satAdd(level, scale8(mz_sin8((uint8_t)(q / 3U + phase / 4U)), 42U)); hue = cloud; break; }
+          case 6U: { const uint8_t ocean = mz_sin8((uint8_t)(q / 2U + phase / 3U)); const uint8_t swell = mz_sin8((uint8_t)(q + phase / 2U + ocean / 4U)); level = mz_bed(mz_avg(ocean, swell), 48U, 185U); hue = (uint8_t)(150U + swell / 3U); break; }
+          case 7U: { const uint8_t rainNoise = mz_smoothNoise(x, (uint8_t)(slowTick + x / 4U), 47U, 3U); const uint8_t streak = mz_blob(p, (uint8_t)(phase + rainNoise / 3U), 30U); level = mz_bed(w4, 24U, 70U); level = mz_satAdd(level, scale8(streak, 185U)); hue = (uint8_t)(rainNoise + phase); break; }
+          case 8U: { const uint8_t haze = mz_avg(mz_sin8((uint8_t)(q / 3U + phase / 5U)), mz_sin8((uint8_t)(q / 5U - phase / 7U))); level = mz_bed(haze, 64U, 130U); hue = (uint8_t)(haze + phase / 4U); break; }
+          default: { const uint8_t opalA = mz_sin8((uint8_t)(q + phase / 3U)); const uint8_t opalB = mz_sin8((uint8_t)(q * 2U - phase / 4U)); const uint8_t opalC = mz_sin8((uint8_t)(q / 3U + phase / 2U)); level = mz_bed(mz_avg(opalA, mz_avg(opalB, opalC)), 42U, 190U); hue = (uint8_t)(opalA / 3U + opalB / 3U + opalC / 3U); break; }
+        }
+        break;
+
+      // 5 — Mesin & Racing: assertive rev sweeps, torque surges and start lights.
+      case 5U:
+        switch (variant) {
+          case 0U: { const uint8_t beat = mz_sin8((uint8_t)(phase * 2U)); const uint8_t thump = mz_softMask(beat, 176U, 58U); level = mz_bed(w1, 24U, 80U); level = mz_satAdd(level, scale8(thump, 220U)); hue = (uint8_t)(q + thump); break; }
+          case 1U: { const uint8_t idle = mz_sin8((uint8_t)(q * 3U + phase / 3U + mz_sin8((uint8_t)(phase / 2U)) / 3U)); level = mz_bed(idle, 58U, 160U); level = mz_satAdd(level, scale8(w2, 48U)); hue = (uint8_t)(idle + 32U); break; }
+          case 2U: { const uint8_t sweep = (uint8_t)(phase * 2U); const uint8_t band = mz_blob(p, sweep, 42U); const uint8_t tail = mz_tail(p, sweep, 72U); level = mz_satAdd(12U, mz_max(scale8(band, 220U), scale8(tail, 115U))); hue = (uint8_t)(sweep + band); break; }
+          case 3U: { const uint8_t rev = mz_sin8((uint8_t)(phase * 3U)); const uint8_t strips = mz_sin8((uint8_t)(q * 2U + phase * 2U)); level = mz_bed(strips, 20U, 80U); level = mz_satAdd(level, scale8(mz_softMask(rev, 170U, 65U), 205U)); hue = (uint8_t)(strips + rev / 2U); break; }
+          case 4U: { const uint8_t gear = (uint8_t)((tick / 24U) % 5U); const uint8_t zone = mz_blob(p, (uint8_t)(gear * 51U), 42U); level = mz_bed(w1, 25U, 65U); level = mz_satAdd(level, scale8(zone, 210U)); hue = (uint8_t)(gear * 48U + phase); break; }
+          case 5U: { const uint8_t rung = (uint8_t)((q + phase * 3U) & 63U); const uint8_t ladder = (rung < 40U) ? 230U : 18U; level = mz_satAdd(ladder, scale8(w3, 35U)); hue = (uint8_t)(rung * 4U + phase); break; }
+          case 6U: { const uint8_t launch = (uint8_t)((tick / 10U) % 8U); const uint8_t grid = (uint8_t)((x / 2U + launch) % 8U); const uint8_t start = (grid <= launch) ? (uint8_t)(235U - grid * 18U) : 20U; level = mz_satAdd(start, scale8(w2, 55U)); hue = (uint8_t)(grid * 30U + phase); break; }
+          case 7U: { const uint8_t after = mz_sin8((uint8_t)(q * 2U + phase * 3U)); const uint8_t flame = mz_mul(after, mz_sin8((uint8_t)(q / 2U - phase))); level = mz_bed(flame, 28U, 220U); level = mz_satAdd(level, scale8(mz_blob(p, phase, 38U), 75U)); hue = (uint8_t)(185U + flame / 4U); break; }
+          case 8U: { const uint8_t turbo = mz_sin8((uint8_t)(q * 3U + phase + mz_sin8((uint8_t)(q * 5U - phase)) / 2U)); level = mz_bed(turbo, 20U, 225U); hue = (uint8_t)(turbo + q); break; }
+          default: { const uint8_t flash = mz_sin8((uint8_t)(tick * 5U)); const uint8_t lane = mz_sin8((uint8_t)(q * 2U + phase)); level = mz_bed(lane, 16U, 55U); level = mz_satAdd(level, scale8(mz_softMask(flash, 194U, 42U), 230U)); hue = (uint8_t)(lane + flash); break; }
+        }
+        break;
+
+      // 6 — Cahaya Premium: no hard black gaps; silk, satin, pearl and warm glow.
+      case 6U:
+        switch (variant) {
+          case 0U: { const uint8_t champagne = mz_avg(w1, mz_sin8((uint8_t)(q / 3U - phase / 4U))); level = mz_bed(champagne, 72U, 155U); level = mz_satAdd(level, scale8(mz_peak(absdiff8(grain, 128U), 18U), 60U)); hue = (uint8_t)(32U + champagne / 2U); break; }
+          case 1U: { const uint8_t velvet = mz_sin8((uint8_t)(q / 2U + phase / 7U)); level = mz_bed(velvet, 82U, 148U); level = mz_satAdd(level, scale8(edge, 34U)); hue = (uint8_t)(16U + velvet / 3U); break; }
+          case 2U: { const uint8_t sun = mz_sin8((uint8_t)(phase / 3U)); const uint8_t horizon = mz_sin8((uint8_t)(q / 3U + phase / 8U)); level = mz_bed(mz_avg(sun, horizon), 68U, 165U); hue = (uint8_t)(24U + sun / 3U); break; }
+          case 3U: { const uint8_t pearl = mz_sin8((uint8_t)(q + phase / 2U + mz_sin8((uint8_t)(phase + q / 4U)) / 3U)); level = mz_bed(pearl, 64U, 170U); level = mz_satAdd(level, scale8(mz_peak(absdiff8(pearl, 128U), 22U), 55U)); hue = (uint8_t)(pearl + 64U); break; }
+          case 4U: { const uint8_t satin = mz_sin8((uint8_t)(q / 2U + mz_sin8((uint8_t)(phase + q / 5U)) / 2U)); level = mz_bed(satin, 82U, 150U); hue = (uint8_t)(q + phase / 3U); break; }
+          case 5U: { const uint8_t opal = mz_avg(w1, mz_avg(w3, w4)); const uint8_t shimmer = mz_softMask(grain, 220U, 36U); level = mz_bed(opal, 72U, 155U); level = mz_satAdd(level, scale8(shimmer, 48U)); hue = (uint8_t)(opal + grain / 4U); break; }
+          case 6U: { const uint8_t chrome = mz_sin8((uint8_t)(q * 3U + phase / 2U)); const uint8_t shine = mz_peak(absdiff8(chrome, 128U), 25U); level = mz_bed(chrome, 58U, 130U); level = mz_satAdd(level, scale8(shine, 115U)); hue = (uint8_t)(chrome + 100U); break; }
+          case 7U: { const uint8_t flame = mz_sin8((uint8_t)(q / 2U + phase + mz_sin8((uint8_t)(q * 3U - phase)) / 3U)); level = mz_bed(flame, 65U, 160U); hue = (uint8_t)(12U + flame / 3U); break; }
+          case 8U: { const uint8_t halo = mz_blob(p, (uint8_t)(phase / 2U), 100U); const uint8_t breath = mz_sin8((uint8_t)(phase / 3U)); level = mz_bed(mz_max(halo, breath), 48U, 178U); hue = (uint8_t)(128U + halo / 3U); break; }
+          default: { const uint8_t crownA = mz_sin8((uint8_t)(q / 2U + phase / 3U)); const uint8_t crownB = mz_sin8((uint8_t)(q / 5U - phase / 2U)); level = mz_bed(mz_avg(crownA, crownB), 68U, 180U); hue = (uint8_t)(crownA + crownB / 3U); break; }
+        }
+        break;
+
+      // 7 — Gerbang & Simetri: mirrored motion, apertures and broad portal rings.
+      case 7U:
+        switch (variant) {
+          case 0U: { const uint8_t d = (p < 128U) ? p : (uint8_t)(255U - p); const uint8_t front = (uint8_t)(phase / 2U); level = mz_satAdd(18U, scale8(mz_blob(d, front, 48U), 230U)); hue = (uint8_t)(d + phase); break; }
+          case 1U: { const uint8_t front = (uint8_t)(phase / 2U); const uint8_t d = (p < 128U) ? p : (uint8_t)(255U - p); level = mz_satAdd(18U, scale8(mz_blob(d, (uint8_t)(128U - front), 42U), 228U)); hue = (uint8_t)(255U - d + phase); break; }
+          case 2U: { const uint8_t bloom = mz_blob(p, 128U, (uint8_t)(18U + (phase / 3U))); level = mz_bed(bloom, 26U, 225U); hue = (uint8_t)(bloom + phase); break; }
+          case 3U: { const uint8_t d = (p < 128U) ? p : (uint8_t)(255U - p); const uint8_t bloom = mz_blob(d, (uint8_t)(phase / 3U), 46U); level = mz_bed(bloom, 34U, 210U); hue = (uint8_t)(d * 2U + phase); break; }
+          case 4U: { const uint8_t portalA = mz_blob(p, (uint8_t)(phase + 64U), 24U); const uint8_t portalB = mz_blob(p, (uint8_t)(phase + 192U), 24U); level = mz_satAdd(22U, mz_max(scale8(portalA, 220U), scale8(portalB, 220U))); level = mz_satAdd(level, scale8(w1, 65U)); hue = (uint8_t)(portalA > portalB ? 30U : 190U); break; }
+          case 5U: { const uint8_t winCenter = (uint8_t)(phase); const uint8_t win = mz_blob(p, winCenter, 74U); level = mz_bed(win, 24U, 220U); hue = (uint8_t)(winCenter + p / 3U); break; }
+          case 6U: { const uint8_t open = mz_sin8((uint8_t)(phase / 2U)); const uint8_t aperture = (uint8_t)(18U + open / 3U); const uint8_t d = absdiff8(p, 128U); level = mz_satAdd(20U, scale8(mz_peak(absdiff8(d, aperture), 34U), 220U)); hue = (uint8_t)(open + d); break; }
+          case 7U: { const uint8_t gate = mz_sin8((uint8_t)(q * 2U + phase * 2U)); const uint8_t beam = mz_softMask(gate, 165U, 60U); level = mz_bed(w2, 22U, 70U); level = mz_satAdd(level, scale8(beam, 210U)); hue = (uint8_t)(q + beam); break; }
+          case 8U: { const uint8_t sweep = mz_blob(p, phase, 30U); const uint8_t tail = mz_tail(p, phase, 100U); level = mz_satAdd(16U, mz_max(scale8(sweep, 215U), scale8(tail, 110U))); hue = (uint8_t)(phase + sweep); break; }
+          default: { const uint8_t a = mz_blob(p, phase, 20U); const uint8_t b = mz_blob(p, (uint8_t)(phase + 128U), 20U); level = mz_satAdd(20U, mz_max(a, b)); level = mz_satAdd(level, scale8(mz_absdiff(w1, w2), 70U)); hue = (uint8_t)(a + b + phase); break; }
+        }
+        break;
+
+      // 8 — Eksperimental: clustered noise, cellular pulses, reaction and chaos.
+      case 8U:
+        switch (variant) {
+          case 0U: { const uint8_t quantum = mz_smoothNoise(x, (uint8_t)(slowTick + phase), 80U, 4U); const uint8_t cluster = mz_softMask(quantum, 142U, 85U); level = mz_bed(mz_avg(w1, w3), 30U, 105U); level = mz_satAdd(level, scale8(cluster, 145U)); hue = quantum; break; }
+          case 1U: { const uint8_t a = mz_sin8((uint8_t)(q + phase)); const uint8_t b = mz_sin8((uint8_t)(q - phase / 2U)); level = mz_bed(mz_absdiff(a, b), 26U, 220U); hue = (uint8_t)(b + phase); break; }
+          case 2U: { const uint8_t n1 = mz_smoothNoise(x, slowTick, 82U, 11U); const uint8_t n2 = mz_smoothNoise(x, (uint8_t)(slowTick + 31U), 83U, 5U); const uint8_t sculpt = mz_mul(n1, n2); level = mz_bed(sculpt, 34U, 205U); hue = (uint8_t)(n1 + n2 / 2U); break; }
+          case 3U: { const uint8_t cell = (uint8_t)((q + phase) & 63U); const uint8_t neighbor = mz_sin8((uint8_t)(q * 2U - phase)); const uint8_t live = (cell < 38U) ? 225U : 18U; level = mz_satAdd(live, scale8(neighbor, 50U)); hue = (uint8_t)(cell * 4U + phase); break; }
+          case 4U: { const uint8_t binary = (uint8_t)(((x / 2U) ^ (tick / 7U)) & 15U); const uint8_t block = (binary & 1U) ? 205U : 28U; level = mz_satAdd(block, scale8(w2, 62U)); hue = (uint8_t)(binary * 17U + phase); break; }
+          case 5U: { const uint8_t reactionA = mz_sin8((uint8_t)(q + phase / 2U)); const uint8_t reactionB = mz_sin8((uint8_t)(q * 3U - phase)); const uint8_t chemical = mz_mul(reactionA, reactionB); level = mz_bed(mz_avg(chemical, mz_absdiff(reactionA, reactionB)), 20U, 225U); hue = chemical; break; }
+          case 6U: { const uint8_t wander = (uint8_t)(phase + grain / 3U); const uint8_t trail = mz_tail(p, wander, 110U); level = mz_bed(mz_smoothNoise(x, slowTick, 86U, 8U), 14U, 70U); level = mz_satAdd(level, scale8(trail, 195U)); level = mz_satAdd(level, scale8(mz_blob(p, wander, 18U), 90U)); hue = (uint8_t)(wander + trail / 3U); break; }
+          case 7U: { const uint8_t logistic = mz_sin8((uint8_t)(q * 3U + phase + mz_sin8((uint8_t)(q * 5U - phase2)) / 2U)); level = mz_bed(mz_mul(logistic, (uint8_t)(255U - logistic / 3U)), 24U, 215U); hue = logistic; break; }
+          case 8U: { const uint8_t lorenzA = mz_sin8((uint8_t)(q + phase)); const uint8_t lorenzB = mz_sin8((uint8_t)(q * 2U - phase2)); const uint8_t ribbon = mz_absdiff(lorenzA, lorenzB); level = mz_bed(mz_max(ribbon, mz_mul(w3, w4)), 22U, 220U); hue = (uint8_t)(lorenzA + lorenzB / 2U); break; }
+          default: { const uint8_t cell = mz_sin8((uint8_t)(q / 2U + phase)); const uint8_t pulse = mz_softMask(cell, 150U, 75U); level = mz_bed(w2, 32U, 75U); level = mz_satAdd(level, scale8(pulse, 190U)); hue = (uint8_t)(cell + pulse); break; }
+        }
+        break;
+
+      // 9 — Signature & Energi: high-impact layered compositions, not one-layer FX.
+      default:
+        switch (variant) {
+          case 0U: { const uint8_t bolt = mz_smoothNoise(x, (uint8_t)(slowTick + phase / 2U), 90U, 4U); const uint8_t core = mz_softMask(bolt, 190U, 54U); level = mz_bed(mz_sin8((uint8_t)(q / 2U + phase)), 28U, 110U); level = mz_satAdd(level, scale8(core, 195U)); hue = (uint8_t)(bolt + phase); break; }
+          case 1U: { const uint8_t solar = mz_sin8((uint8_t)(q / 2U + phase / 3U)); const uint8_t flare = mz_blob(p, (uint8_t)(phase + 128U), 68U); level = mz_bed(solar, 34U, 165U); level = mz_satAdd(level, scale8(flare, 145U)); hue = (uint8_t)(solar + flare / 3U); break; }
+          case 2U: { const uint8_t fieldA = mz_sin8((uint8_t)(q + phase)); const uint8_t fieldB = mz_cos8((uint8_t)(q * 2U - phase / 2U)); level = mz_bed(mz_avg(fieldA, fieldB), 32U, 185U); level = mz_satAdd(level, scale8(mz_absdiff(fieldA, fieldB), 70U)); hue = fieldA; break; }
+          case 3U: { const uint8_t ringA = mz_blob(p, phase, 35U); const uint8_t ringB = mz_blob(p, (uint8_t)(phase + 64U), 35U); const uint8_t lattice = mz_sin8((uint8_t)(q * 2U + phase)); level = mz_bed(mz_max(ringA, ringB), 22U, 170U); level = mz_satAdd(level, scale8(lattice, 78U)); hue = (uint8_t)(ringA + ringB + lattice / 3U); break; }
+          case 4U: { const uint8_t warped = (uint8_t)(q + mz_sin8((uint8_t)(q * 2U + phase)) / 2U); const uint8_t warpA = mz_sin8((uint8_t)(warped + phase)); const uint8_t warpB = mz_sin8((uint8_t)(warped * 3U - phase2)); level = mz_bed(mz_avg(warpA, warpB), 25U, 210U); hue = (uint8_t)(warped + warpB / 3U); break; }
+          case 5U: { const uint8_t spectral = mz_sin8((uint8_t)(q * 2U + phase)); const uint8_t band = mz_sin8((uint8_t)(q / 2U - phase / 2U)); level = mz_bed(mz_avg(spectral, band), 32U, 195U); hue = (uint8_t)(q + phase * 2U); break; }
+          case 6U: { const uint8_t ion = mz_sin8((uint8_t)(q * 4U + phase)); const uint8_t packet = mz_smoothNoise(x, (uint8_t)(slowTick + phase / 6U), 96U, 6U); level = mz_bed(mz_mul(ion, packet), 20U, 220U); hue = (uint8_t)(ion + packet / 2U); break; }
+          case 7U: { const uint8_t gravity = mz_blob(p, (uint8_t)(128U + mz_sin8((uint8_t)(phase / 3U)) / 4U), 108U); const uint8_t orbit = mz_sin8((uint8_t)(phase + q / 2U)); level = mz_bed(mz_mul(gravity, orbit), 25U, 220U); hue = (uint8_t)(gravity + phase); break; }
+          case 8U: { const uint8_t horizon = mz_sin8((uint8_t)(q / 2U + phase)); const uint8_t line = mz_blob(p, phase, 38U); level = mz_bed(horizon, 32U, 150U); level = mz_satAdd(level, scale8(line, 120U)); hue = (uint8_t)(horizon + line / 2U); break; }
+          default: { const uint8_t silk = mz_sin8((uint8_t)(q + phase / 2U)); const uint8_t storm = mz_sin8((uint8_t)(q * 3U - phase2)); const uint8_t pulse = mz_blob(p, (uint8_t)(phase + 128U), 70U); const uint8_t energy = mz_max(mz_mul(silk, storm), mz_avg(w3, w4)); level = mz_bed(energy, 42U, 175U); level = mz_satAdd(level, scale8(pulse, 160U)); hue = (uint8_t)(silk + storm / 2U + phase); break; }
+        }
+        break;
     }
 
-    // Intensity scales the computed field without changing the algorithm shape.
-    level = scale8(level, (uint8_t)(96U + ((uint16_t)intensity * 159U) / 255U));
-    uint32_t color = color_blend(c0, c1, mix);
-    if (mix > 208U) color = color_blend(color, c2, (uint8_t)((mix - 208U) * 5U));
-    SEGMENT.setPixelColor(x, color_fade(color, level));
+    // Detail adds a fine moving texture, not isolated spark dots. The amount
+    // stays bounded so it enriches the base composition without flattening it.
+    const uint8_t microTexture = mz_sin8((uint8_t)(q * 5U + tick * 3U + id * 23U));
+    level = mz_satAdd(level, scale8(microTexture, (uint8_t)(detail * 2U)));
+    hue = (uint8_t)(hue + scale8(microTexture, (uint8_t)(detail >> 1U)));
+
+    // Family-specific floor keeps visual continuity without washing out contrast.
+    const uint8_t floorLevel = (family == 6U) ? 42U : (family == 4U) ? 28U : 12U;
+    level = (level < floorLevel) ? floorLevel : level;
+    level = scale8(level, levelGain);
+    rawLevel[x] = level;
+    rawHue[x] = hue;
+  }
+
+  // Motion persistence is deliberately different by family: embers/chaos leave
+  // shorter trails; premium and atmospheric effects retain a slower silk afterglow.
+  for (uint16_t x = 0; x < len; x++) {
+    const uint8_t old = scale8(afterglow[x], trailFade);
+    afterglow[x] = mz_max(rawLevel[x], old);
+  }
+
+  for (uint16_t x = 0; x < len; x++) {
+    const uint16_t left = (x == 0U) ? x : (uint16_t)(x - 1U);
+    const uint16_t right = (x + 1U < len) ? (uint16_t)(x + 1U) : x;
+    const uint16_t sum = (uint16_t)afterglow[left] +
+                         (uint16_t)afterglow[x] * 2U +
+                         (uint16_t)afterglow[right];
+    const uint8_t soft = (uint8_t)(sum >> 2U);
+    const uint8_t shoulder = mz_max(scale8(afterglow[left], 158U), scale8(afterglow[right], 158U));
+    const uint8_t outLevel = mz_max(afterglow[x], mz_max(scale8(soft, 190U), shoulder));
+    const uint32_t paletteColor = SEGMENT.color_from_palette(rawHue[x], false, true, 0, 255);
+    SEGMENT.setPixelColor(x, color_fade(paletteColor, outLevel));
   }
 }
 
-// A single WLED effect entry exposes all 100 algorithms via c1 (0..99).
+// One WLED FX slot exposes all 100 algorithms through SEGMENT.custom1 (c1).
 static void mode_mizuma_signature_100(void) {
   const uint8_t index = clampIndex(SEGMENT.custom1);
-  // Segment-local algorithm marker: changing c1 must reset the selected
-  // algorithm's private animation state even though the WLED FX ID stays same.
-  // Bit 0 is reserved for BrownianTrail direction; the remaining bits are tag.
+  // Reset segment-local scratch whenever the internal algorithm changes.
   const uint16_t algorithmTag = (uint16_t)(0xA500U | ((uint16_t)(index & 0x7FU) << 1U));
   if ((SEGENV.aux1 & 0xFFFEU) != algorithmTag) {
     SEGENV.call = 0U;
@@ -601,17 +567,16 @@ static void mode_mizuma_signature_100(void) {
     SEGENV.aux0 = 0U;
     SEGENV.aux1 = algorithmTag;
   }
-  SEGMENT.beginDraw(); // refresh palette cache before sampling the active palette
+  SEGMENT.beginDraw();
   renderAlgorithm(index);
 }
 
-// WLED metadata sections: parameters; color slots; palette; 1D flag; defaults.
-// c1 chooses the internal algorithm; c2/c3 control density and detail.
+// Keep one registered WLED effect: c1 selects algorithm 0..99,
+// c2 controls spatial density, c3 controls detail; WLED palette remains active.
 static const char MZ_SIGNATURE_100_METADATA[] PROGMEM =
   "MZ | Signature 100@!,Intensity,Algorithm ID,Density,Detail;!,!;!;1;sx=128,ix=180,c1=0,c2=160,c3=16,pal=0";
 
 static inline uint8_t registerWLEDEffect(void) {
-  // Call once from MizumaSmartSystem::setup().
   return strip.addEffect(255, &mode_mizuma_signature_100, MZ_SIGNATURE_100_METADATA);
 }
 
