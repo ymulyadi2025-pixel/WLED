@@ -441,18 +441,14 @@ body{display:flex;flex-direction:column;}
 .tabbar{display:flex;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--bd);}
 .tabbar button{flex:1 0 auto;padding:10px 10px;background:none;border:none;color:var(--tx2);font-size:12px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;}
 .tabbar button.active{color:var(--tx);border-bottom-color:var(--ac);}
-.control-panel{display:flex;flex-direction:column;gap:6px;padding:8px 12px 0;}
-.control-group{min-width:0;background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:6px 8px;}
-.control-title{font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--tx2);text-transform:uppercase;margin:0 0 5px 2px;}
-.side-row{display:flex;gap:4px;margin:0;padding:0;background:transparent;border:0;}
-.side-row .side-btn{flex:1;min-width:0;padding:7px 3px;border:1px solid var(--bd);background:var(--s2);color:var(--tx2);font-size:10px;font-weight:700;border-radius:7px;}
-.side-row .side-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
-.control-tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
-.control-tool{display:flex;flex-direction:column;justify-content:space-between;min-width:0;}
-.control-tool .tool-btn{width:100%;min-height:31px;padding:6px 4px;border:1px solid var(--bd2);border-radius:8px;background:var(--s2);color:var(--tx);font-size:10px;font-weight:750;white-space:nowrap;}
-.control-tool .tool-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
-.control-note{font-size:8.5px;line-height:1.25;color:var(--tx3);text-align:center;margin-top:4px;}
-@media(min-width:520px){.control-panel{display:grid;grid-template-columns:1.1fr 1fr;align-items:stretch;}.control-tools{height:100%;}.control-tools .control-group{height:100%;}}
+.control-panel{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;padding:7px 8px 0;align-items:stretch;}
+.side-row{display:contents;}
+.side-row .side-btn,.control-panel .tool-btn{display:flex;align-items:center;justify-content:center;gap:2px;min-width:0;min-height:34px;padding:5px 1px;border:1px solid var(--bd);background:var(--s2);color:var(--tx2);font-size:clamp(8px,2.55vw,10px);font-weight:750;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:clip;border-radius:8px;}
+.side-row .side-btn.active,.control-panel .tool-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
+#swapSideBtn{border-left-width:2px;border-left-color:var(--bd2);}
+.control-panel .tool-btn{border-color:var(--bd2);color:var(--tx);}
+.control-panel .tool-btn.active{color:var(--ac);border-color:var(--ac);}
+@media(min-width:520px){.control-panel{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding-left:12px;padding-right:12px;}}
 .preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
 .pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
 .pv-canvas.off{opacity:.22;}
@@ -556,26 +552,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button data-tab="hazard">Hazard</button>
 </div>
 <div class="control-panel" id="controlPanel">
-  <div class="control-group">
-    <div class="control-title">Pilih sisi lampu</div>
-    <div class="side-row" id="sideRow">
-      <button class="side-btn" data-side="kiri" type="button">Kiri</button>
-      <button class="side-btn active" data-side="both" type="button">Semua</button>
-      <button class="side-btn" data-side="kanan" type="button">Kanan</button>
-    </div>
+  <div class="side-row" id="sideRow">
+    <button class="side-btn" data-side="kiri" type="button" aria-label="Pilih lampu kiri">Kiri</button>
+    <button class="side-btn active" data-side="both" type="button" aria-label="Pilih kedua sisi">Semua</button>
+    <button class="side-btn" data-side="kanan" type="button" aria-label="Pilih lampu kanan">Kanan</button>
   </div>
-  <div class="control-tools">
-    <div class="control-group control-tool">
-      <div class="control-title">Posisi output</div>
-      <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Tukar pemetaan output kiri dan kanan">⇄ Tukar kiri-kanan</button>
-      <div class="control-note">Menukar sisi lampu kiri dan kanan</div>
-    </div>
-    <div class="control-group control-tool">
-      <div class="control-title">Arah gerak</div>
-      <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Balik arah gerak efek pada semua tab">↔ Arah asli</button>
-      <div class="control-note">Membalik arah kedua sisi di semua tab</div>
-    </div>
-  </div>
+  <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Tukar posisi output fisik kiri dan kanan">⇄ Posisi</button>
+  <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Balik arah gerak LED pada semua tab">↔ Arah</button>
 </div>
 <div class="preview-row">
 <canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
@@ -883,14 +866,14 @@ if(k==='template'||k==='custom')loadPalettes(false);
 updateModeAktif();}
 function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
-function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');b.textContent=sideSwap?'✓ Kiri-kanan ditukar':'⇄ Tukar kiri-kanan';b.title=sideSwap?'Pemetaan output kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Tukar pemetaan output kiri dan kanan';}
-function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');b.textContent=showReverse?'↔ Arah dibalik':'↔ Arah asli';b.title=showReverse?'Arah gerak efek sedang dibalik. Tekan untuk memakai arah asli.':'Gunakan arah asli efek. Tekan untuk membalik arah gerak.';}
+function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');b.textContent=sideSwap?'⇄ Ditukar':'⇄ Posisi';b.title=sideSwap?'Posisi output kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Tukar posisi output fisik kiri dan kanan';}
+function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');b.textContent=showReverse?'↔ Dibalik':'↔ Arah';b.title=showReverse?'Arah gerak LED sedang dibalik. Tekan untuk mengembalikan arah gerak.':'Balik arah gerak LED pada efek yang mendukung gerakan.';}
 function loadSideSwap(){return fetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
 function requestSideSwap(){const next=!sideSwap;fetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');});}
 function loadShowReverse(){return fetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();}).catch(function(){updateDirectionButton();});}
-function requestShowReverse(){const next=!showReverse;fetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah gerak dibalik':'↔ Arah gerak kembali ke asli');}).catch(function(){toast('Gagal membalik arah gerak');});}
+function requestShowReverse(){const next=!showReverse;const b=document.getElementById('reverseFxBtn');if(b)b.disabled=true;fetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST',cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('reverse rejected');showReverse=!!d.enabled;updateDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah LED dibalik':'↔ Arah LED dikembalikan');}).catch(function(){toast('Gagal mengubah arah LED');}).finally(function(){if(b)b.disabled=false;});}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
-document.getElementById('controlPanel').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;if(btn.dataset.action==='swap'){if(dirty){showModal(requestSideSwap);}else{requestSideSwap();}return;}if(btn.dataset.action==='reverse'){if(dirty){showModal(requestShowReverse);}else{requestShowReverse();}return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
+document.getElementById('controlPanel').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;/* Posisi dan arah adalah kontrol langsung, bukan perubahan preset: jangan ditahan dialog Simpan. */if(btn.dataset.action==='swap'){requestSideSwap();return;}if(btn.dataset.action==='reverse'){requestShowReverse();return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 /* ===== INIT ===== */
@@ -1133,7 +1116,8 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   if(st.c2>=0)seg.custom2=(uint8_t)constrain(st.c2,0,255);
   if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
   if(st.o>=0)seg.check1=(st.o!=0);
-  seg.reverse=(((st.flags&1U)!=0) ^ showReverse); // tombol arah membalik semua gerak, termasuk resep yang sudah flip
+  const bool stageReverse=(((st.flags&1U)!=0) ^ showReverse); // resep dan pilihan pengguna digabungkan
+  if(seg.reverse!=stageReverse){seg.reverse=stageReverse;seg.markForReset();}
   seg.on=true;
 
   applyShowStageColors(st,seg,userPalette);
@@ -1253,10 +1237,11 @@ void handleShowStop(AsyncWebServerRequest *req){
   if(side!="both"&&side!="kanan"&&side!="kiri"){req->send(400,"application/json","{\"ok\":false}");return;}
   stopShowRunners(side);req->send(200,"application/json","{\"ok\":true}");
 }
-void applyCurrentShowDirection(){
-  // Arah dibalik berlaku untuk semua tab. Jika segmen sedang menjalankan show
-  // Mizuma, gabungkan arah pengguna dengan flag arah khusus pada resep stage.
-  // Untuk efek WLED biasa (Riding/Sein/Rem/Hazard/native FX), gunakan arah global.
+uint8_t applyCurrentShowDirection(){
+  // Arah global diterapkan ke kedua segmen aktif pada semua tab.
+  // Pada show Mizuma, flag arah khusus stage digabungkan dengan pilihan global (XOR).
+  // Reset runtime memastikan efek yang menyimpan state internal membaca arah baru.
+  uint8_t activeSegments=0;
   bool changed=false;
   for(uint8_t logical=0;logical<2;logical++){
     const bool logicalRight=(logical==0);
@@ -1264,19 +1249,22 @@ void applyCurrentShowDirection(){
     if(segId>=strip.getSegmentsNum())continue;
     Segment &seg=strip.getSegment(segId);
     if(!seg.isActive())continue;
+    activeSegments++;
 
     bool targetReverse=showReverse;
     ShowRunner &r=showRunner[logical];
-    if(r.hasCurrentShow && r.showIndex<MZ_SHOW_COUNT){
-      const MzShow &show=MZ_SHOWS[r.showIndex];
-      if(r.currentStageIndex<show.n){
-        const MzStage &st=show.st[r.currentStageIndex];
-        targetReverse=(((st.flags&1U)!=0) ^ showReverse);
-      }
+    if(r.hasCurrentShow && r.showIndex<MZ_SHOW_COUNT && r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
+      const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
+      targetReverse=(((st.flags&1U)!=0) ^ showReverse);
     }
-    if(seg.reverse!=targetReverse){seg.reverse=targetReverse;changed=true;}
+    if(seg.reverse!=targetReverse){
+      seg.reverse=targetReverse;
+      seg.markForReset();
+      changed=true;
+    }
   }
   if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+  return activeSegments;
 }
 void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
@@ -1285,8 +1273,9 @@ void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
   }
   if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}
   showReverse=(req->arg("enabled")=="1"||req->arg("enabled")=="true");
-  applyCurrentShowDirection();queueSave();
-  String json=String("{\"ok\":true,\"enabled\":")+(showReverse?"true":"false")+"}";
+  const uint8_t activeSegments=applyCurrentShowDirection();
+  queueSave();
+  String json=String("{\"ok\":true,\"enabled\":")+(showReverse?"true":"false")+String(",\"activeSegments\":")+String(activeSegments)+"}";
   req->send(200,"application/json",json);
 }
 
