@@ -34,11 +34,15 @@ HASIL YANG DIHARAPKAN
   pada posisi 56–70. Jika efek native tertentu tidak ikut dikompilasi oleh
   build WLED, posisinya tetap tampil abu-abu sebagai "tidak tersedia".
 - Tab Riding, Sein, Rem, dan Hazard tetap memakai penyaringan/daftar lama.
-- Tukar Kanan-Kiri tetap tersedia, tersimpan di konfigurasi Mizuma, dan
+- Kontrol sisi ditata terpisah: Pilih sisi lampu (Kiri/Semua/Kanan), Posisi
+  output (Tukar kiri-kanan), dan Arah gerak (Arah asli/Arah dibalik).
+- Tukar kiri-kanan tetap tersedia, tersimpan di konfigurasi Mizuma, dan
   runner yang sedang berjalan dihentikan sebelum pemetaan diubah.
-- Tombol Arah Normal/Terbalik tampil khusus pada tab Welcoming. Fitur ini
-  membalik arah gerak tiap efek tanpa membalik urutan stage; statusnya disimpan
-  di konfigurasi ESP32.
+- Tombol Arah asli/Arah dibalik tersedia pada semua tab: Welcoming, Riding,
+  Sein, Rem, dan Hazard. Pengaturan arah berlaku global pada kedua segmen,
+  tersimpan di konfigurasi ESP32, dan tidak mengubah urutan stage show Mizuma.
+- Show Mizuma menggabungkan pilihan arah global dengan pembalikan khusus resep
+  setiap stage. Efek WLED biasa menerima properti segmen `rev` melalui JSON API.
 - Show memakai nama efek WLED yang di-resolve saat boot, bukan nomor FX
   hard-coded, sehingga lebih tahan terhadap perubahan indeks efek WLED.
 - Tampilan menu warna/palette yang sudah ada tetap dipakai; tidak ada menu warna baru.
@@ -89,8 +93,9 @@ CATATAN STATUS PENGUJIAN
 - Audit jadwal: seluruh cue asli dipertahankan. Rentang durasi hasil generator
   saat ini adalah 6100–7950 ms; perpindahan boot menunggu runner selesai.
 - JavaScript inline lolos pemeriksaan sintaks Node.js.
-- Endpoint durasi per-show dan tombol pembalik arah sudah ditambahkan dan
-  diperiksa secara struktural; perilaku pada perangkat belum diuji.
+- Endpoint durasi per-show dan tombol pembalik arah global untuk semua tab
+  sudah ditambahkan dan diperiksa secara struktural; perilaku pada perangkat
+  belum diuji.
 - Build firmware penuh ESP32-C3 belum diverifikasi dalam lingkungan ini,
   karena executable PlatformIO (pio/platformio) tidak tersedia. Lakukan
   clean build dan upload pada proyek lokal sebelum dipakai di motor.

@@ -441,14 +441,18 @@ body{display:flex;flex-direction:column;}
 .tabbar{display:flex;overflow-x:auto;background:var(--s1);border-bottom:1px solid var(--bd);}
 .tabbar button{flex:1 0 auto;padding:10px 10px;background:none;border:none;color:var(--tx2);font-size:12px;font-weight:600;white-space:nowrap;border-bottom:3px solid transparent;}
 .tabbar button.active{color:var(--tx);border-bottom-color:var(--ac);}
-.side-row{display:flex;background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:2px;margin:8px 12px 0;}
-.side-row .side-btn{flex:1;padding:5px 0;border:none;background:transparent;color:var(--tx3);font-size:10px;font-weight:700;border-radius:8px;}
-.side-row .side-btn.active{background:var(--s3);color:var(--ac);}
-.side-row .swap-btn{font-size:9px;white-space:nowrap;border-left:1px solid var(--bd);border-radius:0 8px 8px 0;}
-.side-row .swap-btn.active{background:var(--ac-dim);color:var(--ac);border-color:var(--ac);}
-.side-row .reverse-btn{display:none;flex:1.25;font-size:9px;white-space:nowrap;border-left:1px solid var(--bd);border-radius:0;padding-left:4px;padding-right:4px;}
-.side-row.show-reverse .reverse-btn{display:block;}
-.side-row .reverse-btn.active{background:var(--ac-dim);color:var(--ac);border-color:var(--ac);}
+.control-panel{display:flex;flex-direction:column;gap:6px;padding:8px 12px 0;}
+.control-group{min-width:0;background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:6px 8px;}
+.control-title{font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--tx2);text-transform:uppercase;margin:0 0 5px 2px;}
+.side-row{display:flex;gap:4px;margin:0;padding:0;background:transparent;border:0;}
+.side-row .side-btn{flex:1;min-width:0;padding:7px 3px;border:1px solid var(--bd);background:var(--s2);color:var(--tx2);font-size:10px;font-weight:700;border-radius:7px;}
+.side-row .side-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
+.control-tools{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.control-tool{display:flex;flex-direction:column;justify-content:space-between;min-width:0;}
+.control-tool .tool-btn{width:100%;min-height:31px;padding:6px 4px;border:1px solid var(--bd2);border-radius:8px;background:var(--s2);color:var(--tx);font-size:10px;font-weight:750;white-space:nowrap;}
+.control-tool .tool-btn.active{background:var(--ac-dim);border-color:var(--ac);color:var(--ac);}
+.control-note{font-size:8.5px;line-height:1.25;color:var(--tx3);text-align:center;margin-top:4px;}
+@media(min-width:520px){.control-panel{display:grid;grid-template-columns:1.1fr 1fr;align-items:stretch;}.control-tools{height:100%;}.control-tools .control-group{height:100%;}}
 .preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
 .pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
 .pv-canvas.off{opacity:.22;}
@@ -551,12 +555,27 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
 <button data-tab="rem">Rem</button>
 <button data-tab="hazard">Hazard</button>
 </div>
-<div class="side-row" id="sideRow">
-<button class="side-btn" data-side="kiri">Kiri</button>
-<button class="side-btn active" data-side="both">Semua</button>
-<button class="side-btn" data-side="kanan">Kanan</button>
-<button class="side-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Tukar pemetaan output kanan dan kiri">⇄ Tukar</button>
-<button class="side-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Balik arah gerak animasi Welcoming">↔ Normal</button>
+<div class="control-panel" id="controlPanel">
+  <div class="control-group">
+    <div class="control-title">Pilih sisi lampu</div>
+    <div class="side-row" id="sideRow">
+      <button class="side-btn" data-side="kiri" type="button">Kiri</button>
+      <button class="side-btn active" data-side="both" type="button">Semua</button>
+      <button class="side-btn" data-side="kanan" type="button">Kanan</button>
+    </div>
+  </div>
+  <div class="control-tools">
+    <div class="control-group control-tool">
+      <div class="control-title">Posisi output</div>
+      <button class="tool-btn swap-btn" id="swapSideBtn" data-action="swap" type="button" aria-pressed="false" title="Tukar pemetaan output kiri dan kanan">⇄ Tukar kiri-kanan</button>
+      <div class="control-note">Menukar sisi lampu kiri dan kanan</div>
+    </div>
+    <div class="control-group control-tool">
+      <div class="control-title">Arah gerak</div>
+      <button class="tool-btn reverse-btn" id="reverseFxBtn" data-action="reverse" type="button" aria-pressed="false" title="Balik arah gerak efek pada semua tab">↔ Arah asli</button>
+      <div class="control-note">Membalik arah kedua sisi di semua tab</div>
+    </div>
+  </div>
 </div>
 <div class="preview-row">
 <canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
@@ -753,7 +772,7 @@ function sendColor(r,g,b,silent){if(isRestrictedTab()){colorTarget=0;cur.pal=0;s
 function sendPalette(i){if(isRestrictedTab())return;const segs=segIds().map(function(id){return{id:id,pal:i};});if(activeTab==='welcoming'){fetch('/mizuma/show/palette?pal='+i+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)post({seg:segs});}).catch(function(){post({seg:segs});});}else post({seg:segs});cur.pal=i;fxPalCache[cur.fx]=i;markDirty();renderColorRow();updateSideInfo();}
 function renderShowInfo(){const box=document.getElementById('fxParams');box.innerHTML='';const hint=document.getElementById('footHint');const ms=Number(showDurations[cur.showIndex]||0);const sec=ms>0?(ms/1000).toFixed(2).replace('.',',')+' detik':'mengikuti seluruh tahap animasi';hint.textContent='Durasi: '+sec+'. Setiap animasi memiliki waktu berbeda dan berjalan sampai seluruh tahap selesai.';hint.style.display='block';}
 function sendShow(index){if(activeTab!=='welcoming'||index<0||index>=showNames.length)return;cur.isShow=true;cur.showIndex=index;cur.fx=0;document.getElementById('fxSavedName').textContent=showNames[index];fetch('/mizuma/show?index='+index+'&side='+encodeURIComponent(activeSide),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('show rejected');markDirty();renderShowInfo();updateCtx();updateSideInfo();}).catch(function(){toast('Gagal menjalankan animasi Mizuma');});}
-function sendEffect(i){cur.isShow=false;cur.showIndex=0;if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);let palToSend=cur.pal;if(!isRestrictedTab()){let pi=-1;if(fxPalCache[i]!=null)pi=fxPalCache[i];else{const df=fxDefs(i);if(df.pal!=null)pi=df.pal;else{const nm=allFx[i]||'';if(FX_PAL_DEFAULTS[nm])pi=palIdByName(FX_PAL_DEFAULTS[nm]);}}if(pi>=0&&palNameById(pi)){cur.pal=pi;cur.palName=palNameById(pi);palToSend=pi;document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}}const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});const applyFx=function(){post({seg:segs});};if(activeTab==='welcoming'){fetch('/mizuma/show/stop?side='+encodeURIComponent(activeSide),{method:'POST'}).then(applyFx).catch(applyFx);}else applyFx();if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();renderParams(i);updateSideInfo();}
+function sendEffect(i){cur.isShow=false;cur.showIndex=0;if(isRestrictedTab())normalizeRestrictedState(false);cur.fx=i;cur.params=paramsFor(i);let palToSend=cur.pal;if(!isRestrictedTab()){let pi=-1;if(fxPalCache[i]!=null)pi=fxPalCache[i];else{const df=fxDefs(i);if(df.pal!=null)pi=df.pal;else{const nm=allFx[i]||'';if(FX_PAL_DEFAULTS[nm])pi=palIdByName(FX_PAL_DEFAULTS[nm]);}}if(pi>=0&&palNameById(pi)){cur.pal=pi;cur.palName=palNameById(pi);palToSend=pi;document.querySelectorAll('.pal-row').forEach(function(el){el.classList.toggle('active',el.dataset.palname===cur.palName);});}}const cols=[segColors[0]||[255,255,255],isRestrictedTab()?[0,0,0]:(segColors[1]||[0,0,0]),isRestrictedTab()?[0,0,0]:(segColors[2]||[0,0,0])];const segs=segIds().map(function(id){const o={id:id,fx:i,rev:showReverse,sx:cur.params.sx,ix:cur.params.ix,c1:cur.params.c1,c2:cur.params.c2,c3:cur.params.c3,o1:cur.params.o1,o2:cur.params.o2,o3:cur.params.o3};if(isRestrictedTab()){o.pal=0;o.col=cols;}else{o.pal=palToSend;}return o;});const applyFx=function(){post({seg:segs});};if(activeTab==='welcoming'){fetch('/mizuma/show/stop?side='+encodeURIComponent(activeSide),{method:'POST'}).then(applyFx).catch(applyFx);}else applyFx();if(isRestrictedTab())cur.pal=0;markDirty();renderColorRow();renderParams(i);updateSideInfo();}
 const sendParamD=debounce(function(k,v){const segs=segIds().map(function(id){const o={id:id};o[k]=v;return o;});post({seg:segs});cur.params[k]=v;markDirty();},80);
 const sendBriD=debounce(function(v){post({bri:v});fetch('/mizuma/bri?v='+v,{method:'POST'}).catch(function(){});},80);
 /* ===== SIDE INFO (kiri/kanan dari state device) ===== */
@@ -862,21 +881,21 @@ if(r&&(k==='template'||k==='custom')){buildRestricted();normalizeRestrictedState
 if(k==='simpan')renderSavedList();
 if(k==='template'||k==='custom')loadPalettes(false);
 updateModeAktif();}
-function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateShowDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
+function switchTab(t){activeTab=t;localStorage.setItem('mzActiveTab',t);document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===t);});updateDirectionButton();setSub(activeSub);if(!allFx.length){loadFxData(function(ok){buildEffects();applySaved(t);});}else{buildEffects();applySaved(t);}updateSideInfo();}
 function commitSide(side){activeSide=side;document.querySelectorAll('#sideRow .side-btn').forEach(function(b){b.classList.toggle('active',b.dataset.side===side);});applySaved(activeTab);}
-function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');b.textContent=sideSwap?'⇄ Ditukar':'⇄ Tukar';b.title=sideSwap?'Pemetaan kanan dan kiri sedang ditukar. Tekan untuk mengembalikan.':'Tukar pemetaan output kanan dan kiri';}
-function updateShowDirectionButton(){const row=document.getElementById('sideRow'),b=document.getElementById('reverseFxBtn');if(!row||!b)return;row.classList.toggle('show-reverse',activeTab==='welcoming');b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');b.textContent=showReverse?'↔ Terbalik':'↔ Normal';b.title=showReverse?'Arah animasi dibalik. Tekan untuk mengembalikan arah normal.':'Balik arah gerak animasi Welcoming';}
+function updateSwapButton(){const b=document.getElementById('swapSideBtn');if(!b)return;b.classList.toggle('active',sideSwap);b.setAttribute('aria-pressed',sideSwap?'true':'false');b.textContent=sideSwap?'✓ Kiri-kanan ditukar':'⇄ Tukar kiri-kanan';b.title=sideSwap?'Pemetaan output kiri dan kanan sedang ditukar. Tekan untuk mengembalikan.':'Tukar pemetaan output kiri dan kanan';}
+function updateDirectionButton(){const b=document.getElementById('reverseFxBtn');if(!b)return;b.classList.toggle('active',showReverse);b.setAttribute('aria-pressed',showReverse?'true':'false');b.textContent=showReverse?'↔ Arah dibalik':'↔ Arah asli';b.title=showReverse?'Arah gerak efek sedang dibalik. Tekan untuk memakai arah asli.':'Gunakan arah asli efek. Tekan untuk membalik arah gerak.';}
 function loadSideSwap(){return fetch('/mizuma/side-swap').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();}).catch(function(){updateSwapButton();});}
 function requestSideSwap(){const next=!sideSwap;fetch('/mizuma/side-swap?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){sideSwap=!!d.enabled;updateSwapButton();applySaved(activeTab);updateSideInfo();toast(sideSwap?'⇄ Output kanan-kiri ditukar':'Pemetaan kanan-kiri dikembalikan');}).catch(function(){toast('Gagal mengubah pemetaan sisi');});}
-function loadShowReverse(){return fetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateShowDirectionButton();}).catch(function(){updateShowDirectionButton();});}
-function requestShowReverse(){const next=!showReverse;fetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateShowDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah animasi dibalik':'Arah animasi normal');}).catch(function(){toast('Gagal membalik arah animasi');});}
+function loadShowReverse(){return fetch('/mizuma/show/reverse').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();}).catch(function(){updateDirectionButton();});}
+function requestShowReverse(){const next=!showReverse;fetch('/mizuma/show/reverse?enabled='+(next?'1':'0'),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){showReverse=!!d.enabled;updateDirectionButton();updateSideInfo();toast(showReverse?'↔ Arah gerak dibalik':'↔ Arah gerak kembali ke asli');}).catch(function(){toast('Gagal membalik arah gerak');});}
 document.getElementById('tabbar').addEventListener('click',function(e){if(e.target.tagName!=='BUTTON')return;const t=e.target.dataset.tab;if(t===activeTab)return;if(dirty){showModal(function(){switchTab(t);});}else{switchTab(t);}});
-document.getElementById('sideRow').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;if(btn.dataset.action==='swap'){if(dirty){showModal(requestSideSwap);}else{requestSideSwap();}return;}if(btn.dataset.action==='reverse'){if(activeTab!=='welcoming')return;if(dirty){showModal(requestShowReverse);}else{requestShowReverse();}return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
+document.getElementById('controlPanel').addEventListener('click',function(e){const btn=e.target.closest('button');if(!btn)return;if(btn.dataset.action==='swap'){if(dirty){showModal(requestSideSwap);}else{requestSideSwap();}return;}if(btn.dataset.action==='reverse'){if(dirty){showModal(requestShowReverse);}else{requestShowReverse();}return;}if(!btn.dataset.side)return;const side=btn.dataset.side;if(side===activeSide)return;if(dirty){showModal(function(){commitSide(side);});}else{commitSide(side);}});
 document.getElementById('subnav').addEventListener('click',function(e){const btn=e.target.closest('button.nav-b');if(!btn)return;document.querySelectorAll('#subnav .nav-b').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');setSub(btn.dataset.sub);});
 document.getElementById('brightSlider').addEventListener('input',function(e){document.getElementById('brightVal').textContent=e.target.value;sendBriD(+e.target.value);});
 /* ===== INIT ===== */
 document.querySelectorAll('#tabbar button').forEach(function(b){b.classList.toggle('active',b.dataset.tab===activeTab);});
-updateShowDirectionButton();
+updateDirectionButton();
 setSub(activeSub);renderSavedList();
 loadFxData(function(ok){if(!ok){setTimeout(function(){loadFxData(function(ok2){if(ok2)initFromState();else buildEffects();});},1500);}else{initFromState();}});
 function initFromState(){loadSideSwap().then(loadShowReverse).then(function(){return jfetch('/json/state');}).then(function(r){return r.json();}).then(function(j){if(j.bri!=null){document.getElementById('brightSlider').value=j.bri;document.getElementById('brightVal').textContent=j.bri;paintRange(document.getElementById('brightSlider'));}const s=segById(j,mapSegId('kanan'));if(s){if(s.fx!=null)cur.fx=s.fx;if(s.pal!=null)cur.pal=s.pal;cur.params=paramsFor(cur.fx);captureParams(s);if(s.col&&s.col.length){for(let i=0;i<3;i++){if(s.col[i])segColors[i]=[s.col[i][0],s.col[i][1],s.col[i][2]];}slotCount=s.col.length;}}}).catch(function(){}).then(function(){setSub(activeSub);buildEffects();renderColorRow();document.querySelectorAll('input[type=range]').forEach(function(el){if(!el.classList.contains('kelvin'))paintRange(el);});setTimeout(function(){applySaved(activeTab);},400);});}
@@ -934,7 +953,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
-    bool showReverse = false; // membalik arah gerak semua stage Welcoming tanpa mengubah urutan stage
+    bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
 
     /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
        Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
@@ -977,7 +996,7 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     void addSegmentFromSlot(JsonArray seg,uint8_t segId,uint8_t slotIdx){
     PresetSlot p=getEffectiveSlot(slotIdx);
     JsonObject s=seg.createNestedObject();
-    s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["sx"]=p.sx;s["ix"]=p.ix;
+    s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["rev"]=showReverse;s["sx"]=p.sx;s["ix"]=p.ix;
     s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
 JsonArray col=s.createNestedArray("col");
 JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
@@ -1235,19 +1254,27 @@ void handleShowStop(AsyncWebServerRequest *req){
   stopShowRunners(side);req->send(200,"application/json","{\"ok\":true}");
 }
 void applyCurrentShowDirection(){
+  // Arah dibalik berlaku untuk semua tab. Jika segmen sedang menjalankan show
+  // Mizuma, gabungkan arah pengguna dengan flag arah khusus pada resep stage.
+  // Untuk efek WLED biasa (Riding/Sein/Rem/Hazard/native FX), gunakan arah global.
   bool changed=false;
-  for(uint8_t rIdx=0;rIdx<2;rIdx++){
-    ShowRunner &r=showRunner[rIdx];
-    if(!r.hasCurrentShow||r.showIndex>=MZ_SHOW_COUNT)continue;
-    const MzShow &show=MZ_SHOWS[r.showIndex];
-    if(r.currentStageIndex>=show.n)continue;
-    const uint8_t segId=physicalSegForLogicalSide(r.logicalRight);
+  for(uint8_t logical=0;logical<2;logical++){
+    const bool logicalRight=(logical==0);
+    const uint8_t segId=physicalSegForLogicalSide(logicalRight);
     if(segId>=strip.getSegmentsNum())continue;
     Segment &seg=strip.getSegment(segId);
     if(!seg.isActive())continue;
-    const MzStage &st=show.st[r.currentStageIndex];
-    seg.reverse=(((st.flags&1U)!=0) ^ showReverse);
-    changed=true;
+
+    bool targetReverse=showReverse;
+    ShowRunner &r=showRunner[logical];
+    if(r.hasCurrentShow && r.showIndex<MZ_SHOW_COUNT){
+      const MzShow &show=MZ_SHOWS[r.showIndex];
+      if(r.currentStageIndex<show.n){
+        const MzStage &st=show.st[r.currentStageIndex];
+        targetReverse=(((st.flags&1U)!=0) ^ showReverse);
+      }
+    }
+    if(seg.reverse!=targetReverse){seg.reverse=targetReverse;changed=true;}
   }
   if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
 }
