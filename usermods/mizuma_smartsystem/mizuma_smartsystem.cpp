@@ -1,10 +1,12 @@
 // =====================================================================================================================================
-// MIZUMA SMARTSYSTEM — REVISI R6.2 (fix rute /mizuma/show/reverse tertimpa /mizuma/show; UI kontrol Kiri/Semua/Kanan | Posisi/Arah dipisah per kategori)
+// MIZUMA SMARTSYSTEM — REVISI R6.3 (R6.2 + antrean perintah web->loop() agar Segment hanya disentuh task loop; deteksi perubahan efek eksternal; trik Tetrix diisolasi)
 // Tempel file ini MENGGANTIKAN SELURUH isi mizuma_smartsystem.cpp lama.
 // PART 1: Blok 1 (native-feel final) + Blok 2 (Dashboard) + Blok 3 (Pengaturan v2) + Blok 4 (Placeholder)
 // ======================================================================================================================================
 #include "wled.h"
 #include "mizuma_shows.h"     // 55 rangkaian animasi multi-stage Mizuma
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"  // antrean perintah web -> loop()
 extern void serializeConfigToFS();
 
 // WLED 16.0.1 defines these preset helpers in presets.cpp but does not
@@ -987,12 +989,27 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
     uint8_t  showFxResolved = 0;              // jumlah nama efek WLED yang berhasil dipetakan
     uint8_t  showModeIds[MZ_FXN_COUNT];       // indeks aktual efek WLED, di-resolve saat boot
-    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint32_t startedAt=0; };
+    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; };
     ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
     bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
+
+    /* ===== ANTREAN PERINTAH WEB -> loop() =====
+       Handler HTTP berjalan di task async_tcp, sedangkan strip.service() berjalan di task loop.
+       FreeRTOS dapat menyela strip.service() di tengah frame, sehingga handler TIDAK BOLEH mengubah Segment,
+       showRunner[], atau memanggil deallocateData() (WLED: reset/dealokasi tidak boleh terjadi saat efek berjalan).
+       Aturan: handler hanya memvalidasi argumen lalu menitipkan perintah; processCmdQueue() di loop() adalah
+       satu-satunya tempat yang mengeksekusi perubahan. loop() berjalan sebelum strip.service() pada task yang sama. */
+    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP };
+    struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; char mode[10]; };
+    static const uint8_t MZ_CMD_QUEUE_LEN = 12;
+    QueueHandle_t cmdQueue = nullptr;
+    static uint8_t mzSideCode(const String &s){ if(s=="both")return 0; if(s=="kanan")return 1; if(s=="kiri")return 2; return 255; }
+    static const char* mzSideName(uint8_t c){ return c==1?"kanan":(c==2?"kiri":"both"); }
+    bool enqueueCmd(const MzCmd &c){ return cmdQueue && xQueueSend(cmdQueue,&c,0)==pdTRUE; }
+    void sendBusy(AsyncWebServerRequest *req){ req->send(503,"application/json","{\"ok\":false,\"error\":\"busy\"}"); }
 
     /* Brightness Mizuma disimpan untuk fallback Welcome dan kontrol manual.
        Jika memakai native WLED Boot Preset, brightness mengikuti isi preset WLED. */
@@ -1143,6 +1160,24 @@ void applyShowStageColors(const MzStage &st,Segment &seg,uint8_t userPalette){
   for(uint8_t c=0;c<3;c++)if(!keep[c])seg.setColor(c,resolved[c]);
 }
 
+// ISOLASI TRIK INTERNAL WLED — Tetrix tanpa jeda fade-out 2 detik.
+// Bergantung pada detail internal efek mode_tetrix di WLED 16.0.1 (field Segment: data, reset, step, call, aux0, aux1)
+// dan TIDAK memakai API publik, sehingga update WLED dapat mengubah perilakunya tanpa error kompilasi.
+// Hanya aman dipanggil dari loop() (task yang sama dengan strip.service()); semua pemanggilnya lewat tickShowEngine().
+// Setelah setiap update WLED: uji visual show yang memakai flag 2 (Tetrix/TBJ). Bila perilakunya berubah,
+// matikan tanpa mengubah kode lain dengan build flag:  -D MZ_TETRIX_INSTANT_START=0  (Tetrix kembali memakai fade-out bawaan WLED).
+#ifndef MZ_TETRIX_INSTANT_START
+#define MZ_TETRIX_INSTANT_START 1
+#endif
+void mzTetrixInstantStart(Segment &seg){
+#if MZ_TETRIX_INSTANT_START
+  seg.deallocateData();seg.reset=false;seg.step=0;seg.call=1;seg.aux0=0;seg.aux1=0;
+  seg.fill(seg.colors[1]);
+#else
+  (void)seg;
+#endif
+}
+
 void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   if(st.fx>=MZ_FXN_COUNT)return;
   const uint8_t modeId=showModeIds[st.fx];
@@ -1180,14 +1215,11 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
     seg.markForReset();
   }
   seg.on=true;
+  showRunner[logicalRight?0:1].expectedMode=modeId; // dipakai untuk mendeteksi perubahan efek dari luar (UI WLED / preset)
 
   applyShowStageColors(st,seg,userPalette);
 
-  if(st.flags&2U){
-    // WLED Tetrix normally spends 2000 ms fading the old frame. TBJ starts its first brick immediately.
-    seg.deallocateData();seg.reset=false;seg.step=0;seg.call=1;seg.aux0=0;seg.aux1=0;
-    seg.fill(seg.colors[1]);
-  }
+  if(st.flags&2U)mzTetrixInstantStart(seg); // lihat catatan isolasi di atas applyShowStage()
   if(st.tb>=0)strip.timebase=(unsigned long)(uint16_t)st.tb-(unsigned long)millis();
   strip.trigger();
   stateUpdated(CALL_MODE_DIRECT_CHANGE);
@@ -1197,19 +1229,29 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
 void startShowRunner(bool logicalRight,uint8_t showIndex){
   if(showIndex>=MZ_SHOW_COUNT)return;
   ShowRunner &r=showRunner[logicalRight?0:1];
-  r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;
+  r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;
   const uint8_t segId=physicalSegForLogicalSide(logicalRight);
   r.userPalette=(segId<strip.getSegmentsNum())?strip.getSegment(segId).palette:0;
   r.startedAt=millis();
 }
 void stopShowRunners(const String &side){
-  if(side=="both"||side=="kanan"){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;}
-  if(side=="both"||side=="kiri"){showRunner[1].active=false;showRunner[1].hasCurrentShow=false;showRunner[1].currentStageIndex=255;}
+  if(side=="both"||side=="kanan"){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;showRunner[0].expectedMode=255;}
+  if(side=="both"||side=="kiri"){showRunner[1].active=false;showRunner[1].hasCurrentShow=false;showRunner[1].currentStageIndex=255;showRunner[1].expectedMode=255;}
+}
+// Jika efek pada segmen berbeda dari yang terakhir dipasang show, berarti pengguna mengganti efek lewat UI WLED,
+// preset, atau API lain. Hentikan show agar pilihan itu tidak ditimpa sampai show selesai.
+void checkExternalOverride(ShowRunner &r){
+  if(!r.hasCurrentShow||r.expectedMode==255)return;
+  const uint8_t segId=physicalSegForLogicalSide(r.logicalRight);
+  if(segId>=strip.getSegmentsNum())return;
+  Segment &seg=strip.getSegment(segId);
+  if(!seg.isActive()||seg.mode==r.expectedMode)return;
+  r.active=false;r.hasCurrentShow=false;r.currentStageIndex=255;r.expectedMode=255;
 }
 void tickShowEngine(){
   const uint32_t now=millis();
   for(uint8_t rIdx=0;rIdx<2;rIdx++){
-    ShowRunner &r=showRunner[rIdx];if(!r.active||r.showIndex>=MZ_SHOW_COUNT)continue;
+    ShowRunner &r=showRunner[rIdx];checkExternalOverride(r);if(!r.active||r.showIndex>=MZ_SHOW_COUNT)continue;
     const MzShow &show=MZ_SHOWS[r.showIndex];const uint32_t elapsed=now-r.startedAt;
     while(r.stageIndex<show.n&&elapsed>=show.st[r.stageIndex].t){
       const MzStage &st=show.st[r.stageIndex];
@@ -1256,18 +1298,15 @@ bool applyWelcomeModeSide(const String &side){
 }
 void handleShow(AsyncWebServerRequest *req){
   if(!req->hasArg("index")){req->send(400,"application/json","{\"ok\":false,\"error\":\"index required\"}");return;}
-  int index=req->arg("index").toInt();String side=req->hasArg("side")?req->arg("side"):String("both");
-  bool ok=startShowPreview(index,side);
-  req->send(ok?200:400,"application/json",ok?"{\"ok\":true}":"{\"ok\":false}");
+  const int index=req->arg("index").toInt();
+  const uint8_t sc=mzSideCode(req->hasArg("side")?req->arg("side"):String("both"));
+  if(index<0||index>=MZ_SHOW_COUNT||sc==255){req->send(400,"application/json","{\"ok\":false}");return;}
+  MzCmd c={};c.type=MZ_CMD_SHOW_START;c.side=sc;c.value=(uint8_t)index;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
 }
-void handleShowPalette(AsyncWebServerRequest *req){
-  if(!req->hasArg("pal")){req->send(400,"application/json","{\"ok\":false,\"error\":\"pal required\"}");return;}
-  const int requested=req->arg("pal").toInt();
-  if(requested<0||requested>255){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette\"}");return;}
-  const uint8_t pal=(uint8_t)requested;
-  const String side=req->hasArg("side")?req->arg("side"):String("both");
-  if(side!="both"&&side!="kanan"&&side!="kiri") {req->send(400,"application/json","{\"ok\":false}");return;}
-
+// Dieksekusi HANYA dari processCmdQueue() (task loop).
+void execShowPalette(uint8_t pal,const String &side){
   const uint16_t previousTransition=strip.getTransition();
   strip.setTransition(220); // 220 ms saat pengguna mengganti palette
   for(uint8_t logical=0;logical<2;logical++){
@@ -1290,13 +1329,23 @@ void handleShowPalette(AsyncWebServerRequest *req){
   strip.trigger();
   stateUpdated(CALL_MODE_DIRECT_CHANGE);
   strip.setTransition(previousTransition);
+}
+void handleShowPalette(AsyncWebServerRequest *req){
+  if(!req->hasArg("pal")){req->send(400,"application/json","{\"ok\":false,\"error\":\"pal required\"}");return;}
+  const int requested=req->arg("pal").toInt();
+  if(requested<0||requested>255){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette\"}");return;}
+  const uint8_t sc=mzSideCode(req->hasArg("side")?req->arg("side"):String("both"));
+  if(sc==255){req->send(400,"application/json","{\"ok\":false}");return;}
+  MzCmd c={};c.type=MZ_CMD_SHOW_PALETTE;c.side=sc;c.value=(uint8_t)requested;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
   req->send(200,"application/json","{\"ok\":true}");
 }
-
 void handleShowStop(AsyncWebServerRequest *req){
-  String side=req->hasArg("side")?req->arg("side"):String("both");
-  if(side!="both"&&side!="kanan"&&side!="kiri"){req->send(400,"application/json","{\"ok\":false}");return;}
-  stopShowRunners(side);req->send(200,"application/json","{\"ok\":true}");
+  const uint8_t sc=mzSideCode(req->hasArg("side")?req->arg("side"):String("both"));
+  if(sc==255){req->send(400,"application/json","{\"ok\":false}");return;}
+  MzCmd c={};c.type=MZ_CMD_SHOW_STOP;c.side=sc;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
 }
 uint8_t applyCurrentShowDirection(){
   // Arah global diterapkan ke kedua segmen aktif pada semua tab.
@@ -1328,6 +1377,16 @@ uint8_t applyCurrentShowDirection(){
   if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
   return activeSegments;
 }
+// Hanya MEMBACA status segmen (aman); perubahan nyata dilakukan applyCurrentShowDirection() di loop().
+uint8_t countActiveSegments(){
+  uint8_t n=0;
+  for(uint8_t logical=0;logical<2;logical++){
+    const uint8_t segId=physicalSegForLogicalSide(logical==0);
+    if(segId>=strip.getSegmentsNum())continue;
+    if(strip.getSegment(segId).isActive())n++;
+  }
+  return n;
+}
 void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
     String json=String("{\"enabled\":")+(showReverse?"true":"false")+"}";
@@ -1336,14 +1395,16 @@ void handleShowReverse(AsyncWebServerRequest *req,bool isGet){
   if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}
   const bool previousReverse=showReverse;
   const String value=req->arg("enabled");
-  showReverse=(value=="1"||value=="true"||value=="on");
-  const uint8_t activeSegments=applyCurrentShowDirection();
+  const bool wanted=(value=="1"||value=="true"||value=="on");
+  const uint8_t activeSegments=countActiveSegments();
   if(activeSegments==0){
-    showReverse=previousReverse;
-    String json=String("{\"ok\":false,\"enabled\":")+(showReverse?"true":"false")+String(",\"activeSegments\":0,\"error\":\"no_active_segment\"}");
+    String json=String("{\"ok\":false,\"enabled\":")+(previousReverse?"true":"false")+String(",\"activeSegments\":0,\"error\":\"no_active_segment\"}");
     req->send(409,"application/json",json);
     return;
   }
+  showReverse=wanted;
+  MzCmd c={};c.type=MZ_CMD_DIRECTION;
+  if(!enqueueCmd(c)){showReverse=previousReverse;sendBusy(req);return;}
   queueSave();
   String json=String("{\"ok\":true,\"enabled\":")+(showReverse?"true":"false")+String(",\"activeSegments\":")+String(activeSegments)+"}";
   req->send(200,"application/json",json);
@@ -1382,8 +1443,38 @@ req->send(200,"application/json","{\"ok\":true}");}
 
 void handleApply(AsyncWebServerRequest *req){
 if(!req->hasArg("mode")||!req->hasArg("side")){req->send(400,"application/json","{\"ok\":false}");return;}
-bool ok=applyModeSide(req->arg("mode"),req->arg("side"));
-req->send(200,"application/json",ok?"{\"ok\":true}":"{\"ok\":false}");}
+const String mode=req->arg("mode");const uint8_t sc=mzSideCode(req->arg("side"));
+const bool modeOk=(mode=="welcoming")||(modeBase(mode)>=0);
+if(!modeOk||sc==255||mode.length()>=sizeof(((MzCmd*)0)->mode)){req->send(200,"application/json","{\"ok\":false}");return;}
+MzCmd c={};c.type=MZ_CMD_APPLY;c.side=sc;strncpy(c.mode,mode.c_str(),sizeof(c.mode)-1);
+if(!enqueueCmd(c)){sendBusy(req);return;}
+req->send(200,"application/json","{\"ok\":true}");}
+void handleSideSwap(AsyncWebServerRequest *req){
+if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}
+const bool en=(req->arg("enabled")=="1"||req->arg("enabled")=="true");
+MzCmd c={};c.type=MZ_CMD_SIDE_SWAP;c.flag=en?1:0;
+if(!enqueueCmd(c)){sendBusy(req);return;}
+String json=String("{\"ok\":true,\"enabled\":")+(en?"true":"false")+"}";
+req->send(200,"application/json",json);}
+
+// ===== EKSEKUTOR ANTREAN: satu-satunya jalur yang mengubah Segment/showRunner dari permintaan web =====
+void processCmdQueue(){
+  if(!cmdQueue)return;
+  MzCmd c;
+  for(uint8_t budget=MZ_CMD_QUEUE_LEN;budget>0&&xQueueReceive(cmdQueue,&c,0)==pdTRUE;budget--){
+    const String side=String(mzSideName(c.side));
+    switch(c.type){
+      case MZ_CMD_SHOW_START:   startShowPreview((int)c.value,side);break;
+      case MZ_CMD_SHOW_STOP:    stopShowRunners(side);break;
+      case MZ_CMD_SHOW_PALETTE: execShowPalette(c.value,side);break;
+      case MZ_CMD_DIRECTION:    applyCurrentShowDirection();break;
+      case MZ_CMD_APPLY:        applyModeSide(String(c.mode),side);break;
+      case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);queueSave();break;
+      default: break;
+    }
+  }
+}
+
 
 /* FIX BUG 1: handler brightness permanen */
 void handleBri(AsyncWebServerRequest *req){
@@ -1469,6 +1560,7 @@ applyCommonReplacements(html,activeKey);return html;}
 
 public:
 void setup() override {
+cmdQueue=xQueueCreate(MZ_CMD_QUEUE_LEN,sizeof(MzCmd)); // harus ada sebelum route HTTP didaftarkan
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 tSetupMs=millis();
 showFxResolved=resolveShowEffects();
@@ -1537,7 +1629,7 @@ server.on("/mizuma/preset",HTTP_POST,[this](AsyncWebServerRequest *req){handlePr
 server.on("/mizuma/apply",HTTP_GET,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/apply",HTTP_POST,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String json=String("{\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
-server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false}");return;}stopShowRunners("both");sideSwap=(req->arg("enabled")=="1"||req->arg("enabled")=="true");queueSave();String json=String("{\"ok\":true,\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
+server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){handleSideSwap(req);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
@@ -1551,6 +1643,7 @@ out+=buf;}
 out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
+  processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   tickShowEngine();
   if(cfgSavePending && (uint32_t)(millis() - cfgSaveT) > 1500U){
     cfgSavePending=false;
