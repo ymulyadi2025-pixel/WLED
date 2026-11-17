@@ -8,13 +8,15 @@
 //   GET       /mizuma/status          -> {ap, sta, staIP, ssid}
 //   GET       /mizuma/debug           -> {heap, minHeap, maxAlloc, setupMs, welcomeMs, nowMs, showFxResolved, maxShowMs}
 //   GET       /mizuma/shows           -> ["nama show", ...]            GET /mizuma/show-durations -> [ms, ...]
-//   GET|POST  /mizuma/show            ?index=N&side=S                  jalankan show (preview)
+//   GET|POST  /mizuma/show            ?index=N&side=S                  jalankan show Welcoming terpilih
 //   GET|POST  /mizuma/show/stop       ?side=S
 //   GET|POST  /mizuma/show/palette    ?pal=0..255&side=S               0 = palette asli resep show
 //   GET|POST  /mizuma/show/reverse    (GET: status)  ?enabled=1|0      arah global
 //   GET|POST  /mizuma/apply           ?mode=welcoming|riding|sein|rem|hazard&side=S
 //   GET|POST  /mizuma/preset          ?slot=<welcomingKanan|...|hazardKiri>&fx&pal&r&g&b&r1..b2&sx&ix&c1..c3&o1..o3&bri&isShow&showIndex
 //   GET       /mizuma/presets         -> semua 10 slot
+//   GET       /mizuma/riding/playlists -> 4 playlist + status player
+//   POST      /mizuma/riding/playlist/meta|clear|slot|reorder|start|pause|stop
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
 // =====================================================================================================================================
@@ -62,6 +64,35 @@ extern void handlePresets();
     uint8_t bri = 180;
     };
     PresetSlot pslots[10];
+
+    // Playlist Riding disimpan di konfigurasi ESP32 (maks. 4 playlist x 12 slot).
+    static const uint8_t MZ_RIDE_PLAYLIST_COUNT = 4;
+    static const uint8_t MZ_RIDE_PLAYLIST_SLOTS = 12;
+    struct RidePlaylistSlot {
+      bool valid = false;
+      uint8_t fx = 0, pal = 0;
+      uint8_t r = 255, g = 165, b = 0;
+      uint8_t r1 = 255, g1 = 255, b1 = 255;
+      uint8_t r2 = 255, g2 = 26, b2 = 0;
+      uint8_t sx = 128, ix = 128;
+      uint8_t c1 = 128, c2 = 128, c3 = 128;
+      uint8_t o1 = 0, o2 = 0, o3 = 0;
+      uint8_t bri = 180;
+      uint16_t durationSec = 20;
+    };
+    struct RidePlaylist {
+      char name[25] = {0};
+      uint8_t count = 0;
+      RidePlaylistSlot slots[MZ_RIDE_PLAYLIST_SLOTS];
+    };
+    struct RidePlaylistRunner {
+      bool active = false, paused = false;
+      uint8_t playlist = 0, slot = 0, side = 0;
+      uint32_t slotStartedAt = 0, pausedAt = 0;
+    };
+    RidePlaylist ridingPlaylists[MZ_RIDE_PLAYLIST_COUNT];
+    RidePlaylistRunner rideRunner;
+
     static const uint16_t NATIVE_WELCOME_FALLBACK_MS = 7000; // hanya untuk preset boot WLED native, bukan show Mizuma
     int bootStage = 0;
     uint32_t bootT = 0;
@@ -81,7 +112,7 @@ extern void handlePresets();
        showRunner[], atau memanggil deallocateData() (WLED: reset/dealokasi tidak boleh terjadi saat efek berjalan).
        Aturan: handler hanya memvalidasi argumen lalu menitipkan perintah; processCmdQueue() di loop() adalah
        satu-satunya tempat yang mengeksekusi perubahan. loop() berjalan sebelum strip.service() pada task yang sama. */
-    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP };
+    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_RIDE_PLAY_START, MZ_CMD_RIDE_PLAY_PAUSE, MZ_CMD_RIDE_PLAY_STOP };
     struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; char mode[10]; };
     static const uint8_t MZ_CMD_QUEUE_LEN = 12;
     QueueHandle_t cmdQueue = nullptr;
@@ -156,6 +187,7 @@ int modeBase(const String &mode){
 if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 4;
 if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
 bool applyModeSide(const String &mode,const String &side,uint16_t transition100ms=0){
+rideRunner.active=false;rideRunner.paused=false;
 if(mode=="welcoming")return applyWelcomeModeSide(side);
 stopShowRunners("both");
 int base=modeBase(mode);if(base<0)return false;
@@ -163,6 +195,71 @@ if(side=="both"){applyTwoSlots(base,base+1,transition100ms);return true;}
 if(side=="kanan"){applySingleSlot(base);return true;}
 if(side=="kiri"){applySingleSlot(base+1);return true;}
 return false;}
+
+// ---------------- RIDING PLAYLIST ENGINE ----------------
+void addRideSegment(JsonArray seg,uint8_t segId,const RidePlaylistSlot &p){
+  JsonObject s=seg.createNestedObject();
+  s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["rev"]=showReverse;
+  s["sx"]=p.sx;s["ix"]=p.ix;s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;
+  s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
+  JsonArray col=s.createNestedArray("col");
+  JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
+  JsonArray c1=col.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
+  JsonArray c2=col.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);
+}
+void applyRidePlaylistSlot(){
+  if(!rideRunner.active||rideRunner.playlist>=MZ_RIDE_PLAYLIST_COUNT)return;
+  RidePlaylist &pl=ridingPlaylists[rideRunner.playlist];
+  if(!pl.count||rideRunner.slot>=pl.count)return;
+  const RidePlaylistSlot &p=pl.slots[rideRunner.slot];
+  if(!p.valid)return;
+  StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
+  root["on"]=true;root["transition"]=3;
+  if(bri==0)root["bri"]=savedBri;
+  JsonArray seg=root.createNestedArray("seg");
+  if(rideRunner.side==0){
+    addRideSegment(seg,physicalSegForLogicalSide(true),p);
+    addRideSegment(seg,physicalSegForLogicalSide(false),p);
+  }else if(rideRunner.side==1){
+    addRideSegment(seg,physicalSegForLogicalSide(true),p);
+  }else{
+    addRideSegment(seg,physicalSegForLogicalSide(false),p);
+  }
+  deserializeState(root);
+}
+void startRidePlaylist(uint8_t index,uint8_t side){
+  if(index>=MZ_RIDE_PLAYLIST_COUNT||side>2)return;
+  RidePlaylist &pl=ridingPlaylists[index];
+  if(!pl.count)return;
+  stopShowRunners("both");
+  rideRunner.active=true;rideRunner.paused=false;rideRunner.playlist=index;rideRunner.slot=0;rideRunner.side=side;
+  rideRunner.slotStartedAt=millis();rideRunner.pausedAt=0;
+  applyRidePlaylistSlot();
+}
+void pauseRidePlaylist(bool paused){
+  if(!rideRunner.active||rideRunner.paused==paused)return;
+  const uint32_t now=millis();
+  if(paused){rideRunner.paused=true;rideRunner.pausedAt=now;}
+  else{rideRunner.slotStartedAt+=(uint32_t)(now-rideRunner.pausedAt);rideRunner.paused=false;rideRunner.pausedAt=0;}
+}
+void stopRidePlaylist(bool restoreRiding){
+  const uint8_t side=rideRunner.side;
+  rideRunner.active=false;rideRunner.paused=false;rideRunner.pausedAt=0;
+  if(restoreRiding)applyModeSide("riding",String(mzSideName(side)));
+}
+void tickRidingPlaylist(){
+  if(!rideRunner.active||rideRunner.paused||rideRunner.playlist>=MZ_RIDE_PLAYLIST_COUNT)return;
+  RidePlaylist &pl=ridingPlaylists[rideRunner.playlist];
+  if(!pl.count){rideRunner.active=false;return;}
+  if(rideRunner.slot>=pl.count)rideRunner.slot=0;
+  const uint16_t duration=(pl.slots[rideRunner.slot].durationSec<1)?1:pl.slots[rideRunner.slot].durationSec;
+  const uint32_t now=millis();
+  if((uint32_t)(now-rideRunner.slotStartedAt)>=(uint32_t)duration*1000UL){
+    rideRunner.slot=(uint8_t)((rideRunner.slot+1U)%pl.count);
+    rideRunner.slotStartedAt=now;
+    applyRidePlaylistSlot();
+  }
+}
 
 // ---------------- MIZUMA SHOW ENGINE (WLED 16.0.1) ----------------
 char lowerAscii(char c){return (c>='A'&&c<='Z')?(char)(c+('a'-'A')):c;}
@@ -343,10 +440,10 @@ void tickShowEngine(){
     if(elapsed>=show.durationMs)r.active=false; // selesai setelah cue terakhir + waktu penutup show
   }
 }
-bool startShowPreview(int index,const String &side){
+bool startShow(int index,const String &side){
   if(index<0||index>=MZ_SHOW_COUNT)return false;
   if(side!="both"&&side!="kanan"&&side!="kiri")return false;
-  stopShowRunners(side); // jangan biarkan runner preview sebelumnya hidup pada sisi lain
+  stopShowRunners(side); // hentikan show sebelumnya pada sisi yang dipilih
   if(bri==0){bri=savedBri?savedBri:180;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
   if(side=="both"){
     startShowRunner(true,(uint8_t)index);startShowRunner(false,(uint8_t)index);
@@ -536,6 +633,95 @@ if(!enqueueCmd(c)){sendBusy(req);return;}
 String json=String("{\"ok\":true,\"enabled\":")+(en?"true":"false")+"}";
 req->send(200,"application/json",json);}
 
+uint8_t ridePlaylistIndex(AsyncWebServerRequest *req){
+  if(!req->hasArg("index"))return 255;
+  const int i=req->arg("index").toInt();
+  return (i>=0&&i<MZ_RIDE_PLAYLIST_COUNT)?(uint8_t)i:255;
+}
+void handleRidePlaylists(AsyncWebServerRequest *req){
+  String out;out.reserve(12000);out+="{\"playlists\":[";
+  for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
+    if(i)out+=",";
+    RidePlaylist &pl=ridingPlaylists[i];
+    out+="{\"name\":\"";out+=jsonEscape(String(pl.name));out+="\",\"count\":";out+=String(pl.count);out+=",\"slots\":[";
+    for(uint8_t j=0;j<pl.count;j++){
+      if(j)out+=",";
+      const RidePlaylistSlot &p=pl.slots[j];
+      char b[320];
+      snprintf(b,sizeof(b),"{\"fx\":%u,\"pal\":%u,\"col\":[[%u,%u,%u],[%u,%u,%u],[%u,%u,%u]],\"sx\":%u,\"ix\":%u,\"c1\":%u,\"c2\":%u,\"c3\":%u,\"o1\":%u,\"o2\":%u,\"o3\":%u,\"bri\":%u,\"duration\":%u}",
+      (unsigned)p.fx,(unsigned)p.pal,(unsigned)p.r,(unsigned)p.g,(unsigned)p.b,(unsigned)p.r1,(unsigned)p.g1,(unsigned)p.b1,(unsigned)p.r2,(unsigned)p.g2,(unsigned)p.b2,
+      (unsigned)p.sx,(unsigned)p.ix,(unsigned)p.c1,(unsigned)p.c2,(unsigned)p.c3,(unsigned)p.o1,(unsigned)p.o2,(unsigned)p.o3,(unsigned)p.bri,(unsigned)p.durationSec);
+      out+=b;
+    }
+    out+="]}";
+  }
+  out+="],\"active\":";out+=(rideRunner.active?"true":"false");
+  out+=",\"paused\":";out+=(rideRunner.paused?"true":"false");
+  out+=",\"playlist\":";out+=String(rideRunner.playlist);
+  out+=",\"slot\":";out+=String(rideRunner.slot);
+  out+=",\"side\":\"";out+=mzSideName(rideRunner.side);out+="\"}";
+  req->send(200,"application/json",out);
+}
+void handleRidePlaylistMeta(AsyncWebServerRequest *req){
+  const uint8_t i=ridePlaylistIndex(req);if(i==255){req->send(400,"application/json","{\"ok\":false,\"error\":\"index\"}");return;}
+  if(req->hasArg("name")){String n=req->arg("name");n.trim();if(n.length()>24)n=n.substring(0,24);if(!n.length())n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));}
+  queueSave();req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidePlaylistClear(AsyncWebServerRequest *req){
+  const uint8_t i=ridePlaylistIndex(req);if(i==255){req->send(400,"application/json","{\"ok\":false}");return;}
+  if(rideRunner.active&&rideRunner.playlist==i){MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_STOP;c.flag=1;if(!enqueueCmd(c)){sendBusy(req);return;}}
+  ridingPlaylists[i]=RidePlaylist();
+  String n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));
+  queueSave();req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidePlaylistSlot(AsyncWebServerRequest *req){
+  const uint8_t i=ridePlaylistIndex(req);if(i==255||!req->hasArg("slot")){req->send(400,"application/json","{\"ok\":false}");return;}
+  RidePlaylist &pl=ridingPlaylists[i];const int at=req->arg("slot").toInt();
+  if(at<0||at>=MZ_RIDE_PLAYLIST_SLOTS){req->send(400,"application/json","{\"ok\":false,\"error\":\"slot\"}");return;}
+  if(req->hasArg("remove")&&req->arg("remove")=="1"){
+    if(at>=pl.count){req->send(404,"application/json","{\"ok\":false}");return;}
+    for(uint8_t k=(uint8_t)at;k+1<pl.count;k++)pl.slots[k]=pl.slots[k+1];
+    if(pl.count)pl.count--;pl.slots[pl.count]=RidePlaylistSlot();queueSave();req->send(200,"application/json","{\"ok\":true}");return;
+  }
+  if(at>(int)pl.count|| (at==(int)pl.count&&pl.count>=MZ_RIDE_PLAYLIST_SLOTS)){req->send(409,"application/json","{\"ok\":false,\"error\":\"playlist_full_or_gap\"}");return;}
+  RidePlaylistSlot p=(at<pl.count&&pl.slots[at].valid)?pl.slots[at]:RidePlaylistSlot();
+  p.valid=true;p.fx=argU8(req,"fx",p.fx);p.pal=argU8(req,"pal",p.pal);
+  p.r=argU8(req,"r",p.r);p.g=argU8(req,"g",p.g);p.b=argU8(req,"b",p.b);
+  p.r1=argU8(req,"r1",p.r1);p.g1=argU8(req,"g1",p.g1);p.b1=argU8(req,"b1",p.b1);
+  p.r2=argU8(req,"r2",p.r2);p.g2=argU8(req,"g2",p.g2);p.b2=argU8(req,"b2",p.b2);
+  p.sx=argU8(req,"sx",p.sx);p.ix=argU8(req,"ix",p.ix);
+  p.c1=argU8(req,"c1",p.c1);p.c2=argU8(req,"c2",p.c2);p.c3=argU8(req,"c3",p.c3);
+  p.o1=argU8(req,"o1",p.o1)?1:0;p.o2=argU8(req,"o2",p.o2)?1:0;p.o3=argU8(req,"o3",p.o3)?1:0;
+  p.bri=argU8(req,"bri",p.bri);if(!p.bri)p.bri=180;
+  if(req->hasArg("duration"))p.durationSec=(uint16_t)constrain(req->arg("duration").toInt(),1,600);
+  pl.slots[at]=p;if(at>=pl.count)pl.count=(uint8_t)(at+1);queueSave();
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidePlaylistReorder(AsyncWebServerRequest *req){
+  const uint8_t i=ridePlaylistIndex(req);if(i==255||!req->hasArg("from")||!req->hasArg("to")){req->send(400,"application/json","{\"ok\":false}");return;}
+  RidePlaylist &pl=ridingPlaylists[i];const int from=req->arg("from").toInt(),to=req->arg("to").toInt();
+  if(from<0||to<0||from>=pl.count||to>=pl.count){req->send(400,"application/json","{\"ok\":false}");return;}
+  if(from!=to){RidePlaylistSlot tmp=pl.slots[from];if(from<to){for(int k=from;k<to;k++)pl.slots[k]=pl.slots[k+1];}else{for(int k=from;k>to;k--)pl.slots[k]=pl.slots[k-1];}pl.slots[to]=tmp;queueSave();}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidePlaylistStart(AsyncWebServerRequest *req){
+  const uint8_t i=ridePlaylistIndex(req);const uint8_t sc=mzSideCode(req->hasArg("side")?req->arg("side"):String("both"));
+  if(i==255||sc==255){req->send(400,"application/json","{\"ok\":false}");return;}
+  if(!ridingPlaylists[i].count){req->send(409,"application/json","{\"ok\":false,\"error\":\"empty\"}");return;}
+  MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_START;c.value=i;c.side=sc;if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidePlaylistPause(AsyncWebServerRequest *req){
+  if(!req->hasArg("paused")){req->send(400,"application/json","{\"ok\":false}");return;}
+  MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_PAUSE;c.flag=(req->arg("paused")=="1"||req->arg("paused")=="true")?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidePlaylistStop(AsyncWebServerRequest *req){
+  const bool restore=!req->hasArg("restore")||req->arg("restore")!="0";
+  MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_STOP;c.flag=restore?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}req->send(200,"application/json","{\"ok\":true}");
+}
+
 // ===== EKSEKUTOR ANTREAN: satu-satunya jalur yang mengubah Segment/showRunner dari permintaan web =====
 void processCmdQueue(){
   if(!cmdQueue)return;
@@ -543,12 +729,15 @@ void processCmdQueue(){
   for(uint8_t budget=MZ_CMD_QUEUE_LEN;budget>0&&xQueueReceive(cmdQueue,&c,0)==pdTRUE;budget--){
     const String side=String(mzSideName(c.side));
     switch(c.type){
-      case MZ_CMD_SHOW_START:   startShowPreview((int)c.value,side);break;
+      case MZ_CMD_SHOW_START:   startShow((int)c.value,side);break;
       case MZ_CMD_SHOW_STOP:    stopShowRunners(side);break;
       case MZ_CMD_SHOW_PALETTE: execShowPalette(c.value,side);break;
       case MZ_CMD_DIRECTION:    applyCurrentShowDirection();break;
       case MZ_CMD_APPLY:        applyModeSide(String(c.mode),side);break;
-      case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);queueSave();break;
+      case MZ_CMD_SIDE_SWAP:   rideRunner.active=false;rideRunner.paused=false;stopShowRunners("both");sideSwap=(c.flag!=0);queueSave();break;
+      case MZ_CMD_RIDE_PLAY_START: startRidePlaylist(c.value,c.side);break;
+      case MZ_CMD_RIDE_PLAY_PAUSE: pauseRidePlaylist(c.flag!=0);break;
+      case MZ_CMD_RIDE_PLAY_STOP:  stopRidePlaylist(c.flag!=0);break;
       default: break;
     }
   }
@@ -620,6 +809,9 @@ void startWelcomeSequence(){
 
 public:
 void setup() override {
+for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
+  if(!ridingPlaylists[i].name[0]){String n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));}
+}
 cmdQueue=xQueueCreate(MZ_CMD_QUEUE_LEN,sizeof(MzCmd)); // harus ada sebelum route HTTP didaftarkan
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 tSetupMs=millis();
@@ -682,6 +874,14 @@ server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String
 server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){handleSideSwap(req);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
+server.on("/mizuma/riding/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidePlaylists(req);});
+server.on("/mizuma/riding/playlist/meta",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistMeta(req);});
+server.on("/mizuma/riding/playlist/clear",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistClear(req);});
+server.on("/mizuma/riding/playlist/slot",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistSlot(req);});
+server.on("/mizuma/riding/playlist/reorder",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistReorder(req);});
+server.on("/mizuma/riding/playlist/start",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistStart(req);});
+server.on("/mizuma/riding/playlist/pause",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistPause(req);});
+server.on("/mizuma/riding/playlist/stop",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistStop(req);});
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(2600);out+="{";
 for(int i=0;i<10;i++){PresetSlot p=getEffectiveSlot(i);char buf[340];
@@ -695,6 +895,7 @@ out+="}";req->send(200,"application/json",out);});}
 void loop() override {
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   tickShowEngine();
+  tickRidingPlaylist();
   if(cfgSavePending && (uint32_t)(millis() - cfgSaveT) > 1500U){
     cfgSavePending=false;
     serializeConfigToFS();
@@ -739,7 +940,17 @@ s["o1"]=pslots[i].o1;s["o2"]=pslots[i].o2;s["o3"]=pslots[i].o3;
 s["bri"]=pslots[i].bri;}
 top["bri"]=savedBri;
 top["sideSwap"]=sideSwap;
-top["showReverse"]=showReverse;}
+top["showReverse"]=showReverse;
+JsonArray rp=top.createNestedArray("ridingPlaylists");
+for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
+  RidePlaylist &pl=ridingPlaylists[i];JsonObject po=rp.createNestedObject();po["name"]=pl.name;JsonArray slots=po.createNestedArray("slots");
+  for(uint8_t j=0;j<pl.count;j++){
+    const RidePlaylistSlot &p=pl.slots[j];JsonObject so=slots.createNestedObject();
+    so["valid"]=p.valid;so["fx"]=p.fx;so["pal"]=p.pal;
+    so["r"]=p.r;so["g"]=p.g;so["b"]=p.b;so["r1"]=p.r1;so["g1"]=p.g1;so["b1"]=p.b1;so["r2"]=p.r2;so["g2"]=p.g2;so["b2"]=p.b2;
+    so["sx"]=p.sx;so["ix"]=p.ix;so["c1"]=p.c1;so["c2"]=p.c2;so["c3"]=p.c3;so["o1"]=p.o1;so["o2"]=p.o2;so["o3"]=p.o3;so["bri"]=p.bri;so["duration"]=p.durationSec;
+  }
+}}
 
 bool readFromConfig(JsonObject &root) override {
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
@@ -768,6 +979,23 @@ pslots[i].bri=s["bri"]|180;}}
 savedBri=top["bri"]|180;
 sideSwap=top["sideSwap"]|false;
 showReverse=top["showReverse"]|false;
+for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
+  if(!ridingPlaylists[i].name[0]){String n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));}
+}
+JsonArray rp=top["ridingPlaylists"].as<JsonArray>();
+if(!rp.isNull()){
+  for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT&&i<rp.size();i++){
+    JsonObject po=rp[i];String n=po["name"]|"";n.trim();if(!n.length())n="Playlist "+String(i+1);if(n.length()>24)n=n.substring(0,24);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));
+    JsonArray slots=po["slots"].as<JsonArray>();ridingPlaylists[i].count=0;
+    if(!slots.isNull())for(uint8_t j=0;j<MZ_RIDE_PLAYLIST_SLOTS&&j<slots.size();j++){
+      JsonObject so=slots[j];RidePlaylistSlot p;p.valid=so["valid"]|true;
+      p.fx=so["fx"]|0;p.pal=so["pal"]|0;
+      p.r=so["r"]|255;p.g=so["g"]|165;p.b=so["b"]|0;p.r1=so["r1"]|255;p.g1=so["g1"]|255;p.b1=so["b1"]|255;p.r2=so["r2"]|255;p.g2=so["g2"]|26;p.b2=so["b2"]|0;
+      p.sx=so["sx"]|128;p.ix=so["ix"]|128;p.c1=so["c1"]|128;p.c2=so["c2"]|128;p.c3=so["c3"]|128;p.o1=so["o1"]|0;p.o2=so["o2"]|0;p.o3=so["o3"]|0;p.bri=so["bri"]|180;p.durationSec=(uint16_t)constrain((int)(so["duration"]|20),1,600);
+      if(p.valid){ridingPlaylists[i].slots[ridingPlaylists[i].count++]=p;}
+    }
+  }
+}
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}

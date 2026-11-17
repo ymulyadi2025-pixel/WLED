@@ -148,7 +148,7 @@ e.preventDefault(); mzFadeTo(href);
 const char MIZUMA_BOTTOMNAV_HTML[] PROGMEM = R"rawliteral(
 <div class="bottomnav">
 <a href="/app" class="__ACTIVE_BERANDA__"><span class="bn-pill"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></span>Dashboard</a>
-<a href="/led" class="__ACTIVE_LAMPU__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.3 2.2h4.6c.2-.8.6-1.6 1.3-2.2A6 6 0 0 0 12 3z"/></svg></span>Lampu</a>
+<a href="/led" class="__ACTIVE_LAMPU__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M9 18h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.7.6 1.1 1.4 1.3 2.2h4.6c.2-.8.6-1.6 1.3-2.2A6 6 0 0 0 12 3z"/></svg></span>Riding</a>
 <a href="/servis" class="__ACTIVE_SERVIS__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span>Servis</a>
 <a href="/keamanan" class="__ACTIVE_KEAMANAN__"><span class="bn-pill"><svg viewBox="0 0 24 24"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/></svg></span>Keamanan</a>
 <a href="/pengaturan" class="__ACTIVE_PENGATURAN__"><span class="bn-pill"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Pengaturan</a>
@@ -430,7 +430,7 @@ const char MIZUMA_PLACEHOLDER_HTML[] PROGMEM = R"rawliteral(
 // =====================================================================================================================================
 // BLOK 5 — LED (REVISI: fokus sisi, side-info L/R, slider vertikal V/K, wheel besar, quick color ringkas, pairing efek→palette)
 // =====================================================================================================================================
-const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
+const char MIZUMA_LED_LEGACY_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -476,12 +476,8 @@ body{display:flex;flex-direction:column;}
 .control-panel .tool-btn:disabled{opacity:.55;cursor:wait;}
 @media(prefers-reduced-motion:reduce){.control-panel *{transition:none !important;}}
 @media(min-width:520px){.control-panel{column-gap:14px;padding-left:12px;padding-right:12px;}.ctl-tools::before{left:-8px;}}
-.preview-row{display:grid;grid-template-columns:1fr 26px 1fr;gap:8px;align-items:center;padding:8px 12px;}
-.pv-canvas{width:100%;height:14px;image-rendering:pixelated;background:#000;border-radius:5px;display:block;transition:opacity .25s;}
 .pv-canvas.off{opacity:.22;}
-.live-btn{width:24px;height:24px;border-radius:50%;background:var(--s2);border:1px solid var(--bd2);display:flex;align-items:center;justify-content:center;color:var(--tx3);padding:0;}
 .live-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
-.live-btn.on{color:var(--ac);border-color:var(--ac);background:var(--ac-dim);animation:livePulse 2s infinite;}
 @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(245,165,36,.35);}70%{box-shadow:0 0 0 6px rgba(245,165,36,0);}100%{box-shadow:0 0 0 0 rgba(245,165,36,0);}}
 .info-row3{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr);gap:8px;align-items:center;padding:4px 12px 10px;background:var(--bg);border-bottom:1px solid var(--bd);}
 .info-row3 .i3{font-size:9.5px;color:var(--tx2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -599,11 +595,6 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;heigh
     </div>
   </div>
 </div>
-<div class="preview-row">
-<canvas class="pv-canvas" id="pvKiri" width="48" height="1"></canvas>
-<button class="live-btn on" id="liveToggle" title="Live preview on/off"><svg viewBox="0 0 24 24"><path d="M2 12h4l3-8 4 16 3-8h4"/></svg></button>
-<canvas class="pv-canvas" id="pvKanan" width="48" height="1"></canvas>
-</div>
 <div class="info-row3">
 <div class="i3 left" id="ctxInfo">Kiri: -</div>
 <div class="i3 mid">
@@ -702,7 +693,7 @@ let cur={fx:0,pal:0,col:null,palName:'',isShow:false,showIndex:0,params:{sx:128,
 let fxParamsCache={},fxPalCache={};
 function paramsFor(i){if(!fxParamsCache[i]){const d=fxData.length?fxDefs(i):{};const g=function(k,df){return d[k]!=null?d[k]:df;};const p={sx:g('sx',128),ix:g('ix',128),c1:g('c1',128),c2:g('c2',128),c3:g('c3',128),o1:g('o1',0),o2:g('o2',0),o3:g('o3',0)};if(!fxData.length)return p;fxParamsCache[i]=p;}return fxParamsCache[i];}
 cur.params=paramsFor(0);
-let wHue=0,wSat=1,wVal=1,liveEnabled=true;
+let wHue=0,wSat=1,wVal=1;
 let segColors=[[255,165,0],[255,255,255],[255,26,0]],colorTarget=0,slotCount=3;
 const SEG_K=0,SEG_L=1;
 function mapSegId(logicalSide){const right=(logicalSide==='kanan');return (right!==sideSwap)?SEG_K:SEG_L;}
@@ -748,27 +739,6 @@ function clearDirty(){dirty=false;document.getElementById('subSave').classList.r
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.opacity='1';setTimeout(function(){t.style.opacity='0';},1800);}
 function paintRange(el){const min=+el.min||0,max=+el.max||255;el.style.setProperty('--p',(((+el.value-min)/(max-min))*100)+'%');}
 document.addEventListener('input',function(e){if(e.target.matches&&e.target.matches('input[type=range]')&&!e.target.classList.contains('kelvin'))paintRange(e.target);});
-/* ===== LIVE PREVIEW ===== */
-const pvR=document.getElementById('pvKanan'),pvL=document.getElementById('pvKiri');
-let segGeom=[{start:0,stop:48},{start:48,stop:96}],ledTotal=0;
-function captureSegs(j){const s=j&&j.seg;if(!s||!s.length)return;s.forEach(function(x,i){if(!x)return;const id=(x.id!=null)?x.id:i;if((id===0||id===1)&&x.stop>0)segGeom[id]={start:x.start||0,stop:x.stop};});if(segGeom[1].start<segGeom[0].stop&&segGeom[1].start>segGeom[0].start)segGeom[0].stop=segGeom[1].start;}
-function geomForSide(side){return segGeom[mapSegId(side)];}
-/* Frame WS Peek WLED: byte0='L'(76), byte1=versi (1: data mulai idx 2 | 2: matriks, data mulai idx 4), lalu RGB per LED (sudah diskala brightness) */
-function paintStrip(cv,sg,flat,off,cnt,step){const len=Math.max(1,sg.stop-sg.start);if(cv.width!==len)cv.width=len;const ctx=cv.getContext('2d'),img=ctx.createImageData(len,1);for(let i=0;i<len;i++){let px=Math.floor((sg.start+i)/step);if(px>=cnt)px=cnt-1;const k=off+px*3,o=i*4;img.data[o]=flat[k];img.data[o+1]=flat[k+1];img.data[o+2]=flat[k+2];img.data[o+3]=255;}ctx.putImageData(img,0,0);}
-function drawLive(flat,raw){let off=0;if(!raw&&flat[0]===76&&(flat[1]===1||flat[1]===2))off=(flat[1]===2)?4:2;const cnt=Math.floor((flat.length-off)/3);if(cnt<1)return;const step=(ledTotal>cnt)?ledTotal/cnt:1;paintStrip(pvR,geomForSide('kanan'),flat,off,cnt,step);paintStrip(pvL,geomForSide('kiri'),flat,off,cnt,step);}
-jfetch('/json/state').then(function(r){return r.json();}).then(captureSegs).catch(function(){});
-jfetch('/json/info').then(function(r){return r.json();}).then(function(j){if(j&&j.leds&&j.leds.count)ledTotal=j.leds.count;}).catch(function(){});
-let liveOk=false,mzWS=null,mzWSRetry=null,lastDraw=0;
-function mzLiveCmd(on){try{if(mzWS&&mzWS.readyState===1)mzWS.send('{"lv":'+(on?'true':'false')+'}');}catch(e){}}
-function mzConnectLive(){if(mzWS||document.hidden)return;if(mzWSRetry){clearTimeout(mzWSRetry);mzWSRetry=null;}try{mzWS=new WebSocket('ws://'+window.location.host+'/ws');}catch(e){mzWS=null;mzWSRetry=setTimeout(mzConnectLive,3000);return;}mzWS.binaryType='arraybuffer';mzWS.onopen=function(){if(liveEnabled)mzLiveCmd(true);};mzWS.onmessage=function(evt){if(!liveEnabled||!(evt.data instanceof ArrayBuffer))return;const now=performance.now();if(now-lastDraw<33)return;lastDraw=now;const flat=new Uint8Array(evt.data);if(flat.length<3)return;liveOk=true;drawLive(flat,false);};mzWS.onclose=function(){liveOk=false;mzWS=null;if(!document.hidden)mzWSRetry=setTimeout(mzConnectLive,2000);};mzWS.onerror=function(){try{mzWS.close();}catch(e){}};}
-mzConnectLive();
-document.addEventListener('visibilitychange',function(){if(document.hidden){mzLiveCmd(false);if(mzWS){try{mzWS.close();}catch(e){}}}else{mzConnectLive();}});
-window.addEventListener('beforeunload',function(){mzLiveCmd(false);if(mzWS)try{mzWS.close();}catch(e){}});
-/* Fallback bila WS Peek tidak aktif (mis. klien lain mengambil Peek): /json/live, lalu warna solid */
-function pollSolid(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);const f=function(cv,seg){if(!seg)return;const c=(seg.col&&seg.col[0])?seg.col[0]:[20,20,20];const ctx=cv.getContext('2d');ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';ctx.fillRect(0,0,cv.width,1);};f(pvR,segById(j,mapSegId('kanan')));f(pvL,segById(j,mapSegId('kiri')));}).catch(function(){});}
-function pollState(){if(!liveEnabled||document.hidden)return;jfetch('/json/live').then(function(r){return r.ok?r.json():Promise.reject();}).then(function(j){const Ls=j&&j.leds;if(!Array.isArray(Ls)||!Ls.length||typeof Ls[0]!=='string')throw 0;const flat=new Uint8Array(Ls.length*3);for(let i=0;i<Ls.length;i++){const n=parseInt(String(Ls[i]).replace('#',''),16)||0;flat[i*3]=(n>>16)&255;flat[i*3+1]=(n>>8)&255;flat[i*3+2]=n&255;}drawLive(flat,true);}).catch(pollSolid);}
-setInterval(function(){if(liveOk&&performance.now()-lastDraw>3000)liveOk=false;if(!liveOk)pollState();},1000);
-document.getElementById('liveToggle').addEventListener('click',function(){liveEnabled=!liveEnabled;this.classList.toggle('on',liveEnabled);pvR.classList.toggle('off',!liveEnabled);pvL.classList.toggle('off',!liveEnabled);mzLiveCmd(liveEnabled);});
 /* ===== COLOR MATH ===== */
 function hsvToRgb(h,s,v){const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r,g,b;if(h<60){r=c;g=x;b=0;}else if(h<120){r=x;g=c;b=0;}else if(h<180){r=0;g=c;b=x;}else if(h<240){r=0;g=x;b=c;}else if(h<300){r=x;g=0;b=c;}else{r=c;g=0;b=x;}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
 function rgb2hsv(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;let h=0;if(d){if(mx===r)h=((g-b)/d)%6;else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;if(h<0)h+=360;}return[h,(mx?d/mx:0),mx];}
@@ -800,7 +770,7 @@ const sendBriD=debounce(function(v){post({bri:v});fetch('/mizuma/bri?v='+v,{meth
 /* ===== SIDE INFO (kiri/kanan dari state device) ===== */
 let usiT=null;
 function updateSideInfo(){if(usiT)return;usiT=setTimeout(function(){usiT=null;updateSideInfoNow();},350);}
-function updateSideInfoNow(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){captureSegs(j);if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNameById(s.pal)||'Palette');};document.getElementById('ctxInfo').textContent=nm(segById(j,mapSegId('kiri')));document.getElementById('savedInfo').textContent=nm(segById(j,mapSegId('kanan')));}).catch(function(){});}
+function updateSideInfoNow(){jfetch('/json/state').then(function(r){return r.json();}).then(function(j){if(!j.seg)return;const nm=function(s){if(!s)return '-';if(s.on===false)return 'Off';return (allFx[s.fx]||'Efek')+' - '+(palNameById(s.pal)||'Palette');};document.getElementById('ctxInfo').textContent=nm(segById(j,mapSegId('kiri')));document.getElementById('savedInfo').textContent=nm(segById(j,mapSegId('kanan')));}).catch(function(){});}
 /* ===== FX / BG / CS ===== */
 function isPSFx(){const n=allFx[cur.fx]||'';return n.indexOf('PS ')===0;}
 function gstr(a){return 'rgb('+a[0]+','+a[1]+','+a[2]+')';}
@@ -956,6 +926,176 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
 </html>
 )rawliteral";
 
+
+// Riding workspace v20: UI prototype styling, real WLED catalog/colors, and ESP32 playlist engine.
+const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a"><title>Riding · Mizuma</title>
+<link rel="stylesheet" href="/mizuma.css">
+<style>
+html,body{height:100%;margin:0;background:var(--bg);color:var(--tx)}
+body{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));}
+.rw{max-width:620px;margin:0 auto;padding:12px 12px 24px}
+.rhead{display:flex;align-items:center;gap:10px;margin:2px 2px 12px}.rhead .lead{flex:1;min-width:0}.eyebrow{font-size:10px;color:var(--ac);font-weight:800;letter-spacing:1.2px}.rtitle{font-size:22px;font-weight:850;line-height:1.15;margin-top:2px}.rsub{font-size:11px;color:var(--tx2);margin-top:3px}.legacy{font-size:11px;font-weight:700;color:var(--tx2);border:1px solid var(--bd2);background:var(--s2);padding:9px 11px;border-radius:10px;text-decoration:none;white-space:nowrap}
+.panel{background:var(--s1);border:1px solid var(--bd);border-radius:15px;padding:12px;margin-bottom:10px}.cap{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx2);font-weight:800;margin-bottom:8px}
+.ctrlgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:10px}.segmented{display:flex;gap:3px;padding:3px;background:var(--s2);border:1px solid var(--bd);border-radius:11px}.segmented button{flex:1;min-width:0;padding:9px 3px;border-radius:8px;color:var(--tx2);font-size:12px;font-weight:700}.segmented button.on{background:var(--ac);color:#111}.toolrow{display:flex;gap:6px}.tool{flex:1;min-width:0;padding:8px 4px;border-radius:10px;background:var(--s2);border:1px solid var(--bd2);font-size:11px;font-weight:700;color:var(--tx2)}.tool.on{color:var(--ac);border-color:var(--ac);background:var(--acd)}.tool small{display:block;font-size:9px;font-weight:600;color:inherit;opacity:.8;margin-top:2px}.brrow{display:flex;align-items:center;gap:10px;margin-top:12px}.brrow label{font-size:11px;color:var(--tx2);white-space:nowrap}.brrow input{flex:1;min-width:0}.brrow b{font-size:12px;min-width:27px;text-align:right}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--s1);border:1px solid var(--bd);padding:4px;border-radius:12px;margin:10px 0}.tabs button{padding:10px 4px;border-radius:9px;font-size:12px;font-weight:750;color:var(--tx2)}.tabs button.on{background:var(--acd);color:var(--ac)}
+.view{display:none}.view.on{display:block}.bar{display:flex;align-items:center;gap:8px;margin-bottom:10px}.bar .search{flex:1;min-width:0}.search,input[type=text],input[type=number],select{width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--bd2);border-radius:10px;padding:10px 11px;font:inherit;font-size:12px;outline:none}.barbtn{padding:9px 11px;border:1px solid var(--bd2);border-radius:10px;background:var(--s2);font-size:11px;font-weight:700;color:var(--tx2);white-space:nowrap}.barbtn.on{color:var(--ac);border-color:var(--ac);background:var(--acd)}
+.fxgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.fx{min-width:0;text-align:left;position:relative;background:var(--s1);border:1px solid var(--bd);border-radius:11px;padding:10px 9px 9px;min-height:60px}.fx.on{border-color:var(--ac);background:var(--acd)}.fx b{display:block;padding-right:24px;font-size:12px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fx small{display:block;color:var(--tx3);font-size:10px;margin-top:4px}.fx .fav{position:absolute;right:5px;top:4px;padding:5px;font-size:18px;color:var(--tx3)}.fx .fav.on{color:var(--ac)}
+.selected{display:flex;align-items:center;gap:9px}.selected .swatch{width:46px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);flex:none}.selected .desc{flex:1;min-width:0}.selected .desc b{display:block;font-size:13px}.selected .desc small{display:block;color:var(--tx2);font-size:10px;margin-top:2px}.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:11px;border:1px solid var(--bd2);border-radius:11px;background:var(--s2);font-size:12px;font-weight:800;color:var(--tx);margin-top:8px}.btn.primary{background:var(--ac);border-color:var(--ac);color:#111}.btn.outline{border-color:var(--ac);color:var(--ac);background:transparent}.btnrow{display:flex;gap:7px}.btnrow .btn{flex:1}
+.params{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}.param{min-width:0}.param label{display:flex;justify-content:space-between;gap:5px;color:var(--tx2);font-size:10px;margin-bottom:5px}.param label b{color:var(--tx)}.param input{width:100%;accent-color:var(--ac)}.switchrow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd);font-size:11px;color:var(--tx2)}.switchrow:last-child{border:0}.switch{width:44px;height:25px;border-radius:20px;background:var(--s3);border:1px solid var(--bd2);position:relative}.switch:after{content:"";position:absolute;left:3px;top:3px;width:17px;height:17px;background:#888;border-radius:50%;transition:.15s}.switch.on{background:var(--acd);border-color:var(--ac)}.switch.on:after{left:22px;background:var(--ac)}
+.hint{font-size:10px;color:var(--tx3);line-height:1.45;margin-top:8px}.pill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 8px;background:var(--s3);font-size:10px;color:var(--tx2)}.statusdot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.playgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.plcard{padding:10px;text-align:left;border:1px solid var(--bd);border-radius:13px;background:var(--s1);min-width:0}.plcard.on{border-color:var(--ac)}.plthumb{display:flex;height:28px;overflow:hidden;border-radius:7px;background:#080808;margin-bottom:8px}.plthumb i{flex:1;min-width:0}.plcard b{display:block;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plcard small{display:block;color:var(--tx2);font-size:10px;margin-top:3px}.plstatus{font-size:9px;color:var(--ok);margin-top:5px;font-weight:800}.pldetail{margin-top:10px}.plhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}.plhead b{flex:1;font-size:14px}.slotrow{display:flex;align-items:center;gap:7px;padding:8px;margin-bottom:6px;background:var(--s2);border:1px solid var(--bd);border-radius:10px}.slotrow .n{font-size:10px;color:var(--tx3);width:16px}.slotrow .swatches{display:flex;gap:2px;width:36px;height:22px;border-radius:5px;overflow:hidden;flex:none}.slotrow .swatches i{flex:1}.slotrow .meta{flex:1;min-width:0}.slotrow .meta b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.slotrow .meta small{display:block;font-size:9px;color:var(--tx2);margin-top:2px}.slotrow button{width:32px;height:32px;flex:none;border-radius:8px;background:var(--s3);border:1px solid var(--bd2);font-size:12px}.slotrow .edit{color:var(--ac)}.plname{display:flex;gap:7px;margin-bottom:8px}.plname input{flex:1;min-width:0}.plactions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.plactions button{padding:10px 3px;font-size:11px;font-weight:800;border-radius:9px;background:var(--s2);border:1px solid var(--bd2)}.plactions .play{background:var(--ac);border-color:var(--ac);color:#111}
+.color-mode{display:flex;gap:6px;margin-bottom:10px}.color-mode button{flex:1;padding:9px 5px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:11px;color:var(--tx2);font-weight:700}.color-mode button.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}.rgbrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rgbitem{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}.rgbitem label{display:block;font-size:10px;color:var(--tx2);margin-bottom:6px}.rgbitem input[type=color]{width:100%;height:38px;border:0;padding:0;background:none}.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.quick button{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.2)}.palgrid,.skingrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.pal{position:relative;display:flex;align-items:center;gap:8px;padding:9px 8px;border:1px solid var(--bd);border-radius:10px;background:var(--s1);min-width:0;text-align:left}.pal.on{border-color:var(--ac)}.pal i{width:42px;height:18px;border-radius:5px;flex:none}.pal b{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.skin{padding:9px;border:1px solid var(--bd);background:var(--s1);border-radius:10px;text-align:left}.skin.on{border-color:var(--ac)}.skin .swatches{height:26px;display:flex;overflow:hidden;border-radius:6px;margin-bottom:6px}.skin .swatches i{flex:1}.skin b{display:block;font-size:11px}.skin small{font-size:9px;color:var(--tx2)}.sectiontitle{font-size:10px;color:var(--tx2);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 7px}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field{margin-top:9px}.field label{display:block;font-size:10px;color:var(--tx2);margin-bottom:4px}.hide{display:none!important}.empty{padding:20px 12px;text-align:center;border:1px dashed var(--bd2);border-radius:12px;color:var(--tx2);font-size:12px}.toast{position:fixed;z-index:100;left:50%;bottom:calc(var(--nav-h) + 78px);transform:translateX(-50%);padding:9px 14px;border-radius:22px;background:var(--s2);border:1px solid var(--bd2);font-size:11px;font-weight:700;color:var(--ok);opacity:0;pointer-events:none;transition:opacity .18s;white-space:nowrap}.toast.show{opacity:1}
+@media(min-width:520px){.rw{padding-left:18px;padding-right:18px}.fxgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.ctrlgrid{grid-template-columns:1.3fr 1fr}}
+</style></head>
+<body>
+<div id="mzH"></div>
+<div class="rw">
+ <div class="rhead"><div class="lead"><div class="eyebrow">MIZUMA SMART SYSTEM</div><div class="rtitle">Riding</div><div class="rsub">Atur efek, warna, dan playlist saat berkendara</div></div><a class="legacy" href="/led-legacy">Mode lain ↗</a></div>
+ <section class="panel">
+  <div class="ctrlgrid">
+   <div><div class="cap">Sisi lampu</div><div class="segmented" id="sideSelect"><button data-side="kiri">Kiri</button><button data-side="both" class="on">Semua</button><button data-side="kanan">Kanan</button></div></div>
+   <div><div class="cap">Pengaturan output</div><div class="toolrow"><button class="tool" id="swapBtn">⇄ Posisi<small>Normal</small></button><button class="tool" id="reverseBtn">↔ Arah<small>Normal</small></button></div></div>
+  </div>
+  <div class="brrow"><label for="brightness">Kecerahan</label><input id="brightness" type="range" min="1" max="255" value="180"><b id="brightnessVal">180</b></div>
+ </section>
+ <div class="tabs" id="mainTabs"><button data-view="effects" class="on">Single Effect</button><button data-view="playlists">Playlist</button><button data-view="colors">Warna / Skin</button></div>
+ <section class="view on" id="view-effects">
+  <div class="panel">
+   <div class="bar"><input class="search" id="fxSearch" placeholder="Cari efek WLED..."><button class="barbtn on" id="favFilter">Semua</button></div>
+   <div class="fxgrid" id="fxGrid"><div class="empty">Memuat efek dari WLED...</div></div>
+  </div>
+  <div class="panel">
+   <div class="cap">Efek terpilih</div>
+   <div class="selected"><span class="swatch" id="currentSwatch"></span><div class="desc"><b id="currentFxName">Memuat...</b><small id="currentFxInfo">Atur warna dan parameter efek</small></div><button class="barbtn" id="saveSingle">Simpan</button></div>
+   <div class="sectiontitle">Parameter efek</div><div id="params" class="params"><div class="hint">Parameter mengikuti metadata efek WLED.</div></div>
+   <div class="hint" id="paramHint"></div>
+   <div class="btnrow"><button class="btn outline" id="openColors">Atur warna</button><button class="btn primary" id="applySingle">Terapkan efek</button></div>
+   <div class="field"><label for="durationSec">Durasi slot playlist (detik)</label><input id="durationSec" type="number" inputmode="numeric" min="1" max="600" step="1" value="20"></div>
+   <div class="field"><label for="addTarget">Tambahkan efek ini ke playlist</label><div class="btnrow"><select id="addTarget"><option value="0">Playlist 1</option><option value="1">Playlist 2</option><option value="2">Playlist 3</option><option value="3">Playlist 4</option></select><button class="btn primary" id="addToPlaylist">＋ Tambah slot</button></div></div>
+  </div>
+ </section>
+ <section class="view" id="view-playlists">
+  <div class="panel"><div class="cap">Playlist Riding · tersimpan di ESP32</div><div class="playgrid" id="playlistGrid"><div class="empty">Memuat playlist...</div></div><div class="hint">Playlist berjalan dari engine ESP32. HP boleh ditutup setelah playlist dimulai.</div></div>
+  <div class="panel pldetail" id="playlistDetail"><div class="empty">Pilih playlist untuk mengelola slot.</div></div>
+ </section>
+ <section class="view" id="view-colors">
+  <div class="panel">
+   <div class="cap">Warna untuk efek terpilih</div>
+   <div class="color-mode" id="colorMode"><button data-mode="solid" class="on">Warna Solid</button><button data-mode="skin">Skin Efek</button></div>
+   <div id="solidEditor"><div class="rgbrow"><div class="rgbitem"><label>Warna utama</label><input type="color" id="color0"></div><div class="rgbitem"><label>Warna kedua</label><input type="color" id="color1"></div><div class="rgbitem"><label>Warna ketiga</label><input type="color" id="color2"></div></div><div class="quick" id="quickColors"></div></div>
+   <div id="skinEditor" class="hide"><div class="skingrid" id="skinGrid"></div></div>
+   <div class="btnrow"><button class="btn" id="saveColor">Simpan warna</button><button class="btn outline" id="newSkin">＋ Buat skin baru</button></div>
+  </div>
+  <div class="panel"><div class="cap">Palette WLED</div><div class="palgrid" id="paletteGrid"><div class="empty">Memuat palette...</div></div><div class="hint">Palette berasal dari firmware WLED yang sedang terpasang.</div></div>
+ </section>
+</div>
+<div id="mzN"></div><div id="toast" class="toast"></div>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+let jqTail=Promise.resolve();
+function jfetch(url,opt){const run=()=>fetch(url,opt).then(r=>{if(r.status===503)throw new Error('WLED sibuk');return r;});const task=jqTail.then(async()=>{for(let n=0;n<5;n++){try{return await run();}catch(e){if(n===4)throw e;await new Promise(w=>setTimeout(w,180+100*n));}}});jqTail=task.catch(()=>{});return task;}
+const api=(path,method='POST')=>fetch(path,{method,cache:'no-store'}).then(async r=>{let d={};try{d=await r.json();}catch(e){}if(!r.ok||d.ok===false)throw new Error(d.error||('HTTP '+r.status));return d;});
+const BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
+const CUSTOM_RE=/^(?:MZ\d\d|W\d\d) /;
+let allFx=[],fxData=[],fxList=[],palNames=[],palStops={},selectedSide='both',sideSwap=false,reverse=false,activeView='effects',showFavorites=false;
+let current={fx:0,pal:0,colors:[[255,165,0],[255,255,255],[255,26,0]],params:{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0},duration:20};
+let playlists=[],openPlaylist=-1,player={active:false,paused:false,playlist:0,slot:0,side:'both'};
+let favorites=new Set(),savedColors=[],skins=[];let applyTimer=null,catalogReady=false;
+try{favorites=new Set(JSON.parse(localStorage.getItem('mzRideFav')||'[]'));}catch(e){}
+try{savedColors=JSON.parse(localStorage.getItem('mzRideColors')||'[]');}catch(e){savedColors=[];}
+try{skins=JSON.parse(localStorage.getItem('mzRideSkins')||'[]');}catch(e){skins=[];}
+const toast=m=>{const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const hex=rgb=>'#'+rgb.map(v=>Math.max(0,Math.min(255,v|0)).toString(16).padStart(2,'0')).join('').toUpperCase();
+const rgb=h=>{h=String(h||'#000000').replace('#','');const n=parseInt(h,16)||0;return[(n>>16)&255,(n>>8)&255,n&255];};
+const colorsOf=p=>Array.isArray(p.col)?p.col:[[p.r??255,p.g??165,p.b??0],[p.r1??255,p.g1??255,p.b1??255],[p.r2??255,p.g2??26,p.b2??0]];
+function fxMeta(i){return String(fxData[i]||'').split(';');}
+function fxDefs(i){const d={},part=fxMeta(i)[4]||'';part.split(',').forEach(x=>{const a=x.split('=');if(a.length===2&&Number.isFinite(parseInt(a[1],10)))d[a[0].trim()]=parseInt(a[1],10);});return d;}
+function fxParams(i){const labels=(fxMeta(i)[0]||'').split(','),names=['Speed','Intensity','Custom 1','Custom 2','Custom 3'],keys=['sx','ix','c1','c2','c3'],sl=[],tg=[];for(let k=0;k<5;k++){let n=labels[k];if(n===undefined||n==='')continue;if(n==='!')n=names[k];sl.push({key:keys[k],label:n||names[k]});}for(let k=0;k<3;k++){let n=labels[k+5];if(n===undefined||n==='')continue;if(n==='!')n='Opsi '+(k+1);tg.push({key:'o'+(k+1),label:n});}return{sl,tg};}
+function fxOk(i,n){const t=String(n||'').toLowerCase(),flags=fxMeta(i)[3]||'';if(!t||t==='rsvd'||t==='-'||CUSTOM_RE.test(n)||String(n).startsWith('2D')||BLACKLIST.includes(t))return false;if(flags.includes('2')&&!flags.includes('1')&&!flags.includes('0'))return false;if(flags.includes('v')||flags.includes('f'))return false;return true;}
+function paramsDefaults(i){const d=fxDefs(i);return{sx:d.sx??128,ix:d.ix??128,c1:d.c1??128,c2:d.c2??128,c3:d.c3??128,o1:d.o1??0,o2:d.o2??0,o3:d.o3??0};}
+function selectedSegId(side){const right=side==='kanan';return (right!==sideSwap)?0:1;}
+function segmentIds(){if(selectedSide==='kanan')return[selectedSegId('kanan')];if(selectedSide==='kiri')return[selectedSegId('kiri')];return[selectedSegId('kanan'),selectedSegId('kiri')];}
+function makeStateSegment(id){return{id,on:true,fx:current.fx,pal:current.pal,rev:reverse,sx:current.params.sx,ix:current.params.ix,c1:current.params.c1,c2:current.params.c2,c3:current.params.c3,o1:current.params.o1,o2:current.params.o2,o3:current.params.o3,col:current.colors};}
+async function applyCurrent(silent=false){try{if(player.active){await api('/mizuma/riding/playlist/stop?restore=0');player.active=false;await new Promise(r=>setTimeout(r,100));}await jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on:true,seg:segmentIds().map(makeStateSegment)})});if(!silent)toast('Efek diterapkan');}catch(e){toast('Gagal menerapkan efek: '+e.message);}}
+function saveQuery(slot){const p=new URLSearchParams({slot,fx:current.fx,pal:current.pal,r:current.colors[0][0],g:current.colors[0][1],b:current.colors[0][2],r1:current.colors[1][0],g1:current.colors[1][1],b1:current.colors[1][2],r2:current.colors[2][0],g2:current.colors[2][1],b2:current.colors[2][2],sx:current.params.sx,ix:current.params.ix,c1:current.params.c1,c2:current.params.c2,c3:current.params.c3,o1:current.params.o1,o2:current.params.o2,o3:current.params.o3,bri:parseInt($('brightness').value,10)||180});return p;}
+async function saveSingle(){const slots=selectedSide==='both'?['ridingKanan','ridingKiri']:[selectedSide==='kanan'?'ridingKanan':'ridingKiri'];try{for(const s of slots)await api('/mizuma/preset?'+saveQuery(s));toast('Preset Riding tersimpan di ESP32');}catch(e){toast('Gagal menyimpan preset');}}
+function cacheCurrentFx(){try{const d=JSON.parse(localStorage.getItem('mzRideFxColors')||'{}');d[current.fx]={pal:current.pal,colors:current.colors};localStorage.setItem('mzRideFxColors',JSON.stringify(d));}catch(e){}}
+function loadFxCache(i){try{const d=JSON.parse(localStorage.getItem('mzRideFxColors')||'{}')[i];if(d){current.pal=d.pal??current.pal;current.colors=colorsOf({col:d.colors});}}catch(e){}}
+function renderEffects(){const q=$('fxSearch').value.trim().toLowerCase();const list=fxList.filter(x=>(!q||x.name.toLowerCase().includes(q))&&(!showFavorites||favorites.has(x.id)));$('fxGrid').innerHTML=list.length?list.map(x=>'<button class="fx'+(x.id===current.fx?' on':'')+'" data-fx="'+x.id+'"><b>'+esc(x.name)+'</b><small>'+((fxParams(x.id).sl.length+fxParams(x.id).tg.length)+' parameter')+'</small><span class="fav'+(favorites.has(x.id)?' on':'')+'" data-fav="'+x.id+'">'+(favorites.has(x.id)?'★':'☆')+'</span></button>').join(''):'<div class="empty">Tidak ada efek yang cocok.</div>';}
+function renderSelected(){const name=allFx[current.fx]||'Efek '+current.fx;$('currentFxName').textContent=name;$('currentFxInfo').textContent=(palNames[current.pal]||'Palette '+current.pal)+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[selectedSide]);$('currentSwatch').style.background='linear-gradient(90deg,'+current.colors.map(hex).join(',')+')';$('color0').value=hex(current.colors[0]);$('color1').value=hex(current.colors[1]);$('color2').value=hex(current.colors[2]);renderEffects();renderParams();}
+function renderParams(){const p=fxParams(current.fx),box=$('params');let h=p.sl.map(x=>'<div class="param"><label><span>'+esc(x.label)+'</span><b id="v_'+x.key+'">'+current.params[x.key]+'</b></label><input type="range" min="0" max="255" value="'+current.params[x.key]+'" data-param="'+x.key+'"></div>').join('');p.tg.forEach(x=>{h+='<div class="switchrow"><span>'+esc(x.label)+'</span><button class="switch'+(current.params[x.key]?' on':'')+'" data-toggle="'+x.key+'" aria-label="'+esc(x.label)+'"></button></div>';});box.innerHTML=h||'<div class="hint">Efek ini tidak memiliki parameter tambahan.</div>';$('paramHint').textContent='Slider dan sakelar mengikuti metadata efek asli dari WLED. Efek tertentu mungkin tidak memakai semua warna atau palette.';}
+function selectEffect(i,apply=true){current.fx=i;current.params=paramsDefaults(i);loadFxCache(i);renderSelected();if(apply)applyCurrent(true);}
+function renderPalettes(){const list=palNames.map((n,i)=>({n,i})).filter(p=>p.n&&p.n!=='r');$('paletteGrid').innerHTML=list.map(p=>'<button class="pal'+(current.pal===p.i?' on':'')+'" data-pal="'+p.i+'"><i style="background:'+paletteGradient(p.i)+'"></i><b>'+esc(p.n)+'</b></button>').join('')||'<div class="empty">Palette tidak ditemukan.</div>';}
+function paletteGradient(i){const a=palStops[i];if(!a||!a.length)return'linear-gradient(90deg,#222,#888)';const st=a.map(x=>{if(Array.isArray(x))return'rgba('+x[1]+','+x[2]+','+x[3]+','+(x[4]??255)/255+') '+(x[0]/255*100)+'%';if(x==='r')return'#888';const k=String(x).toLowerCase(),n=parseInt(k.slice(1),10)-1,c=current.colors[n]||[128,128,128];return' rgb('+c.join(',')+')';});return'linear-gradient(90deg,'+st.join(',')+')';}
+async function loadPalStops(page=0){try{const r=await jfetch('/json/palx?page='+page);const d=await r.json();Object.keys(d.p||{}).forEach(k=>palStops[k]=d.p[k]);if(typeof d.m==='number'&&page<d.m)await loadPalStops(page+1);else renderPalettes();}catch(e){}}
+function renderSkins(){const built=savedColors.map((c,i)=>({name:'Warna '+(i+1),colors:c,kind:'color',i}));const custom=skins.map((c,i)=>({name:c.name,colors:c.colors,kind:'skin',i}));const all=[...custom,...built];$('skinGrid').innerHTML=all.length?all.map(x=>'<button class="skin" data-skind="'+x.kind+'" data-si="'+x.i+'"><span class="swatches">'+x.colors.map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><b>'+esc(x.name)+'</b><small>'+(x.kind==='skin'?'Skin custom':'Warna tersimpan')+'</small></button>').join(''):'<div class="empty">Belum ada warna atau skin yang disimpan.</div>';}
+function renderPlaylists(){if(!playlists.length){$('playlistGrid').innerHTML='<div class="empty">Belum ada playlist.</div>';return;}$('playlistGrid').innerHTML=playlists.map((p,i)=>{const cols=p.slots.flatMap(x=>colorsOf(x)).slice(0,6);const strip=cols.length?cols.map(c=>'<i style="background:'+hex(c)+'"></i>').join(''):'<i style="background:#222"></i>';return'<button class="plcard'+(i===openPlaylist?' on':'')+'" data-playlist="'+i+'"><span class="plthumb">'+strip+'</span><b>'+esc(p.name||('Playlist '+(i+1)))+'</b><small>'+p.count+'/12 slot</small>'+(player.active&&player.playlist===i?'<span class="plstatus">● '+(player.paused?'DIJEDA':'SEDANG BERJALAN')+'</span>':'')+'</button>';}).join('');renderPlaylistDetail();}
+function renderPlaylistDetail(){const box=$('playlistDetail');if(openPlaylist<0||!playlists[openPlaylist]){box.innerHTML='<div class="empty">Pilih playlist untuk mengelola slot.</div>';return;}const p=playlists[openPlaylist];let rows=p.slots.map((s,j)=>'<div class="slotrow"><span class="n">'+(j+1)+'</span><span class="swatches">'+colorsOf(s).map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><span class="meta"><b>'+esc(allFx[s.fx]||('Efek '+s.fx))+'</b><small>'+esc(palNames[s.pal]||'Palette')+' · '+s.duration+' detik</small></span><button data-move="up" data-slot="'+j+'" '+(!j?'disabled':'')+'>↑</button><button data-move="down" data-slot="'+j+'" '+(j===p.slots.length-1?'disabled':'')+'>↓</button><button class="edit" data-edit-slot="'+j+'">Edit</button><button data-remove-slot="'+j+'">×</button></div>').join('');box.innerHTML='<div class="plhead"><b>Kelola playlist</b><span class="pill"><span class="statusdot"></span>'+p.count+'/12 slot</span></div><div class="plname"><input id="playlistName" type="text" maxlength="24" value="'+esc(p.name||('Playlist '+(openPlaylist+1)))+'"><button class="barbtn" id="renamePlaylist">Simpan</button></div><div class="plactions"><button class="play" id="playPlaylist">▶ Putar</button><button id="pausePlaylist">'+(player.active&&player.playlist===openPlaylist&&!player.paused?'Ⅱ Jeda':'▶ Lanjut')+'</button><button id="stopPlaylist">■ Stop</button></div><div class="sectiontitle">Urutan slot</div>'+(rows||'<div class="empty">Playlist masih kosong. Tambahkan efek dari Single Effect.</div>')+'<div class="btnrow"><button class="btn" id="addSelectedSlot" '+(p.count>=12?'disabled':'')+'>＋ Tambah efek terpilih</button><button class="btn" id="clearPlaylist">Kosongkan</button></div><div class="hint">Geser urutan slot dengan tombol panah. Durasi setiap slot diatur saat menambahkan atau mengedit.</div>';
+}
+function setView(v){activeView=v;document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));if(v==='colors'){renderPalettes();renderSkins();}}
+async function refreshPlaylists(){try{const d=await fetch('/mizuma/riding/playlists',{cache:'no-store'}).then(r=>r.json());playlists=d.playlists||[];player={active:!!d.active,paused:!!d.paused,playlist:d.playlist||0,slot:d.slot||0,side:d.side||'both'};renderPlaylists();}catch(e){$('playlistGrid').innerHTML='<div class="empty">Gagal membaca playlist engine.</div>';}}
+async function saveSlot(index,slot){current.duration=Math.max(1,Math.min(600,parseInt($('durationSec').value,10)||20));$('durationSec').value=current.duration;const q=new URLSearchParams({index,slot,fx:current.fx,pal:current.pal,r:current.colors[0][0],g:current.colors[0][1],b:current.colors[0][2],r1:current.colors[1][0],g1:current.colors[1][1],b1:current.colors[1][2],r2:current.colors[2][0],g2:current.colors[2][1],b2:current.colors[2][2],sx:current.params.sx,ix:current.params.ix,c1:current.params.c1,c2:current.params.c2,c3:current.params.c3,o1:current.params.o1,o2:current.params.o2,o3:current.params.o3,duration:current.duration,bri:$('brightness').value});await api('/mizuma/riding/playlist/slot?'+q);await refreshPlaylists();toast('Slot tersimpan di ESP32');}
+function updateColorInputs(){for(let i=0;i<3;i++)$('color'+i).value=hex(current.colors[i]);renderSelected();}
+function applyPalette(i){current.pal=i;cacheCurrentFx();renderPalettes();renderSelected();applyCurrent(true);}
+function setSide(s,skipPreset=false){selectedSide=s;document.querySelectorAll('#sideSelect button').forEach(b=>b.classList.toggle('on',b.dataset.side===s));$('currentFxInfo').textContent=(palNames[current.pal]||'Palette')+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[s]);if(catalogReady&&!skipPreset)loadRidingPreset(s);}
+async function loadRidingPreset(side){try{const d=await fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json());const p=d[side==='kiri'?'ridingKiri':'ridingKanan'];if(!p)return;current.fx=p.fx??0;current.pal=p.pal??0;current.colors=colorsOf(p);current.params={sx:p.sx??128,ix:p.ix??128,c1:p.c1??128,c2:p.c2??128,c3:p.c3??128,o1:p.o1?1:0,o2:p.o2?1:0,o3:p.o3?1:0};renderSelected();renderPalettes();}catch(e){toast('Preset Riding belum dapat dibaca');}}
+async function loadSwitches(){try{const a=await fetch('/mizuma/side-swap').then(r=>r.json());sideSwap=!!a.enabled;}catch(e){}try{const a=await fetch('/mizuma/show/reverse').then(r=>r.json());reverse=!!a.enabled;}catch(e){}$('swapBtn').classList.toggle('on',sideSwap);$('swapBtn').querySelector('small').textContent=sideSwap?'Ditukar':'Normal';$('reverseBtn').classList.toggle('on',reverse);$('reverseBtn').querySelector('small').textContent=reverse?'Dibalik':'Normal';}
+async function loadWled(){try{const [e,f,p,state,saved]=await Promise.all([jfetch('/json/eff').then(r=>r.json()),jfetch('/json/fxdata').then(r=>r.json()),jfetch('/json/pal').then(r=>r.json()),jfetch('/json/state').then(r=>r.json()),fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json())]);allFx=e;fxData=f;palNames=p;fxList=allFx.map((name,id)=>({id,name})).filter(x=>fxOk(x.id,x.name)).sort((a,b)=>a.id===0?-1:b.id===0?1:a.name.localeCompare(b.name));const seg=state.seg||[];const id=selectedSegId('kanan'),live=seg.find(x=>x&&x.id===id)||seg[id],s=saved.ridingKanan||live;if(s){current.fx=s.fx??0;current.pal=s.pal??0;current.colors=colorsOf(s);current.params={sx:s.sx??128,ix:s.ix??128,c1:s.c1??128,c2:s.c2??128,c3:s.c3??128,o1:s.o1?1:0,o2:s.o2?1:0,o3:s.o3?1:0};}if(state.bri){$('brightness').value=state.bri;$('brightnessVal').textContent=state.bri;}catalogReady=true;renderSelected();renderPalettes();loadPalStops();}catch(e){$('fxGrid').innerHTML='<div class="empty">Tidak dapat membaca katalog WLED. Pastikan WLED API aktif.</div>';toast('Gagal memuat katalog WLED');}}
+function bind(){
+$('mainTabs').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)setView(b.dataset.view);});
+$('sideSelect').addEventListener('click',e=>{const b=e.target.closest('button[data-side]');if(b)setSide(b.dataset.side);});
+$('swapBtn').addEventListener('click',async()=>{try{const d=await api('/mizuma/side-swap?enabled='+(sideSwap?'0':'1'));sideSwap=!!d.enabled;$('swapBtn').classList.toggle('on',sideSwap);$('swapBtn').querySelector('small').textContent=sideSwap?'Ditukar':'Normal';toast('Pemetaan sisi diperbarui');}catch(e){toast('Gagal mengubah posisi output');}});
+$('reverseBtn').addEventListener('click',async()=>{try{const d=await api('/mizuma/show/reverse?enabled='+(reverse?'0':'1'));reverse=!!d.enabled;$('reverseBtn').classList.toggle('on',reverse);$('reverseBtn').querySelector('small').textContent=reverse?'Dibalik':'Normal';toast('Arah efek diperbarui');}catch(e){toast('Tidak ada segmen aktif atau gagal mengubah arah');}});
+$('brightness').addEventListener('input',e=>{$('brightnessVal').textContent=e.target.value;clearTimeout(applyTimer);applyTimer=setTimeout(()=>{api('/mizuma/bri?v='+e.target.value).catch(()=>{});jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bri:+e.target.value})}).catch(()=>{});},100);});
+$('durationSec').addEventListener('change',e=>{current.duration=Math.max(1,Math.min(600,parseInt(e.target.value,10)||20));e.target.value=current.duration;});
+$('fxSearch').addEventListener('input',renderEffects);$('favFilter').addEventListener('click',()=>{showFavorites=!showFavorites;$('favFilter').classList.toggle('on',showFavorites);$('favFilter').textContent=showFavorites?'Favorit':'Semua';renderEffects();});
+$('fxGrid').addEventListener('click',e=>{const star=e.target.closest('[data-fav]');if(star){const i=+star.dataset.fav;favorites.has(i)?favorites.delete(i):favorites.add(i);localStorage.setItem('mzRideFav',JSON.stringify([...favorites]));renderEffects();return;}const fx=e.target.closest('[data-fx]');if(fx)selectEffect(+fx.dataset.fx);});
+$('params').addEventListener('input',e=>{const k=e.target.dataset.param;if(!k)return;current.params[k]=+e.target.value;$('v_'+k).textContent=e.target.value;clearTimeout(applyTimer);applyTimer=setTimeout(()=>{applyCurrent(true);},80);});
+$('params').addEventListener('click',e=>{const b=e.target.closest('[data-toggle]');if(!b)return;const k=b.dataset.toggle;current.params[k]=current.params[k]?0:1;b.classList.toggle('on',!!current.params[k]);applyCurrent(true);});
+$('applySingle').addEventListener('click',()=>applyCurrent());$('saveSingle').addEventListener('click',saveSingle);$('openColors').addEventListener('click',()=>setView('colors'));
+$('colorMode').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(!b)return;document.querySelectorAll('#colorMode button').forEach(x=>x.classList.toggle('on',x===b));$('solidEditor').classList.toggle('hide',b.dataset.mode!=='solid');$('skinEditor').classList.toggle('hide',b.dataset.mode!=='skin');});
+['color0','color1','color2'].forEach((id,i)=>$(id).addEventListener('input',e=>{current.colors[i]=rgb(e.target.value);current.pal=0;cacheCurrentFx();renderSelected();applyCurrent(true);}));
+$('quickColors').innerHTML=['#FF0000','#FFA500','#FFD200','#FFFFFF','#00AEEF','#00C853','#7C4DFF','#FF4081'].map(c=>'<button data-color="'+c+'" style="background:'+c+'" aria-label="'+c+'"></button>').join('');$('quickColors').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;current.colors[0]=rgb(b.dataset.color);current.pal=0;updateColorInputs();cacheCurrentFx();applyCurrent(true);});
+$('saveColor').addEventListener('click',()=>{savedColors.unshift(current.colors.map(c=>c.slice()));savedColors=savedColors.slice(0,8);localStorage.setItem('mzRideColors',JSON.stringify(savedColors));renderSkins();toast('Warna disimpan');});
+$('newSkin').addEventListener('click',()=>{const name=prompt('Nama skin baru:','Skin Riding '+(skins.length+1));if(name===null)return;const n=name.trim().slice(0,24);if(!n)return toast('Nama skin belum diisi');skins.unshift({name:n,colors:current.colors.map(c=>c.slice())});skins=skins.slice(0,12);localStorage.setItem('mzRideSkins',JSON.stringify(skins));renderSkins();toast('Skin baru dibuat');});
+$('skinGrid').addEventListener('click',e=>{const b=e.target.closest('[data-skind]');if(!b)return;const a=b.dataset.skind==='skin'?skins:savedColors,c=a[+b.dataset.si];if(!c)return;current.colors=c.colors?c.colors.map(x=>x.slice()):c.map(x=>x.slice());current.pal=0;updateColorInputs();cacheCurrentFx();applyCurrent(true);});
+$('paletteGrid').addEventListener('click',e=>{const b=e.target.closest('[data-pal]');if(b)applyPalette(+b.dataset.pal);});
+$('addToPlaylist').addEventListener('click',async()=>{const i=+$('addTarget').value;const edit=$('addToPlaylist').dataset.edit;const at=edit!==undefined?+edit:(playlists[i]?.count||0);try{await saveSlot(i,at);delete $('addToPlaylist').dataset.edit;$('addToPlaylist').textContent='＋ Tambah slot';openPlaylist=i;setView('playlists');}catch(e){toast('Gagal menyimpan slot: '+e.message);}});
+$('playlistGrid').addEventListener('click',e=>{const b=e.target.closest('[data-playlist]');if(!b)return;openPlaylist=+b.dataset.playlist;renderPlaylists();});
+$('playlistDetail').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;const i=openPlaylist,p=playlists[i];try{
+if(b.id==='renamePlaylist'){await api('/mizuma/riding/playlist/meta?index='+i+'&name='+encodeURIComponent($('playlistName').value));toast('Nama playlist disimpan');await refreshPlaylists();}
+else if(b.id==='playPlaylist'){await api('/mizuma/riding/playlist/start?index='+i+'&side='+selectedSide);await new Promise(r=>setTimeout(r,120));await refreshPlaylists();toast('Playlist dimulai dari engine ESP32');}
+else if(b.id==='pausePlaylist'){await api('/mizuma/riding/playlist/pause?paused='+(player.paused?'0':'1'));await new Promise(r=>setTimeout(r,80));await refreshPlaylists();}
+else if(b.id==='stopPlaylist'){await api('/mizuma/riding/playlist/stop');await new Promise(r=>setTimeout(r,100));await refreshPlaylists();toast('Playlist dihentikan');}
+else if(b.id==='addSelectedSlot'){await saveSlot(i,p.count);}
+else if(b.id==='clearPlaylist'){if(confirm('Kosongkan seluruh slot playlist ini?')){await api('/mizuma/riding/playlist/clear?index='+i);await new Promise(r=>setTimeout(r,100));await refreshPlaylists();}}
+else if(b.dataset.removeSlot!==undefined){await api('/mizuma/riding/playlist/slot?index='+i+'&slot='+b.dataset.removeSlot+'&remove=1');await refreshPlaylists();}
+else if(b.dataset.move){const from=+b.dataset.slot,to=from+(b.dataset.move==='up'?-1:1);await api('/mizuma/riding/playlist/reorder?index='+i+'&from='+from+'&to='+to);await refreshPlaylists();}
+else if(b.dataset.editSlot!==undefined){const s=p.slots[+b.dataset.editSlot];if(!s)return;current.fx=s.fx;current.pal=s.pal;current.colors=colorsOf(s);current.params={sx:s.sx,ix:s.ix,c1:s.c1,c2:s.c2,c3:s.c3,o1:s.o1,o2:s.o2,o3:s.o3};current.duration=s.duration||20;renderSelected();setView('effects');$('addTarget').value=i;$('durationSec').value=current.duration;$('addToPlaylist').textContent='Simpan perubahan slot';$('addToPlaylist').dataset.edit=String(b.dataset.editSlot);toast('Ubah efek/warna, lalu simpan kembali ke playlist');}
+}catch(err){toast('Aksi playlist gagal: '+err.message);}});
+
+}
+async function init(){setSide('both',true);bind();await loadSwitches();await loadWled();await refreshPlaylists();renderSkins();setInterval(()=>{if(activeView==='playlists'&&document.activeElement?.id!=='playlistName')refreshPlaylists();},4000);}
+init();
+})();
+</script>
+<script>
+(function(){
+function inject(url,done){fetch(url).then(r=>r.text()).then(done).catch(()=>{});}
+inject('/mizuma/frag/header',t=>{const e=document.getElementById('mzH');if(e)e.outerHTML=t;inject('/mizuma/frag/nav',n=>{const x=document.getElementById('mzN');if(x)x.outerHTML=n;const a=document.querySelector('.bottomnav a[href="/led"]');if(a)a.classList.add('active');inject('/mizuma/frag/script',s=>{try{(new Function(s))();}catch(e){}});});});
+})();
+</script>
+</body></html>
+)rawliteral";
+
 // --------------------------------------------------------------------------------------------------------------------------------------
 // Perender halaman + pendaftaran rute UI
 // --------------------------------------------------------------------------------------------------------------------------------------
@@ -995,6 +1135,7 @@ inline void mizumaUiRegister(AsyncWebServer &server, std::function<MizumaVehicle
     AsyncWebServerResponse *res = req->beginResponse_P(200, "text/javascript", MIZUMA_HEADER_SCRIPT);
     res->addHeader("Cache-Control", "max-age=86400"); req->send(res);});
   server.on("/led", HTTP_GET, [](AsyncWebServerRequest *req){ req->send_P(200, "text/html", MIZUMA_LED_HTML); });
+  server.on("/led-legacy", HTTP_GET, [](AsyncWebServerRequest *req){ req->send_P(200, "text/html", MIZUMA_LED_LEGACY_HTML); });
   server.on("/app", HTTP_GET, [getVehicle](AsyncWebServerRequest *req){
     req->send(200, "text/html", mizumaRenderPage(MIZUMA_HOME_HTML, "beranda", getVehicle())); });
   server.on("/pengaturan", HTTP_GET, [getVehicle](AsyncWebServerRequest *req){
