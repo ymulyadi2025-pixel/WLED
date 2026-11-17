@@ -24,13 +24,13 @@ const char MIZUMA_SHARED_CSS[] PROGMEM = R"rawliteral(
 :root{
 --bg:#0a0a0a; --s1:#151515; --s2:#1c1c1c; --s3:#242424;
 --bd:#262626; --bd2:#333;
---tx:#f2f2f2; --tx2:#9a9a9a; --tx3:#666;
+--tx:#f2f2f2; --tx2:#9a9a9a; --tx3:#8c8c8c;
 --ac:#f5a524; --ac-dim:rgba(245,165,36,.14);
 --ok:#3ddc84; --ok-dim:rgba(61,220,132,.14);
 --warn:#e8a33d; --warn-dim:rgba(232,163,61,.14);
 --bad:#e05555; --bad-dim:rgba(224,85,85,.14);
 --r-lg:16px; --r-md:12px; --r-sm:9px;
---nav-h:62px;
+--nav-h:56px;
 --ease:cubic-bezier(.22,1,.36,1);
 color-scheme:dark;
 }
@@ -893,7 +893,9 @@ window.addEventListener('pagehide',function(){if(activeSide==='both')return;try{
 )rawliteral";
 
 
-// Riding workspace v20: UI prototype styling, real WLED catalog/colors, and ESP32 playlist engine.
+// Riding workspace v21: layout mengikuti Mizuma_Prototipe_UI_v19.
+// Seluruh aksi tetap memakai endpoint aktual dari mizuma_smartsystem.cpp.
+// Tidak ada simulasi LED; canvas yang dipertahankan hanya roda pemilih warna.
 const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="id">
@@ -902,64 +904,139 @@ const char MIZUMA_LED_HTML[] PROGMEM = R"rawliteral(
 <meta name="theme-color" content="#0a0a0a"><title>Riding · Mizuma</title>
 <link rel="stylesheet" href="/mizuma.css">
 <style>
-html,body{height:100%;margin:0;background:var(--bg);color:var(--tx)}
-body{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));}
-.rw{max-width:520px;margin:0 auto;padding:12px 12px 24px}
-.rhead{display:flex;align-items:center;gap:10px;margin:2px 2px 12px}.rhead .lead{flex:1;min-width:0}.eyebrow{font-size:10px;color:var(--ac);font-weight:800;letter-spacing:1.2px}.rtitle{font-size:22px;font-weight:850;line-height:1.15;margin-top:2px}.rsub{font-size:11px;color:var(--tx2);margin-top:3px}.legacy{font-size:11px;font-weight:700;color:var(--tx2);border:1px solid var(--bd2);background:var(--s2);padding:9px 11px;border-radius:10px;text-decoration:none;white-space:nowrap}
-.panel{background:var(--s1);border:1px solid var(--bd);border-radius:15px;padding:12px;margin-bottom:10px}.cap{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx2);font-weight:800;margin-bottom:8px}
-.ctrlgrid{display:grid;grid-template-columns:1.25fr 1fr;gap:10px}.segmented{display:flex;gap:3px;padding:3px;background:var(--s2);border:1px solid var(--bd);border-radius:11px}.segmented button{flex:1;min-width:0;padding:9px 3px;border-radius:8px;color:var(--tx2);font-size:12px;font-weight:700}.segmented button.on{background:var(--ac);color:#111}.toolrow{display:flex;gap:6px}.tool{flex:1;min-width:0;padding:8px 4px;border-radius:10px;background:var(--s2);border:1px solid var(--bd2);font-size:11px;font-weight:700;color:var(--tx2)}.tool.on{color:var(--ac);border-color:var(--ac);background:var(--acd)}.tool small{display:block;font-size:9px;font-weight:600;color:inherit;opacity:.8;margin-top:2px}.brrow{display:flex;align-items:center;gap:10px;margin-top:12px}.brrow label{font-size:11px;color:var(--tx2);white-space:nowrap}.brrow input{flex:1;min-width:0}.brrow b{font-size:12px;min-width:27px;text-align:right}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--s1);border:1px solid var(--bd);padding:4px;border-radius:12px;margin:10px 0}.tabs button{padding:10px 4px;border-radius:9px;font-size:12px;font-weight:750;color:var(--tx2)}.tabs button.on{background:var(--acd);color:var(--ac)}
-.view{display:none}.view.on{display:block}.bar{display:flex;align-items:center;gap:8px;margin-bottom:10px}.bar .search{flex:1;min-width:0}.search,input[type=text],input[type=number],select{width:100%;background:var(--s2);color:var(--tx);border:1px solid var(--bd2);border-radius:10px;padding:10px 11px;font:inherit;font-size:12px;outline:none}.barbtn{padding:9px 11px;border:1px solid var(--bd2);border-radius:10px;background:var(--s2);font-size:11px;font-weight:700;color:var(--tx2);white-space:nowrap}.barbtn.on{color:var(--ac);border-color:var(--ac);background:var(--acd)}
-.fxgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.catalogGroup{margin-bottom:12px}.catalogGroup:last-child{margin-bottom:0}.catalogTitle{font-size:10px;color:var(--tx2);font-weight:800;letter-spacing:.55px;text-transform:uppercase;margin:4px 0 7px}.catalogTitle small{font-size:9px;color:var(--tx3);margin-left:4px}.catalogHint{font-size:10px;color:var(--tx3);line-height:1.4;margin:-2px 0 7px}.fx{min-width:0;text-align:left;position:relative;background:var(--s1);border:1px solid var(--bd);border-radius:11px;padding:10px 9px 9px;min-height:60px}.fx.on{border-color:var(--ac);background:var(--acd)}.fx b{display:block;padding-right:24px;font-size:12px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fx small{display:block;color:var(--tx3);font-size:10px;margin-top:4px}.fx .fav{position:absolute;right:5px;top:4px;padding:5px;font-size:18px;color:var(--tx3)}.fx .fav.on{color:var(--ac)}
-.selected{display:flex;align-items:center;gap:9px}.selected .swatch{width:46px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);flex:none}.selected .desc{flex:1;min-width:0}.selected .desc b{display:block;font-size:13px}.selected .desc small{display:block;color:var(--tx2);font-size:10px;margin-top:2px}.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:11px;border:1px solid var(--bd2);border-radius:11px;background:var(--s2);font-size:12px;font-weight:800;color:var(--tx);margin-top:8px}.btn.primary{background:var(--ac);border-color:var(--ac);color:#111}.btn.outline{border-color:var(--ac);color:var(--ac);background:transparent}.btnrow{display:flex;gap:7px}.btnrow .btn{flex:1}
-.params{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}.param{min-width:0}.param label{display:flex;justify-content:space-between;gap:5px;color:var(--tx2);font-size:10px;margin-bottom:5px}.param label b{color:var(--tx)}.param input{width:100%;accent-color:var(--ac)}.switchrow{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--bd);font-size:11px;color:var(--tx2)}.switchrow:last-child{border:0}.switch{width:44px;height:25px;border-radius:20px;background:var(--s3);border:1px solid var(--bd2);position:relative}.switch:after{content:"";position:absolute;left:3px;top:3px;width:17px;height:17px;background:#888;border-radius:50%;transition:.15s}.switch.on{background:var(--acd);border-color:var(--ac)}.switch.on:after{left:22px;background:var(--ac)}
+:root{--ride-gold:#f5a524;--ride-gold-soft:rgba(245,165,36,.14)}
+html,body{height:100%;overflow:hidden;margin:0;background:var(--bg);color:var(--tx)}
+body{display:flex;flex-direction:column;min-height:0;padding-bottom:0}
+#mzH{flex:none;z-index:35}#mzN{display:block}
+.mzheader{min-height:108px;padding:14px 24px!important}
+.mzheader .logo{width:58px!important;height:58px!important;border-radius:15px!important;font-size:27px!important}
+.mzheader .brand{flex:1;min-width:0;gap:16px!important}
+.mzheader .brandtext{min-width:0;line-height:1.2!important}
+.ride-state{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:800;color:var(--ride-gold);margin-bottom:4px}
+.ride-state .saved{color:var(--ok)}.ride-state .unsaved{color:var(--warn)}
+.ride-now{font-size:17px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(58vw,520px)}
+.ride-meta{font-size:13px;color:var(--tx2);margin-top:3px}
+.mzheader .status{gap:12px!important}
+.mzheader .volt{font-size:15px!important;padding:12px 16px!important;border-radius:30px!important;min-height:54px}
+.mzheader .conn{display:none!important}
+.ride-brightness{width:58px;height:58px;border-radius:50%;border:1px solid var(--bd2);background:var(--s2);font-size:22px;display:flex;align-items:center;justify-content:center;color:var(--tx)}
+.rw{width:100%;max-width:none;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;margin:0;padding:0}
+.rfreeze{flex:none;border-bottom:1px solid var(--bd);padding:0;background:var(--bg)}
+.rhead,.legacy{display:none!important}
+.tabs{display:flex;gap:0;margin:0;border:0;border-bottom:1px solid var(--bd);border-radius:0;padding:0;background:var(--s1)}
+.tabs button{flex:1;min-width:0;padding:19px 8px 16px;border:0;border-bottom:4px solid transparent;border-radius:0;background:transparent;color:var(--tx2);font-size:15px;font-weight:700}
+.tabs button.on{background:transparent;color:#fff;border-bottom-color:var(--ride-gold)}
+.sideDock{display:grid;grid-template-columns:minmax(0,1fr) 180px minmax(0,1fr);align-items:stretch;gap:14px;padding:16px 20px 15px;border-bottom:1px solid var(--bd);background:#101010}
+.sideCard{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:8px 11px 9px;background:var(--s1);border:1px solid var(--bd);border-radius:16px;color:var(--tx2);font-size:14px;font-weight:800}
+.sideCard.on{border-color:var(--ride-gold);color:var(--ride-gold);background:var(--ride-gold-soft)}
+.sideGradient{height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(90deg,#242424,#121212)}
+.sideMiddle{display:flex;flex-direction:column;justify-content:center;gap:7px}
+.sideMiddle button{width:100%;min-height:36px;padding:7px 9px;border-radius:20px;background:var(--s2);border:1px solid var(--bd);color:var(--tx2);font-size:13px;font-weight:800}
+.sideMiddle #favFilter.on,.sideMiddle [data-side="both"].on{border-color:var(--ride-gold);background:var(--ride-gold-soft);color:var(--ride-gold)}
+.rscroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:12px 20px 18px}
+.view{display:none}.view.on{display:block}
+#view-effects{padding-bottom:8px}
+.searchTools{display:flex;gap:8px;margin-bottom:10px}
+.searchTools .search{flex:1;min-width:0}
+.search,.field input,input[type=text],input[type=number],select{background:var(--s2);color:var(--tx);border:1px solid var(--bd2);border-radius:10px;padding:10px 11px;font:inherit;font-size:12px;outline:none}
+.search{width:100%}.searchTools{display:none}
+.catalogGroup{margin:0 0 14px}.catalogGroup:last-child{margin-bottom:0}
+.catalogTitle{font-size:10px;color:var(--tx2);font-weight:800;letter-spacing:.65px;text-transform:uppercase;margin:8px 3px}
+.catalogTitle small{font-size:10px;color:var(--tx3);margin-left:6px}
+.fxgrid{display:flex;flex-direction:column;gap:8px}
+.effectRow{min-height:70px;display:grid;grid-template-columns:42px minmax(0,1fr) auto auto 44px;align-items:center;gap:9px;padding:9px 12px;background:var(--s1);border:1px solid var(--bd);border-radius:17px;transition:background .16s,border-color .16s}
+.effectRow.on{background:var(--ride-gold-soft);border-color:var(--ride-gold)}
+.effectNum{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--s3);color:#fff;font-size:14px;font-weight:850}
+.effectRow.on .effectNum{background:var(--ride-gold);color:#111}
+.effectPick{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;min-width:0;text-align:left;padding:7px 4px;font-size:18px;font-weight:800;color:#fff}
+.effectPick b{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.effectPick small{font-size:10px;color:var(--tx3);font-weight:500;margin-top:3px}
+.rowAction{display:flex;align-items:center;justify-content:center;gap:7px;min-height:62px;padding:8px 14px;border-radius:19px;border:1px solid var(--bd2);background:var(--s2);color:var(--tx2);font-size:13px;font-weight:800;white-space:nowrap}
+.rowAction.color{border-color:var(--ride-gold);color:var(--ride-gold);background:var(--ride-gold-soft)}
+.rowAction .sample{width:38px;height:18px;border-radius:7px;border:1px solid rgba(255,255,255,.25)}
+.rowFav{width:48px;height:48px;border-radius:50%;font-size:25px;color:var(--tx3);display:flex;align-items:center;justify-content:center}
+.rowFav.on{color:var(--ride-gold)}
+.selectedHidden{display:none!important}
+.empty{padding:22px;text-align:center;color:var(--tx3);font-size:12px;background:var(--s1);border:1px dashed var(--bd2);border-radius:12px}
+.controlFooter{flex:none;position:relative;z-index:25;display:grid;grid-template-columns:1fr 1fr;gap:30px;padding:22px 26px 38px;background:#151515;border-top:1px solid var(--bd)}
+#params{display:grid;grid-template-columns:1fr 1fr;gap:28px}
+.param{min-width:0}.param label{display:flex;justify-content:space-between;gap:8px;color:var(--tx2);font-size:13px;margin:0 0 7px}.param label b{color:var(--tx);font-weight:700}
+.param input{width:100%;accent-color:var(--ride-gold);height:18px;margin:0}
+#paramHint{display:none}
+.panel{background:var(--s1);border:1px solid var(--bd);border-radius:15px;padding:14px;margin-bottom:10px}
+.cap{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--tx2);font-weight:800;margin-bottom:9px}
+.playgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px}
+.plcard{padding:12px;text-align:left;border:1px solid var(--bd);border-radius:13px;background:var(--s1);min-width:0;color:var(--tx)}.plcard.on{border-color:var(--ride-gold)}
+.plthumb{display:flex;height:28px;overflow:hidden;border-radius:7px;background:#080808;margin-bottom:8px}.plthumb i{flex:1;min-width:0}
+.plcard b{display:block;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plcard small{display:block;color:var(--tx2);font-size:11px;margin-top:3px}.plstatus{font-size:10px;color:var(--ok);margin-top:5px;font-weight:800}
+.pldetail{margin-top:10px}.plhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}.plhead b{flex:1;font-size:15px}.slotrow{display:flex;align-items:center;gap:8px;padding:9px;margin-bottom:7px;background:var(--s2);border:1px solid var(--bd);border-radius:10px}.slotrow .n{font-size:11px;color:var(--tx3);width:17px}.slotrow .swatches{display:flex;gap:2px;width:40px;height:22px;border-radius:5px;overflow:hidden;flex:none}.slotrow .swatches i{flex:1}.slotrow .meta{flex:1;min-width:0}.slotrow .meta b{display:block;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.slotrow .meta small{display:block;font-size:10px;color:var(--tx2);margin-top:2px}.slotrow button{width:32px;height:32px;flex:none;border-radius:8px;background:var(--s3);border:1px solid var(--bd2);font-size:12px}.slotrow .edit{color:var(--ride-gold)}
+.plname{display:flex;gap:7px;margin-bottom:8px}.plname input{flex:1;min-width:0}.plactions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.plactions button{padding:10px 3px;font-size:11px;font-weight:800;border-radius:9px;background:var(--s2);border:1px solid var(--bd2);color:var(--tx)}.plactions .play{background:var(--ride-gold);border-color:var(--ride-gold);color:#111}
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;padding:11px;border:1px solid var(--bd2);border-radius:11px;background:var(--s2);font-size:12px;font-weight:800;color:var(--tx);margin-top:8px}.btn.primary{background:var(--ride-gold);border-color:var(--ride-gold);color:#111}.btn.outline{border-color:var(--ride-gold);color:var(--ride-gold);background:transparent}.btnrow{display:flex;gap:7px}.btnrow .btn{flex:1}
 .hint{font-size:10px;color:var(--tx3);line-height:1.45;margin-top:8px}.pill{display:inline-flex;align-items:center;gap:5px;border-radius:20px;padding:4px 8px;background:var(--s3);font-size:10px;color:var(--tx2)}.statusdot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
-.playgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.plcard{padding:10px;text-align:left;border:1px solid var(--bd);border-radius:13px;background:var(--s1);min-width:0}.plcard.on{border-color:var(--ac)}.plthumb{display:flex;height:28px;overflow:hidden;border-radius:7px;background:#080808;margin-bottom:8px}.plthumb i{flex:1;min-width:0}.plcard b{display:block;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plcard small{display:block;color:var(--tx2);font-size:10px;margin-top:3px}.plstatus{font-size:9px;color:var(--ok);margin-top:5px;font-weight:800}.pldetail{margin-top:10px}.plhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}.plhead b{flex:1;font-size:14px}.slotrow{display:flex;align-items:center;gap:7px;padding:8px;margin-bottom:6px;background:var(--s2);border:1px solid var(--bd);border-radius:10px}.slotrow .n{font-size:10px;color:var(--tx3);width:16px}.slotrow .swatches{display:flex;gap:2px;width:36px;height:22px;border-radius:5px;overflow:hidden;flex:none}.slotrow .swatches i{flex:1}.slotrow .meta{flex:1;min-width:0}.slotrow .meta b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.slotrow .meta small{display:block;font-size:9px;color:var(--tx2);margin-top:2px}.slotrow button{width:32px;height:32px;flex:none;border-radius:8px;background:var(--s3);border:1px solid var(--bd2);font-size:12px}.slotrow .edit{color:var(--ac)}.plname{display:flex;gap:7px;margin-bottom:8px}.plname input{flex:1;min-width:0}.plactions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.plactions button{padding:10px 3px;font-size:11px;font-weight:800;border-radius:9px;background:var(--s2);border:1px solid var(--bd2)}.plactions .play{background:var(--ac);border-color:var(--ac);color:#111}
-.color-mode{display:flex;gap:6px;margin-bottom:10px}.color-mode button{flex:1;padding:9px 5px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:11px;color:var(--tx2);font-weight:700}.color-mode button.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}.rgbrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rgbitem{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}.rgbitem label{display:block;font-size:10px;color:var(--tx2);margin-bottom:6px}.rgbitem input[type=color]{width:100%;height:38px;border:0;padding:0;background:none}.wheelbox{display:flex;flex-direction:column;align-items:center;gap:9px;margin:12px 0 4px}.wheel-target{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}.wheel-target button{padding:7px 4px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:10px;font-weight:700;color:var(--tx2)}.wheel-target button.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}#rideColorWheel{display:block;width:min(230px,72vw);height:auto;aspect-ratio:1;touch-action:none;border-radius:50%}.wheel-value{display:flex;align-items:center;gap:9px;width:100%;font-size:10px;color:var(--tx2)}.wheel-value input{flex:1;min-width:0;accent-color:var(--ac)}.wheel-value b{min-width:32px;text-align:right;color:var(--tx)}.wheel-hex{font-size:10px;color:var(--tx2);font-weight:700}.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.quick button{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.2)}.palgrid,.skingrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.pal{position:relative;display:flex;align-items:center;gap:8px;padding:9px 8px;border:1px solid var(--bd);border-radius:10px;background:var(--s1);min-width:0;text-align:left}.pal.on{border-color:var(--ac)}.pal i{width:42px;height:18px;border-radius:5px;flex:none}.pal b{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.skin{padding:9px;border:1px solid var(--bd);background:var(--s1);border-radius:10px;text-align:left}.skin.on{border-color:var(--ac)}.skin .swatches{height:26px;display:flex;overflow:hidden;border-radius:6px;margin-bottom:6px}.skin .swatches i{flex:1}.skin b{display:block;font-size:11px}.skin small{font-size:9px;color:var(--tx2)}.sectiontitle{font-size:10px;color:var(--tx2);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 7px}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field{margin-top:9px}.field label{display:block;font-size:10px;color:var(--tx2);margin-bottom:4px}.hide{display:none!important}.empty{padding:20px 12px;text-align:center;border:1px dashed var(--bd2);border-radius:12px;color:var(--tx2);font-size:12px}.toast{position:fixed;z-index:100;left:50%;bottom:calc(var(--nav-h) + 78px);transform:translateX(-50%);padding:9px 14px;border-radius:22px;background:var(--s2);border:1px solid var(--bd2);font-size:11px;font-weight:700;color:var(--ok);opacity:0;pointer-events:none;transition:opacity .18s;white-space:nowrap}.toast.show{opacity:1}
-@media(min-width:520px){.rw{padding-left:18px;padding-right:18px}.fxgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.ctrlgrid{grid-template-columns:1.3fr 1fr}}
+.field{display:flex;align-items:center;gap:10px;margin:8px 0}.field label{font-size:11px;color:var(--tx2);white-space:nowrap}.field input{width:85px}
+.color-mode{display:flex;gap:6px;margin-bottom:10px}.color-mode button{flex:1;padding:9px 5px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:11px;color:var(--tx2);font-weight:700}.color-mode button.on{border-color:var(--ride-gold);background:var(--ride-gold-soft);color:var(--ride-gold)}
+.rgbrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rgbitem{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}.rgbitem label{display:block;font-size:10px;color:var(--tx2);margin-bottom:6px}.rgbitem input[type=color]{width:100%;height:38px;border:0;padding:0;background:none}
+.wheelbox{display:flex;flex-direction:column;align-items:center;gap:9px;margin:12px 0 4px}.wheel-target{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}.wheel-target button{padding:7px 4px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:10px;font-weight:700;color:var(--tx2)}.wheel-target button.on{border-color:var(--ride-gold);background:var(--ride-gold-soft);color:var(--ride-gold)}#rideColorWheel{display:block;width:min(230px,72vw);height:auto;aspect-ratio:1;touch-action:none;border-radius:50%}.wheel-value{display:flex;align-items:center;gap:9px;width:100%;font-size:10px;color:var(--tx2)}.wheel-value input{flex:1;min-width:0;accent-color:var(--ride-gold)}.wheel-value b{min-width:32px;text-align:right;color:var(--tx)}.wheel-hex{font-size:10px;color:var(--tx2);font-weight:700}
+.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.quick button{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.2)}.palgrid,.skingrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:7px}.pal,.skin{position:relative;display:flex;align-items:center;gap:8px;padding:9px 8px;border:1px solid var(--bd);border-radius:10px;background:var(--s1);min-width:0;text-align:left;color:var(--tx)}.pal.on,.skin.on{border-color:var(--ride-gold)}.pal i{width:42px;height:22px;border-radius:6px;flex:none}.pal b,.skin b{font-size:11px}.skin .swatches{display:flex;width:48px;height:24px;border-radius:5px;overflow:hidden;flex:none}.skin .swatches i{flex:1}.skin small{display:block;color:var(--tx3);font-size:9px}
+.backRow{display:flex;align-items:center;gap:10px;margin:0 0 12px}.backRow button{border:1px solid var(--bd2);border-radius:10px;padding:8px 11px;background:var(--s2);font-size:12px;font-weight:700}.backRow b{font-size:14px}
+.brightnessOverlay{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.62);display:none;align-items:flex-end;justify-content:center;padding:15px}.brightnessOverlay.show{display:flex}.brightnessSheet{width:min(460px,100%);background:var(--s1);border:1px solid var(--bd2);border-radius:18px;padding:18px;box-shadow:0 18px 60px rgba(0,0,0,.4)}.brightnessHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-weight:800}.brightnessHead button{width:34px;height:34px;border-radius:9px;background:var(--s2);border:1px solid var(--bd2)}.brightnessSheet input{width:100%;accent-color:var(--ride-gold)}
+.hiddenControl{display:none!important}.hide{display:none!important}
+@media(max-width:760px){
+ .mzheader{min-height:80px;padding:9px 12px!important}.mzheader .logo{width:44px!important;height:44px!important;font-size:21px!important}.mzheader .brand{gap:10px!important}.ride-state{font-size:11px;margin-bottom:2px}.ride-now{font-size:13px;max-width:45vw}.ride-meta{font-size:10px}.mzheader .volt{font-size:11px!important;padding:8px 10px!important;min-height:40px}.ride-brightness{width:42px;height:42px;font-size:18px}
+ .tabs button{font-size:12px;padding:12px 5px 10px}.sideDock{grid-template-columns:minmax(0,1fr) 88px minmax(0,1fr);gap:6px;padding:9px 8px}.sideCard{padding:7px 7px;gap:7px;font-size:11px;border-radius:12px}.sideGradient{height:19px}.sideMiddle button{font-size:10px;padding:6px 3px;min-height:30px}
+ .rscroll{padding:9px 8px 14px}.effectRow{grid-template-columns:29px minmax(0,1fr) auto auto 30px;min-height:58px;gap:5px;padding:6px 7px;border-radius:12px}.effectNum{width:28px;height:28px;font-size:11px}.effectPick{font-size:12px;padding:5px 1px}.effectPick small{display:none}.rowAction{min-height:35px;padding:6px 8px;border-radius:13px;font-size:10px}.rowAction .sample{width:20px;height:15px}.rowFav{width:28px;height:32px;font-size:20px}.controlFooter{padding:10px 12px 14px;gap:12px}.param label{font-size:10px;margin-bottom:4px}#params{gap:12px}.param input{height:15px}
+ .playgrid{grid-template-columns:1fr 1fr}.slotrow{gap:4px;padding:6px}.slotrow button{width:27px;height:28px}.slotrow .swatches{width:28px}.plactions button{font-size:10px}.field{flex-wrap:wrap}
+}
 </style></head>
 <body>
 <div id="mzH"></div>
 <div class="rw">
- <div class="rhead"><div class="lead"><div class="eyebrow">MIZUMA SMART SYSTEM</div><div class="rtitle" id="ridingTitle">Riding</div><div class="rsub" id="ridingSubtitle">Atur efek, warna, dan playlist saat berkendara</div></div><span class="legacy" id="ridingPageBadge">Single / Playlist</span></div>
- <section class="panel">
-  <div class="ctrlgrid">
-   <div><div class="cap">Sisi lampu</div><div class="segmented" id="sideSelect"><button data-side="kiri">Kiri</button><button data-side="both" class="on">Semua</button><button data-side="kanan">Kanan</button></div></div>
-   <div><div class="cap">Pengaturan output</div><div class="toolrow"><button class="tool" id="swapBtn">⇄ Posisi<small>Normal</small></button><button class="tool" id="reverseBtn">↔ Arah<small>Normal</small></button></div></div>
+ <div class="rfreeze">
+  <div class="tabs" id="mainTabs"><button data-view="effects" class="on">Single Effect</button><button data-view="playlists">Playlist Animasi</button></div>
+  <div class="sideDock" id="sideSelect">
+   <button class="sideCard" data-side="kiri"><span class="sideGradient" id="leftSideGradient"></span><span>Kiri</span></button>
+   <div class="sideMiddle"><button id="favFilter">★ Favorit</button><button data-side="both" class="on">Semua</button></div>
+   <button class="sideCard" data-side="kanan"><span class="sideGradient" id="rightSideGradient"></span><span>Kanan</span></button>
   </div>
-  <div class="brrow"><label for="brightness">Kecerahan</label><input id="brightness" type="range" min="1" max="255" value="180"><b id="brightnessVal">180</b></div>
- </section>
- <div class="tabs" id="mainTabs"><button data-view="effects" class="on">Single Effect</button><button data-view="playlists">Playlist</button><button data-view="colors">Warna / Skin</button></div>
- <section class="view on" id="view-effects">
-  <div class="panel">
-   <div class="bar"><input class="search" id="fxSearch" placeholder="Cari efek WLED..."><button class="barbtn on" id="favFilter">Semua</button></div>
-   <div class="fxgrid" id="fxGrid"><div class="empty">Memuat efek dari WLED...</div></div>
-  </div>
-  <div class="panel">
-   <div class="cap">Efek terpilih</div>
-   <div class="selected"><span class="swatch" id="currentSwatch"></span><div class="desc"><b id="currentFxName">Memuat...</b><small id="currentFxInfo">Atur warna dan parameter efek</small></div><button class="barbtn" id="saveSingle">Simpan</button></div>
-   <div class="sectiontitle">Parameter efek</div><div id="params" class="params"><div class="hint">Parameter mengikuti metadata efek WLED.</div></div>
-   <div class="hint" id="paramHint"></div>
-   <div class="btnrow"><button class="btn outline" id="openColors">Atur warna</button><button class="btn primary" id="applySingle">Terapkan efek</button></div>
-   <div class="field"><label for="durationSec">Durasi slot playlist (detik)</label><input id="durationSec" type="number" inputmode="numeric" min="1" max="600" step="1" value="20"></div>
-   <div class="field"><label for="addTarget">Tambahkan efek ini ke playlist</label><div class="btnrow"><select id="addTarget"><option value="0">Playlist 1</option><option value="1">Playlist 2</option><option value="2">Playlist 3</option><option value="3">Playlist 4</option></select><button class="btn primary" id="addToPlaylist">＋ Tambah slot</button></div></div>
-  </div>
- </section>
- <section class="view" id="view-playlists">
-  <div class="panel"><div class="cap">Playlist Riding · tersimpan di ESP32</div><div class="playgrid" id="playlistGrid"><div class="empty">Memuat playlist...</div></div><div class="hint">Playlist berjalan dari engine ESP32. HP boleh ditutup setelah playlist dimulai.</div></div>
-  <div class="panel pldetail" id="playlistDetail"><div class="empty">Pilih playlist untuk mengelola slot.</div></div>
- </section>
- <section class="view" id="view-colors">
-  <div class="panel">
-   <div class="cap">Warna untuk efek terpilih</div>
-   <div class="color-mode" id="colorMode"><button data-mode="solid" class="on">Warna Solid</button><button data-mode="skin">Skin Efek</button></div>
-   <div id="solidEditor"><div class="rgbrow"><div class="rgbitem"><label>Warna utama</label><input type="color" id="color0"></div><div class="rgbitem"><label>Warna kedua</label><input type="color" id="color1"></div><div class="rgbitem"><label>Warna ketiga</label><input type="color" id="color2"></div></div><div class="wheelbox"><div class="wheel-target" id="colorTarget"><button type="button" class="on" data-target="0">Utama</button><button type="button" data-target="1">Kedua</button><button type="button" data-target="2">Ketiga</button></div><canvas id="rideColorWheel" width="260" height="260" aria-label="Pilih warna dari roda warna"></canvas><div class="wheel-value"><label for="colorValue">Kecerahan</label><input id="colorValue" type="range" min="0" max="100" value="100"><b id="colorValueText">100%</b></div><div class="wheel-hex" id="colorHex">#FFA500</div></div><div class="quick" id="quickColors"></div></div>
-   <div id="skinEditor" class="hide"><div class="skingrid" id="skinGrid"></div></div>
-   <div class="btnrow"><button class="btn" id="saveColor">Simpan warna</button><button class="btn outline" id="newSkin">＋ Buat skin baru</button></div>
-  </div>
-  <div class="panel"><div class="cap">Palette WLED</div><div class="palgrid" id="paletteGrid"><div class="empty">Memuat palette...</div></div><div class="hint">Palette berasal dari firmware WLED yang sedang terpasang.</div></div>
- </section>
+ </div>
+ <div class="rscroll" id="rScroll">
+  <section class="view on" id="view-effects">
+   <div class="searchTools"><input class="search" id="fxSearch" placeholder="Cari efek atau animasi..."></div>
+   <div class="panel" id="editSlotPanel" style="display:none"><div class="cap">Edit slot playlist</div><div class="field"><label for="addTarget">Simpan perubahan ke</label><select id="addTarget"><option value="0">Playlist 1</option><option value="1">Playlist 2</option><option value="2">Playlist 3</option><option value="3">Playlist 4</option></select></div><button class="btn primary" id="addToPlaylist">Simpan perubahan slot</button></div><div class="fxgrid" id="fxGrid"><div class="empty">Memuat daftar efek dari firmware...</div></div>
+   <div class="selectedHidden" aria-hidden="true">
+    <span id="currentSwatch"></span><b id="currentFxName">Memuat...</b><small id="currentFxInfo"></small>
+    <button id="openColors">Warna</button><button id="applySingle">Pakai</button>
+   </div>
+  </section>
+  <section class="view" id="view-playlists">
+   <div class="panel"><div class="cap">Playlist Animasi · tersimpan di ESP32</div><div class="playgrid" id="playlistGrid"><div class="empty">Memuat playlist...</div></div><div class="hint">Playlist berjalan langsung dari engine ESP32. Playlist dapat berisi efek WLED, efek native Welcoming, dan animasi multi-stage Mizuma.</div></div>
+   <div class="panel"><div class="field"><label for="durationSec">Durasi slot terpilih</label><input id="durationSec" type="number" min="1" max="600" step="1" value="20"> <span class="hint">detik</span></div></div><div class="panel pldetail" id="playlistDetail"><div class="empty">Pilih playlist untuk mengelola slot.</div></div>
+  </section>
+  <section class="view" id="view-colors">
+   <div class="backRow"><button id="backToEffects">← Kembali</button><b>Warna / Skin Efek</b></div>
+   <div class="panel">
+    <div class="cap">Warna untuk efek terpilih</div>
+    <div class="color-mode" id="colorMode"><button data-mode="solid" class="on">Warna Solid</button><button data-mode="skin">Skin Efek</button></div>
+    <div id="solidEditor"><div class="rgbrow"><div class="rgbitem"><label>Warna utama</label><input type="color" id="color0"></div><div class="rgbitem"><label>Warna kedua</label><input type="color" id="color1"></div><div class="rgbitem"><label>Warna ketiga</label><input type="color" id="color2"></div></div>
+     <div class="wheelbox"><div class="wheel-target" id="colorTarget"><button data-target="0" class="on">Warna 1</button><button data-target="1">Warna 2</button><button data-target="2">Warna 3</button></div><canvas id="rideColorWheel" width="280" height="280"></canvas><div class="wheel-value"><span>Terang</span><input id="colorValue" type="range" min="0" max="100" value="100"><b id="colorValueText">100%</b></div><span id="colorHex" class="wheel-hex">#FFA500</span></div>
+     <div class="quick" id="quickColors"></div>
+    </div>
+    <div id="skinEditor" class="hide"><div class="skingrid" id="skinGrid"></div></div>
+    <div class="btnrow"><button class="btn" id="saveColor">Simpan warna</button><button class="btn outline" id="newSkin">＋ Buat skin baru</button></div>
+    <div class="btnrow"><button class="btn primary" id="saveSingle">Simpan preset ke ESP32</button></div>
+   </div>
+   <div class="panel"><div class="cap">Palette WLED</div><div class="palgrid" id="paletteGrid"><div class="empty">Memuat palette...</div></div><div class="hint">Palette dibaca langsung dari firmware WLED.</div></div>
+  </section>
+ </div>
 </div>
+<div class="controlFooter"><div id="params"><div class="param"><label><span>Kecepatan</span><b id="v_sx">128</b></label><input type="range" min="0" max="255" value="128" data-param="sx"></div><div class="param"><label><span>Intensitas</span><b id="v_ix">128</b></label><input type="range" min="0" max="255" value="128" data-param="ix"></div></div></div>
+<div class="hiddenControl">
+ <span id="ridingTitle">Riding</span><span id="ridingSubtitle">Atur efek, warna, dan playlist</span><span id="ridingPageBadge">Single / Playlist</span>
+ <input id="brightness" type="range" min="1" max="255" value="180"><span id="brightnessVal">180</span>
+ <button id="swapBtn">Posisi<small>Normal</small></button><button id="reverseBtn">Arah<small>Normal</small></button>
+ <div id="paramHint"></div>
+</div>
+<div class="brightnessOverlay" id="brightnessOverlay"><div class="brightnessSheet"><div class="brightnessHead"><span>Kecerahan global</span><button id="brightnessClose">✕</button></div><div class="param"><label><span>Brightness</span><b id="brightnessValVisible">180</b></label><input id="brightnessVisible" type="range" min="1" max="255" value="180"></div><div class="hint">Perubahan disimpan otomatis ke ESP32.</div></div></div>
 <div id="mzN"></div><div id="toast" class="toast"></div>
 <script>
 (function(){
@@ -975,7 +1052,7 @@ let current={kind:'fx',fx:0,showIndex:0,pal:0,colors:[[255,165,0],[255,255,255],
 let paramCache={};try{paramCache=JSON.parse(localStorage.getItem('mzRideFxParams')||'{}')||{};}catch(e){paramCache={};}
 const pagePath=location.pathname;const colorPage=pagePath==='/warna';const welcomingPage=pagePath==='/welcoming';
 let playlists=[],openPlaylist=-1,player={active:false,paused:false,playlist:0,slot:0,side:'both'};
-let favorites=new Set(),savedColors=[],skins=[];let applyTimer=null,catalogReady=false;
+let favorites=new Set(),savedColors=[],skins=[];let applyTimer=null,catalogReady=false,rideSaved=true,rideIsOn=true;
 try{favorites=new Set(JSON.parse(localStorage.getItem('mzRideFav')||'[]'));}catch(e){}
 try{savedColors=JSON.parse(localStorage.getItem('mzRideColors')||'[]');}catch(e){savedColors=[];}
 try{skins=JSON.parse(localStorage.getItem('mzRideSkins')||'[]');}catch(e){skins=[];}
@@ -1002,9 +1079,9 @@ if(current.kind==='show'){
   await api('/mizuma/show/stop?side='+encodeURIComponent(selectedSide));
   await jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({on:true,seg:segmentIds().map(makeStateSegment)})});
 }
-if(!silent)toast('Efek diterapkan');}catch(e){toast('Gagal menerapkan efek: '+e.message);}}
+rideIsOn=true;updateRideHeader();if(!silent)toast('Efek diterapkan');}catch(e){toast('Gagal menerapkan efek: '+e.message);}}
 function saveQuery(slot){const p=new URLSearchParams({slot,fx:current.kind==='show'?0:current.fx,isShow:current.kind==='show'?1:0,showIndex:current.kind==='show'?current.showIndex:0,pal:current.pal,r:current.colors[0][0],g:current.colors[0][1],b:current.colors[0][2],r1:current.colors[1][0],g1:current.colors[1][1],b1:current.colors[1][2],r2:current.colors[2][0],g2:current.colors[2][1],b2:current.colors[2][2],sx:current.params.sx,ix:current.params.ix,c1:current.params.c1,c2:current.params.c2,c3:current.params.c3,o1:current.params.o1,o2:current.params.o2,o3:current.params.o3,bri:parseInt($('brightness').value,10)||180});return p;}
-async function saveSingle(){const prefix=welcomingPage?'welcoming':'riding';const slots=selectedSide==='both'?[prefix+'Kanan',prefix+'Kiri']:[prefix+(selectedSide==='kanan'?'Kanan':'Kiri')];try{for(const s of slots)await api('/mizuma/preset?'+saveQuery(s));toast('Preset '+(welcomingPage?'Welcoming':'Riding')+' tersimpan di ESP32');}catch(e){toast('Gagal menyimpan preset');}}
+async function saveSingle(){const prefix=welcomingPage?'welcoming':'riding';const slots=selectedSide==='both'?[prefix+'Kanan',prefix+'Kiri']:[prefix+(selectedSide==='kanan'?'Kanan':'Kiri')];try{for(const s of slots)await api('/mizuma/preset?'+saveQuery(s));rideSaved=true;updateRideHeader();toast('Preset '+(welcomingPage?'Welcoming':'Riding')+' tersimpan di ESP32');}catch(e){toast('Gagal menyimpan preset');}}
 function paramCacheSave(){
   if(current.kind!=='fx')return;
   paramCache[current.fx]=Object.assign({},current.params);
@@ -1046,54 +1123,82 @@ function toggleFavoriteEntry(kind,id){
   if(isFavoriteEntry(kind,id)){favorites.delete(key);if(kind==='fx')favorites.delete(id);}else favorites.add(key);
   try{localStorage.setItem('mzRideFav',JSON.stringify([...favorites]));}catch(e){}
 }
-function renderEffectButton(kind,id,name,sub,isSelected){
-  const fav=isFavoriteEntry(kind,id),key=kind==='show'?'show:'+id:'fx:'+id;
-  return '<button class="fx'+(isSelected?' on':'')+'" data-select-kind="'+kind+'" data-select-id="'+id+'"><b>'+esc(name)+'</b><small>'+esc(sub)+'</small><span class="fav'+(fav?' on':'')+'" data-fav="'+id+'" data-fav-kind="'+kind+'">'+(fav?'★':'☆')+'</span></button>';
+function renderEffectButton(kind,id,name,sub,isSelected,number){
+  const fav=isFavoriteEntry(kind,id);
+  const kindLabel=kind==='show'?'Animasi Welcoming Mizuma':(isWelcomeNativeFx(id)?'Efek Native Welcoming':'Efek WLED');
+  const swatch='linear-gradient(90deg,'+current.colors.map(hex).join(',')+')';
+  return '<div class="effectRow'+(isSelected?' on':'')+'"><span class="effectNum">'+number+'</span>'+
+    '<button class="effectPick" data-select-kind="'+kind+'" data-select-id="'+id+'"><b>'+esc(name)+'</b><small>'+esc(kindLabel)+'</small></button>'+
+    (isSelected?'<button class="rowAction color" data-open-colors="1"><i class="sample" style="background:'+swatch+'"></i>Warna</button><button class="rowAction" data-apply-current="1">Pakai</button><button class="rowFav'+(fav?' on':'')+'" data-fav="'+id+'" data-fav-kind="'+kind+'" aria-label="'+(fav?'Hapus favorit':'Tambah favorit')+'">'+(fav?'★':'☆')+'</button>':'')+'</div>'; 
 }
+function isWelcomeNativeFx(fxId){return welcomeNativeList.some(x=>x.id===fxId);}
 function renderEffects(){
-  const q=$('fxSearch').value.trim().toLowerCase();
-  const groups=[];
-  const ordinary=welcomingPage?[]:fxList.filter(x=>!welcomeNativeList.some(w=>w.id===x.id)).filter(x=>(!q||x.name.toLowerCase().includes(q))&&(!showFavorites||isFavoriteEntry('fx',x.id)));
-  if(ordinary.length)groups.push({title:'Efek WLED',items:ordinary.map(x=>renderEffectButton('fx',x.id,x.name,(fxParams(x.id).sl.length+fxParams(x.id).tg.length)+' parameter',current.kind==='fx'&&x.id===current.fx))});
-  const native=welcomeNativeList.filter(x=>(!q||x.name.toLowerCase().includes(q))&&(!showFavorites||isFavoriteEntry('fx',x.id)));
-  if(native.length)groups.push({title:'Efek Native Welcoming',items:native.map(x=>renderEffectButton('fx',x.id,x.name,(fxParams(x.id).sl.length+fxParams(x.id).tg.length)+' parameter',current.kind==='fx'&&x.id===current.fx))});
-  const shows=showNames.map((name,id)=>({id,name})).filter(x=>(!q||x.name.toLowerCase().includes(q))&&(!showFavorites||isFavoriteEntry('show',x.id)));
-  if(shows.length)groups.push({title:welcomingPage?'Animasi Welcoming Mizuma':'Animasi Welcoming untuk Riding',hint:welcomingPage?'Animasi multi-stage bawaan Mizuma.':'Dapat dipilih untuk preset Riding maupun slot playlist.',items:shows.map(x=>renderEffectButton('show',x.id,x.name,((showDurations[x.id]||0)/1000).toFixed(1)+' detik · multi-stage',current.kind==='show'&&x.id===current.showIndex))});
-  $('fxGrid').innerHTML=groups.length?groups.map(g=>'<div class="catalogGroup"><div class="catalogTitle">'+g.title+' <small>'+g.items.length+'</small></div>'+(g.hint?'<div class="catalogHint">'+esc(g.hint)+'</div>':'')+'<div class="fxgrid">'+g.items.join('')+'</div></div>').join(''):'<div class="empty">Tidak ada efek yang cocok.</div>';
+  const q=$('fxSearch').value.trim().toLocaleLowerCase('id');
+  const matches=x=>!q||x.name.toLocaleLowerCase('id').includes(q);
+  const favOnly=(kind,id)=>!showFavorites||isFavoriteEntry(kind,id);
+  const groups=[];let number=0;
+  // Riding mengambil efek WLED aktual, efek native yang tersedia pada WLED, dan animasi multi-stage dari engine Mizuma.
+  const ordinary=welcomingPage?[]:fxList.filter(x=>!isWelcomeNativeFx(x.id)).filter(x=>matches(x)&&favOnly('fx',x.id));
+  if(ordinary.length)groups.push({title:'Efek WLED',items:ordinary.map(x=>renderEffectButton('fx',x.id,x.name,'',current.kind==='fx'&&x.id===current.fx,++number))});
+  const native=welcomeNativeList.slice().sort((a,b)=>a.name.localeCompare(b.name,'id')).filter(x=>matches(x)&&favOnly('fx',x.id));
+  if(native.length)groups.push({title:'Efek Native Welcoming',items:native.map(x=>renderEffectButton('fx',x.id,x.name,'',current.kind==='fx'&&x.id===current.fx,++number))});
+  const shows=showNames.map((name,id)=>({id,name})).sort((a,b)=>a.name.localeCompare(b.name,'id')).filter(x=>matches(x)&&favOnly('show',x.id));
+  if(shows.length)groups.push({title:'Animasi Welcoming Mizuma',items:shows.map(x=>renderEffectButton('show',x.id,x.name,'',current.kind==='show'&&x.id===current.showIndex,++number))});
+  $('fxGrid').innerHTML=groups.length?groups.map(g=>'<div class="catalogGroup"><div class="catalogTitle">'+g.title+' <small>'+g.items.length+'</small></div><div class="fxgrid">'+g.items.join('')+'</div></div>').join(''):'<div class="empty">Tidak ada efek yang cocok.</div>';
 }
 function renderSelected(){
-  const name=current.kind==='show'?(showNames[current.showIndex]||('Animasi Mizuma '+(current.showIndex+1))):(allFx[current.fx]||'Efek '+current.fx);
+  const isShow=current.kind==='show';
+  const name=isShow?(showNames[current.showIndex]||('Animasi Mizuma '+(current.showIndex+1))):(allFx[current.fx]||'Efek '+current.fx);
   $('currentFxName').textContent=name;
-  $('currentFxInfo').textContent=(current.kind==='show'?'Animasi Welcoming · '+(((showDurations[current.showIndex]||0)/1000).toFixed(1))+' detik':(palNames[current.pal]||'Palette '+current.pal))+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[selectedSide]);
+  $('currentFxInfo').textContent=(isShow?'Animasi Welcoming Mizuma · '+(((showDurations[current.showIndex]||0)/1000).toFixed(1))+' detik':(palNames[current.pal]||'Palette '+current.pal))+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[selectedSide]);
   $('currentSwatch').style.background='linear-gradient(90deg,'+current.colors.map(hex).join(',')+')';
   $('color0').value=hex(current.colors[0]);$('color1').value=hex(current.colors[1]);$('color2').value=hex(current.colors[2]);
   $('durationSec').value=current.duration||20;
   $('durationSec').disabled=false;
-  $('durationSec').parentElement.querySelector('label').textContent=current.kind==='show'?'Durasi slot animasi (detik)':'Durasi slot playlist (detik)';
-  renderEffects();renderParams();paintRideWheel();
+  $('applySingle').textContent=isShow?'▶ Terapkan animasi':'▶ Terapkan efek';
+  $('saveSingle').textContent=welcomingPage?'Simpan Welcoming':'Simpan preset ke ESP32';
+  renderEffects();renderParams();renderPalettes();paintRideWheel();updateSideSwatches();updateRideHeader();
 }
 function renderParams(){
   const box=$('params');
-  if(current.kind==='show'){
-    box.innerHTML='<div class="hint">Animasi ini memakai parameter internal dari engine Mizuma. Durasi dan urutan tahap mengikuti resep animasi.</div>';
-    $('paramHint').textContent='Warna dan palette tetap dapat disesuaikan. Parameter tahap animasi tidak diubah dari panel WLED.';return;
-  }
-  const p=fxParams(current.fx);let h=p.sl.map(x=>'<div class="param"><label><span>'+esc(x.label)+'</span><b id="v_'+x.key+'">'+current.params[x.key]+'</b></label><input type="range" min="0" max="255" value="'+current.params[x.key]+'" data-param="'+x.key+'"></div>').join('');
-  p.tg.forEach(x=>{h+='<div class="switchrow"><span>'+esc(x.label)+'</span><button class="switch'+(current.params[x.key]?' on':'')+'" data-toggle="'+x.key+'" aria-label="'+esc(x.label)+'"></button></div>';});
-  box.innerHTML=h||'<div class="hint">Efek ini tidak memiliki parameter tambahan.</div>';
-  $('paramHint').textContent='Parameter mengikuti metadata efek asli WLED. Nilai parameter disimpan terpisah untuk setiap efek dan dipulihkan saat efek dipilih kembali.';
+  const disabled=current.kind==='show'?' disabled':'';
+  const rows=[['sx','Kecepatan'],['ix','Intensitas']];
+  box.innerHTML=rows.map(([key,label])=>'<div class="param"><label><span>'+label+'</span><b id="v_'+key+'">'+(current.params[key]??128)+'</b></label><input type="range" min="0" max="255" value="'+(current.params[key]??128)+'" data-param="'+key+'"'+disabled+'></div>').join('');
+  $('paramHint').textContent=current.kind==='show'?'Animasi multi-stage menggunakan parameter internal resep Mizuma.':'Kecepatan dan intensitas dikirim sebagai parameter efek WLED.';
 }
-function selectEffect(i,apply=true){clearTimeout(applyTimer);cacheCurrentFx();current.kind='fx';current.fx=i;loadFxCache(i);renderSelected();if(apply)applyCurrent(true);}
-function selectShow(i,apply=true){clearTimeout(applyTimer);cacheCurrentFx();current.kind='show';current.showIndex=i;current.fx=0;current.duration=Math.max(1,Math.ceil((showDurations[i]||20000)/1000));renderSelected();if(apply)applyCurrent(true,true);}
+function updateSideSwatches(){
+  const cols=current.colors.map(hex);
+  const l=$('leftSideGradient'),r=$('rightSideGradient');if(l)l.style.background='linear-gradient(90deg,'+cols.join(',')+')';if(r)r.style.background='linear-gradient(90deg,'+cols.slice().reverse().join(',')+')';
+}
+function updateRideHeader(){
+  const state=$('rideHeaderState'),saved=$('rideHeaderSaved'),name=$('rideHeaderName'),meta=$('rideHeaderMeta');
+  if(!state||!saved||!name||!meta)return;
+  state.textContent=rideIsOn?'Sedang menyala':'Efek dipilih';
+  saved.textContent=rideSaved?'✓ Tersimpan':'● Belum disimpan';saved.className=rideSaved?'saved':'unsaved';
+  if(player.active){const pl=playlists[player.playlist];name.textContent=pl?.name||('Playlist '+(player.playlist+1));meta.textContent='Playlist · '+(pl?.count||0)+' slot'+(player.paused?' · Dijeda':'');}
+  else{name.textContent=current.kind==='show'?(showNames[current.showIndex]||('Animasi Mizuma '+(current.showIndex+1))):(allFx[current.fx]||'Memuat efek...');meta.textContent=(current.kind==='show'?'Animasi Welcoming Mizuma':'Single Effect')+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[selectedSide]);}
+}
+window.mzRideHeaderSync=updateRideHeader;
+function selectEffect(i,apply=false){clearTimeout(applyTimer);cacheCurrentFx();current.kind='fx';current.fx=i;current.duration=20;loadFxCache(i);rideSaved=false;rideIsOn=false;renderSelected();if(apply)applyCurrent(true);}
+function selectShow(i,apply=false){clearTimeout(applyTimer);cacheCurrentFx();current.kind='show';current.showIndex=i;current.fx=0;current.duration=Math.max(1,Math.ceil((showDurations[i]||20000)/1000));rideSaved=false;rideIsOn=false;renderSelected();if(apply)applyCurrent(true,true);}
 function renderPalettes(){const list=palNames.map((n,i)=>({n,i})).filter(p=>p.n&&p.n!=='r');$('paletteGrid').innerHTML=list.map(p=>'<button class="pal'+(current.pal===p.i?' on':'')+'" data-pal="'+p.i+'"><i style="background:'+paletteGradient(p.i)+'"></i><b>'+esc(p.n)+'</b></button>').join('')||'<div class="empty">Palette tidak ditemukan.</div>';}
 function paletteGradient(i){const a=palStops[i];if(!a||!a.length)return'linear-gradient(90deg,#222,#888)';const st=a.map(x=>{if(Array.isArray(x))return'rgba('+x[1]+','+x[2]+','+x[3]+','+(x[4]??255)/255+') '+(x[0]/255*100)+'%';if(x==='r')return'#888';const k=String(x).toLowerCase(),n=parseInt(k.slice(1),10)-1,c=current.colors[n]||[128,128,128];return' rgb('+c.join(',')+')';});return'linear-gradient(90deg,'+st.join(',')+')';}
 async function loadPalStops(page=0){try{const r=await jfetch('/json/palx?page='+page);const d=await r.json();Object.keys(d.p||{}).forEach(k=>palStops[k]=d.p[k]);if(typeof d.m==='number'&&page<d.m)await loadPalStops(page+1);else renderPalettes();}catch(e){}}
 function renderSkins(){const built=savedColors.map((c,i)=>({name:'Warna '+(i+1),colors:c,kind:'color',i}));const custom=skins.map((c,i)=>({name:c.name,colors:c.colors,kind:'skin',i}));const all=[...custom,...built];$('skinGrid').innerHTML=all.length?all.map(x=>'<button class="skin" data-skind="'+x.kind+'" data-si="'+x.i+'"><span class="swatches">'+x.colors.map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><b>'+esc(x.name)+'</b><small>'+(x.kind==='skin'?'Skin custom':'Warna tersimpan')+'</small></button>').join(''):'<div class="empty">Belum ada warna atau skin yang disimpan.</div>';}
 function renderPlaylists(){if(!playlists.length){$('playlistGrid').innerHTML='<div class="empty">Belum ada playlist.</div>';return;}$('playlistGrid').innerHTML=playlists.map((p,i)=>{const cols=p.slots.flatMap(x=>colorsOf(x)).slice(0,6);const strip=cols.length?cols.map(c=>'<i style="background:'+hex(c)+'"></i>').join(''):'<i style="background:#222"></i>';return'<button class="plcard'+(i===openPlaylist?' on':'')+'" data-playlist="'+i+'"><span class="plthumb">'+strip+'</span><b>'+esc(p.name||('Playlist '+(i+1)))+'</b><small>'+p.count+'/12 slot</small>'+(player.active&&player.playlist===i?'<span class="plstatus">● '+(player.paused?'DIJEDA':'SEDANG BERJALAN')+'</span>':'')+'</button>';}).join('');renderPlaylistDetail();}
-function renderPlaylistDetail(){const box=$('playlistDetail');if(openPlaylist<0||!playlists[openPlaylist]){box.innerHTML='<div class="empty">Pilih playlist untuk mengelola slot.</div>';return;}const p=playlists[openPlaylist];let rows=p.slots.map((s,j)=>{const nm=s.isShow?(showNames[s.showIndex]||('Animasi Mizuma '+(s.showIndex+1))):(allFx[s.fx]||('Efek '+s.fx));return '<div class="slotrow"><span class="n">'+(j+1)+'</span><span class="swatches">'+colorsOf(s).map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><span class="meta"><b>'+esc(nm)+'</b><small>'+(s.isShow?'Animasi Mizuma':'Efek WLED')+' · '+s.duration+' detik</small></span><button data-move="up" data-slot="'+j+'" '+(!j?'disabled':'')+'>↑</button><button data-move="down" data-slot="'+j+'" '+(j===p.slots.length-1?'disabled':'')+'>↓</button><button class="edit" data-edit-slot="'+j+'">Edit</button><button data-remove-slot="'+j+'">×</button></div>';}).join('');box.innerHTML='<div class="plhead"><b>Kelola playlist</b><span class="pill"><span class="statusdot"></span>'+p.count+'/12 slot</span></div><div class="plname"><input id="playlistName" type="text" maxlength="24" value="'+esc(p.name||('Playlist '+(openPlaylist+1)))+'"><button class="barbtn" id="renamePlaylist">Simpan</button></div><div class="plactions"><button class="play" id="playPlaylist">▶ Putar</button><button id="pausePlaylist">'+(player.active&&player.playlist===openPlaylist&&!player.paused?'Ⅱ Jeda':'▶ Lanjut')+'</button><button id="stopPlaylist">■ Stop</button></div><div class="sectiontitle">Urutan slot</div>'+(rows||'<div class="empty">Playlist masih kosong. Tambahkan efek dari Single Effect.</div>')+'<div class="btnrow"><button class="btn" id="addSelectedSlot" '+(p.count>=12?'disabled':'')+'>＋ Tambah efek terpilih</button><button class="btn" id="clearPlaylist">Kosongkan</button></div><div class="hint">Geser urutan slot dengan tombol panah. Durasi setiap slot diatur saat menambahkan atau mengedit.</div>';
+function renderPlaylistDetail(){
+  const box=$('playlistDetail');
+  if(openPlaylist<0||!playlists[openPlaylist]){box.innerHTML='<div class="empty">Pilih playlist untuk mengelola slot.</div>';return;}
+  const p=playlists[openPlaylist];
+  let rows=p.slots.map((s,j)=>{
+    const nm=s.isShow?(showNames[s.showIndex]||('Animasi Mizuma '+(s.showIndex+1))):(allFx[s.fx]||('Efek '+s.fx));
+    const kind=s.isShow?'Animasi Welcoming Mizuma':(isWelcomeNativeFx(s.fx)?'Efek Native Welcoming':'Efek WLED');
+    return '<div class="slotrow"><span class="n">'+(j+1)+'</span><span class="swatches">'+colorsOf(s).map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><span class="meta"><b>'+esc(nm)+'</b><small>'+kind+' · '+s.duration+' detik</small></span><button data-move="up" data-slot="'+j+'" '+(!j?'disabled':'')+'>↑</button><button data-move="down" data-slot="'+j+'" '+(j===p.slots.length-1?'disabled':'')+'>↓</button><button class="edit" data-edit-slot="'+j+'">Edit</button><button data-remove-slot="'+j+'">×</button></div>';
+  }).join('');
+  box.innerHTML='<div class="plhead"><b>Kelola playlist</b><span class="pill"><span class="statusdot"></span>'+p.count+'/12 slot</span></div><div class="plname"><input id="playlistName" type="text" maxlength="24" value="'+esc(p.name||('Playlist '+(openPlaylist+1)))+'"><button class="barbtn" id="renamePlaylist">Simpan</button></div><div class="plactions"><button class="play" id="playPlaylist">▶ Putar</button><button id="pausePlaylist">'+(player.active&&player.playlist===openPlaylist&&!player.paused?'Ⅱ Jeda':'▶ Lanjut')+'</button><button id="stopPlaylist">■ Stop</button></div><div class="sectiontitle">Urutan slot</div>'+(rows||'<div class="empty">Playlist masih kosong. Tambahkan pilihan dari Daftar Efek.</div>')+'<div class="btnrow"><button class="btn" id="addSelectedSlot" '+(p.count>=12?'disabled':'')+'>＋ Tambah pilihan terpilih</button><button class="btn" id="clearPlaylist">Kosongkan</button></div><div class="hint">Slot dapat berisi efek WLED, efek native Welcoming, atau animasi multi-stage Mizuma. Durasi dan urutannya dikelola di sini.</div>';
 }
-function setView(v){activeView=v;document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));if(v==='colors'){renderPalettes();renderSkins();}}
-async function refreshPlaylists(){try{const d=await fetch('/mizuma/riding/playlists',{cache:'no-store'}).then(r=>r.json());playlists=d.playlists||[];player={active:!!d.active,paused:!!d.paused,playlist:d.playlist||0,slot:d.slot||0,side:d.side||'both'};renderPlaylists();}catch(e){$('playlistGrid').innerHTML='<div class="empty">Gagal membaca playlist engine.</div>';}}
+function setView(v){activeView=v;document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));$('mainTabs').style.display=v==='colors'?'none':'flex';$('sideSelect').style.display=v==='colors'?'none':'grid';document.querySelector('.controlFooter').style.display=v==='colors'?'none':'grid';$('rScroll').scrollTop=0;if(v==='colors'){renderPalettes();renderSkins();}updateRideHeader();}
+async function refreshPlaylists(){try{const d=await fetch('/mizuma/riding/playlists',{cache:'no-store'}).then(r=>r.json());playlists=d.playlists||[];player={active:!!d.active,paused:!!d.paused,playlist:d.playlist||0,slot:d.slot||0,side:d.side||'both'};renderPlaylists();updateRideHeader();}catch(e){$('playlistGrid').innerHTML='<div class="empty">Gagal membaca playlist engine.</div>';}}
 async function saveSlot(index,slot){current.duration=Math.max(1,Math.min(600,parseInt($('durationSec').value,10)||20));$('durationSec').value=current.duration;const q=new URLSearchParams({index,slot,fx:current.kind==='show'?0:current.fx,isShow:current.kind==='show'?1:0,showIndex:current.kind==='show'?current.showIndex:0,pal:current.pal,r:current.colors[0][0],g:current.colors[0][1],b:current.colors[0][2],r1:current.colors[1][0],g1:current.colors[1][1],b1:current.colors[1][2],r2:current.colors[2][0],g2:current.colors[2][1],b2:current.colors[2][2],sx:current.params.sx,ix:current.params.ix,c1:current.params.c1,c2:current.params.c2,c3:current.params.c3,o1:current.params.o1,o2:current.params.o2,o3:current.params.o3,duration:current.duration,bri:$('brightness').value});await api('/mizuma/riding/playlist/slot?'+q);await refreshPlaylists();toast('Slot tersimpan di ESP32');}
 let colorTarget=0,rideWheelBase=null;
 function rideHsvToRgb(h,s,v){const c=v*s,x=c*(1-Math.abs((h/60)%2-1)),m=v-c;let r=0,g=0,b=0;if(h<60){r=c;g=x;}else if(h<120){r=x;g=c;}else if(h<180){g=c;b=x;}else if(h<240){g=x;b=c;}else if(h<300){r=x;b=c;}else{r=c;b=x;}return[Math.round((r+m)*255),Math.round((g+m)*255),Math.round((b+m)*255)];}
@@ -1101,36 +1206,42 @@ function rideRgbToHsv(c){const r=c[0]/255,g=c[1]/255,b=c[2]/255,mx=Math.max(r,g,
 function drawRideWheel(){const cv=$('rideColorWheel');if(!cv)return;const ctx=cv.getContext('2d'),n=cv.width,r=n/2-2,img=ctx.createImageData(n,n);for(let y=0;y<n;y++)for(let x=0;x<n;x++){const dx=x-n/2,dy=y-n/2,d=Math.hypot(dx,dy),k=(y*n+x)*4;if(d<=r){const col=rideHsvToRgb((Math.atan2(dy,dx)*180/Math.PI+360)%360,Math.min(1,d/r),1);img.data[k]=col[0];img.data[k+1]=col[1];img.data[k+2]=col[2];img.data[k+3]=255;}}rideWheelBase=img;paintRideWheel();}
 function paintRideWheel(){const cv=$('rideColorWheel');if(!cv||!rideWheelBase)return;const ctx=cv.getContext('2d'),n=cv.width;ctx.putImageData(rideWheelBase,0,0);const hsv=rideRgbToHsv(current.colors[colorTarget]),r=n/2-4,d=hsv[1]*r,a=hsv[0]*Math.PI/180,x=n/2+Math.cos(a)*d,y=n/2+Math.sin(a)*d;ctx.beginPath();ctx.arc(x,y,7,0,Math.PI*2);ctx.fillStyle=hex(current.colors[colorTarget]);ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();$('colorValue').value=Math.round(hsv[2]*100);$('colorValueText').textContent=Math.round(hsv[2]*100)+'%';$('colorHex').textContent=hex(current.colors[colorTarget]);}
 function updateWheelPoint(e){const cv=$('rideColorWheel'),rect=cv.getBoundingClientRect(),n=cv.width,x=(e.clientX-rect.left)*n/rect.width,y=(e.clientY-rect.top)*n/rect.height,dx=x-n/2,dy=y-n/2,r=n/2-4,d=Math.min(r,Math.hypot(dx,dy)),h=(Math.atan2(dy,dx)*180/Math.PI+360)%360,s=Math.min(1,d/r),v=(+$('colorValue').value)/100;current.pal=0;current.colors[colorTarget]=rideHsvToRgb(h,s,v);syncRideColor(true);}
-function syncRideColor(apply){for(let i=0;i<3;i++)$('color'+i).value=hex(current.colors[i]);$('currentSwatch').style.background='linear-gradient(90deg,'+current.colors.map(hex).join(',')+')';document.querySelectorAll('#paletteGrid [data-pal]').forEach(b=>b.classList.toggle('on',+b.dataset.pal===current.pal));paintRideWheel();cacheCurrentFx();if(apply){clearTimeout(applyTimer);applyTimer=setTimeout(()=>applyCurrent(true,true),130);}}
+function syncRideColor(apply){for(let i=0;i<3;i++)$('color'+i).value=hex(current.colors[i]);$('currentSwatch').style.background='linear-gradient(90deg,'+current.colors.map(hex).join(',')+')';document.querySelectorAll('#paletteGrid [data-pal]').forEach(b=>b.classList.toggle('on',+b.dataset.pal===current.pal));paintRideWheel();updateSideSwatches();cacheCurrentFx();if(apply){clearTimeout(applyTimer);applyTimer=setTimeout(()=>applyCurrent(true,true),130);}}
 function updateColorInputs(){for(let i=0;i<3;i++)$('color'+i).value=hex(current.colors[i]);renderSelected();renderPalettes();paintRideWheel();}
-function applyPalette(i){current.pal=i;cacheCurrentFx();renderPalettes();renderSelected();applyCurrent(true,true);}
-function setSide(s,skipPreset=false){selectedSide=s;document.querySelectorAll('#sideSelect button').forEach(b=>b.classList.toggle('on',b.dataset.side===s));$('currentFxInfo').textContent=(palNames[current.pal]||'Palette')+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[s]);if(catalogReady&&!skipPreset)loadRidingPreset(s);}
-async function loadRidingPreset(side){try{const d=await fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json());const prefix=welcomingPage?'welcoming':'riding';const p=d[prefix+(side==='kiri'?'Kiri':'Kanan')];if(!p)return;current.kind=p.isShow?'show':'fx';current.showIndex=p.showIndex??0;current.fx=p.fx??0;current.pal=p.pal??0;current.colors=colorsOf(p);current.params={sx:p.sx??128,ix:p.ix??128,c1:p.c1??128,c2:p.c2??128,c3:p.c3??128,o1:p.o1?1:0,o2:p.o2?1:0,o3:p.o3?1:0};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}renderSelected();renderPalettes();}catch(e){toast('Preset '+(welcomingPage?'Welcoming':'Riding')+' belum dapat dibaca');}}
+function applyPalette(i){rideSaved=false;current.pal=i;cacheCurrentFx();renderPalettes();renderSelected();applyCurrent(true,true);}
+function setSide(s,skipPreset=false){selectedSide=s;document.querySelectorAll('#sideSelect button[data-side]').forEach(b=>b.classList.toggle('on',b.dataset.side===s));$('currentFxInfo').textContent=(palNames[current.pal]||'Palette')+' · '+({both:'Semua sisi',kanan:'Kanan',kiri:'Kiri'}[s]);updateRideHeader();if(catalogReady&&!skipPreset)loadRidingPreset(s);}
+async function loadRidingPreset(side){try{const d=await fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json());const prefix=welcomingPage?'welcoming':'riding';const p=d[prefix+(side==='kiri'?'Kiri':'Kanan')];rideSaved=!!p;if(!p)return;current.kind=p.isShow?'show':'fx';current.showIndex=p.showIndex??0;current.fx=p.fx??0;current.pal=p.pal??0;current.colors=colorsOf(p);current.duration=current.kind==='show'?Math.max(1,Math.ceil((showDurations[p.showIndex]||20000)/1000)):20;current.params={sx:p.sx??128,ix:p.ix??128,c1:p.c1??128,c2:p.c2??128,c3:p.c3??128,o1:p.o1?1:0,o2:p.o2?1:0,o3:p.o3?1:0};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}renderSelected();renderPalettes();updateRideHeader();}catch(e){toast('Preset '+(welcomingPage?'Welcoming':'Riding')+' belum dapat dibaca');}}
 async function loadSwitches(){try{const a=await fetch('/mizuma/side-swap').then(r=>r.json());sideSwap=!!a.enabled;}catch(e){}try{const a=await fetch('/mizuma/show/reverse').then(r=>r.json());reverse=!!a.enabled;}catch(e){}$('swapBtn').classList.toggle('on',sideSwap);$('swapBtn').querySelector('small').textContent=sideSwap?'Ditukar':'Normal';$('reverseBtn').classList.toggle('on',reverse);$('reverseBtn').querySelector('small').textContent=reverse?'Dibalik':'Normal';}
-async function loadWled(){try{const [e,f,p,state,saved,shows,durations]=await Promise.all([jfetch('/json/eff').then(r=>r.json()),jfetch('/json/fxdata').then(r=>r.json()),jfetch('/json/pal').then(r=>r.json()),jfetch('/json/state').then(r=>r.json()),fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json()),fetch('/mizuma/shows',{cache:'no-store'}).then(r=>r.json()),fetch('/mizuma/show-durations',{cache:'no-store'}).then(r=>r.json())]);allFx=e;fxData=f;palNames=p;showNames=shows||[];showDurations=durations||[];fxList=allFx.map((name,id)=>({id,name})).filter(x=>fxOk(x.id,x.name)).sort((a,b)=>a.id===0?-1:b.id===0?1:a.name.localeCompare(b.name));welcomeNativeList=WELCOME_NATIVE_FX.map(spec=>{let id=allFx.findIndex(n=>String(n).toLowerCase()===spec.match.toLowerCase());if(id<0&&spec.fallback)id=allFx.findIndex(n=>String(n).toLowerCase()===spec.fallback.toLowerCase());return id>=0?{id,name:spec.label}:null;}).filter(Boolean);const seg=state.seg||[];const id=selectedSegId('kanan'),live=seg.find(x=>x&&x.id===id)||seg[id],presetKey=welcomingPage?'welcomingKanan':'ridingKanan',s=saved[presetKey]||live;if(s){current.kind=s.isShow?'show':'fx';current.showIndex=s.showIndex??0;current.fx=s.fx??0;current.pal=s.pal??0;current.colors=colorsOf(s);current.params={sx:s.sx??128,ix:s.ix??128,c1:s.c1??128,c2:s.c2??128,c3:s.c3??128,o1:s.o1?1:0,o2:s.o2?1:0,o3:s.o3?1:0};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}}if(state.bri){$('brightness').value=state.bri;$('brightnessVal').textContent=state.bri;}catalogReady=true;renderSelected();renderPalettes();loadPalStops();}catch(e){$('fxGrid').innerHTML='<div class="empty">Tidak dapat membaca katalog WLED. Pastikan WLED API aktif.</div>';toast('Gagal memuat katalog WLED');}}
+async function loadWled(){try{const [e,f,p,state,saved,shows,durations]=await Promise.all([jfetch('/json/eff').then(r=>r.json()),jfetch('/json/fxdata').then(r=>r.json()),jfetch('/json/pal').then(r=>r.json()),jfetch('/json/state').then(r=>r.json()),fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json()),fetch('/mizuma/shows',{cache:'no-store'}).then(r=>r.json()),fetch('/mizuma/show-durations',{cache:'no-store'}).then(r=>r.json())]);allFx=e;fxData=f;palNames=p;showNames=shows||[];showDurations=durations||[];fxList=allFx.map((name,id)=>({id,name})).filter(x=>fxOk(x.id,x.name)).sort((a,b)=>a.name.localeCompare(b.name,'id'));welcomeNativeList=WELCOME_NATIVE_FX.map(spec=>{let id=allFx.findIndex(n=>String(n).toLowerCase()===spec.match.toLowerCase());if(id<0&&spec.fallback)id=allFx.findIndex(n=>String(n).toLowerCase()===spec.fallback.toLowerCase());return id>=0?{id,name:spec.label}:null;}).filter(Boolean);const seg=state.seg||[];const id=selectedSegId('kanan'),live=seg.find(x=>x&&x.id===id)||seg[id],presetKey=welcomingPage?'welcomingKanan':'ridingKanan',s=saved[presetKey]||live;rideIsOn=!!state.on;rideSaved=!!saved[presetKey];if(s){current.kind=s.isShow?'show':'fx';current.showIndex=s.showIndex??0;current.fx=s.fx??0;current.pal=s.pal??0;current.colors=colorsOf(s);current.duration=current.kind==='show'?Math.max(1,Math.ceil((showDurations[s.showIndex]||20000)/1000)):20;current.params={sx:s.sx??128,ix:s.ix??128,c1:s.c1??128,c2:s.c2??128,c3:s.c3??128,o1:s.o1?1:0,o2:s.o2?1:0,o3:s.o3?1:0};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}}if(state.bri){$('brightness').value=state.bri;$('brightnessVal').textContent=state.bri;}catalogReady=true;renderSelected();renderPalettes();loadPalStops();}catch(e){$('fxGrid').innerHTML='<div class="empty">Tidak dapat membaca katalog WLED. Pastikan WLED API aktif.</div>';toast('Gagal memuat katalog WLED');}}
 function bind(){
-$('mainTabs').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)setView(b.dataset.view);});
+$('mainTabs').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)setView(b.dataset.view);});$('backToEffects').addEventListener('click',()=>setView('effects'));
 $('sideSelect').addEventListener('click',e=>{const b=e.target.closest('button[data-side]');if(b)setSide(b.dataset.side);});
 $('swapBtn').addEventListener('click',async()=>{try{const d=await api('/mizuma/side-swap?enabled='+(sideSwap?'0':'1'));sideSwap=!!d.enabled;$('swapBtn').classList.toggle('on',sideSwap);$('swapBtn').querySelector('small').textContent=sideSwap?'Ditukar':'Normal';toast('Pemetaan sisi diperbarui');}catch(e){toast('Gagal mengubah posisi output');}});
 $('reverseBtn').addEventListener('click',async()=>{try{const d=await api('/mizuma/show/reverse?enabled='+(reverse?'0':'1'));reverse=!!d.enabled;$('reverseBtn').classList.toggle('on',reverse);$('reverseBtn').querySelector('small').textContent=reverse?'Dibalik':'Normal';toast('Arah efek diperbarui');}catch(e){toast('Tidak ada segmen aktif atau gagal mengubah arah');}});
-$('brightness').addEventListener('input',e=>{$('brightnessVal').textContent=e.target.value;clearTimeout(applyTimer);applyTimer=setTimeout(()=>{api('/mizuma/bri?v='+e.target.value).catch(()=>{});jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bri:+e.target.value})}).catch(()=>{});},100);});
+$('brightness').addEventListener('input',e=>{$('brightnessVal').textContent=e.target.value;$('brightnessVisible').value=e.target.value;$('brightnessValVisible').textContent=e.target.value;clearTimeout(applyTimer);applyTimer=setTimeout(()=>{api('/mizuma/bri?v='+e.target.value).catch(()=>{});jfetch('/json/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bri:+e.target.value})}).catch(()=>{});},100);});
 $('durationSec').addEventListener('change',e=>{current.duration=Math.max(1,Math.min(600,parseInt(e.target.value,10)||20));e.target.value=current.duration;});
-$('fxSearch').addEventListener('input',renderEffects);$('favFilter').addEventListener('click',()=>{showFavorites=!showFavorites;$('favFilter').classList.toggle('on',showFavorites);$('favFilter').textContent=showFavorites?'Favorit':'Semua';renderEffects();});
-$('fxGrid').addEventListener('click',e=>{const star=e.target.closest('[data-fav]');if(star){const key=star.dataset.favKind==='show'?'show:'+star.dataset.fav:+star.dataset.fav;favorites.has(key)?favorites.delete(key):favorites.add(key);localStorage.setItem('mzRideFav',JSON.stringify([...favorites]));renderEffects();return;}const fx=e.target.closest('[data-select-kind]');if(fx){const i=+fx.dataset.selectId;if(fx.dataset.selectKind==='show')selectShow(i);else selectEffect(i);}});
-$('params').addEventListener('input',e=>{const k=e.target.dataset.param;if(!k)return;current.params[k]=+e.target.value;paramCacheSave();$('v_'+k).textContent=e.target.value;clearTimeout(applyTimer);applyTimer=setTimeout(()=>{applyCurrent(true);},80);});
+$('brightnessVisible').addEventListener('input',e=>{$('brightness').value=e.target.value;$('brightness').dispatchEvent(new Event('input',{bubbles:true}));$('brightnessValVisible').textContent=e.target.value;});$('brightnessClose').addEventListener('click',()=>$('brightnessOverlay').classList.remove('show'));$('brightnessOverlay').addEventListener('click',e=>{if(e.target===$('brightnessOverlay'))$('brightnessOverlay').classList.remove('show');});
+$('fxSearch').addEventListener('input',renderEffects);$('favFilter').addEventListener('click',()=>{showFavorites=!showFavorites;$('favFilter').classList.toggle('on',showFavorites);$('favFilter').textContent='★ Favorit';renderEffects();});
+$('fxGrid').addEventListener('click',e=>{
+ const star=e.target.closest('[data-fav]');if(star){toggleFavoriteEntry(star.dataset.favKind,+star.dataset.fav);renderEffects();return;}
+ if(e.target.closest('[data-open-colors]')){setView('colors');return;}
+ if(e.target.closest('[data-apply-current]')){applyCurrent(false,true).then(()=>saveSingle());return;}
+ const fx=e.target.closest('[data-select-kind]');if(fx){const i=+fx.dataset.selectId;if(fx.dataset.selectKind==='show')selectShow(i,true);else selectEffect(i,true);}
+ });
+$('params').addEventListener('input',e=>{const k=e.target.dataset.param;if(!k)return;current.params[k]=+e.target.value;rideSaved=false;paramCacheSave();$('v_'+k).textContent=e.target.value;clearTimeout(applyTimer);applyTimer=setTimeout(()=>{applyCurrent(true);},80);});
 $('params').addEventListener('click',e=>{const b=e.target.closest('[data-toggle]');if(!b)return;const k=b.dataset.toggle;current.params[k]=current.params[k]?0:1;paramCacheSave();b.classList.toggle('on',!!current.params[k]);applyCurrent(true);});
-$('applySingle').addEventListener('click',()=>applyCurrent());$('saveSingle').addEventListener('click',saveSingle);$('openColors').addEventListener('click',()=>setView('colors'));
+$('applySingle').addEventListener('click',()=>applyCurrent().then(()=>{rideIsOn=true;rideSaved=false;updateRideHeader();}));$('saveSingle').addEventListener('click',saveSingle);$('openColors').addEventListener('click',()=>setView('colors'));
 $('colorMode').addEventListener('click',e=>{const b=e.target.closest('[data-mode]');if(!b)return;document.querySelectorAll('#colorMode button').forEach(x=>x.classList.toggle('on',x===b));$('solidEditor').classList.toggle('hide',b.dataset.mode!=='solid');$('skinEditor').classList.toggle('hide',b.dataset.mode!=='skin');});
-['color0','color1','color2'].forEach((id,i)=>$(id).addEventListener('input',e=>{colorTarget=i;current.colors[i]=rgb(e.target.value);current.pal=0;document.querySelectorAll('#colorTarget button').forEach(b=>b.classList.toggle('on',+b.dataset.target===i));syncRideColor(true);}));
+['color0','color1','color2'].forEach((id,i)=>$(id).addEventListener('input',e=>{rideSaved=false;colorTarget=i;current.colors[i]=rgb(e.target.value);current.pal=0;document.querySelectorAll('#colorTarget button').forEach(b=>b.classList.toggle('on',+b.dataset.target===i));syncRideColor(true);}));
 $('colorTarget').addEventListener('click',e=>{const b=e.target.closest('[data-target]');if(!b)return;colorTarget=+b.dataset.target;document.querySelectorAll('#colorTarget button').forEach(x=>x.classList.toggle('on',x===b));paintRideWheel();});
 $('rideColorWheel').addEventListener('pointerdown',e=>{e.currentTarget.setPointerCapture(e.pointerId);updateWheelPoint(e);});$('rideColorWheel').addEventListener('pointermove',e=>{if(e.buttons)updateWheelPoint(e);});
-$('colorValue').addEventListener('input',e=>{const hsv=rideRgbToHsv(current.colors[colorTarget]);current.pal=0;current.colors[colorTarget]=rideHsvToRgb(hsv[0],hsv[1],(+e.target.value)/100);syncRideColor(true);});
-$('quickColors').innerHTML=['#FF0000','#FFA500','#FFD200','#FFFFFF','#00AEEF','#00C853','#7C4DFF','#FF4081'].map(c=>'<button data-color="'+c+'" style="background:'+c+'" aria-label="'+c+'"></button>').join('');$('quickColors').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;current.colors[colorTarget]=rgb(b.dataset.color);current.pal=0;syncRideColor(true);});
-$('saveColor').addEventListener('click',()=>{savedColors.unshift(current.colors.map(c=>c.slice()));savedColors=savedColors.slice(0,8);localStorage.setItem('mzRideColors',JSON.stringify(savedColors));renderSkins();toast('Warna disimpan');});
-$('newSkin').addEventListener('click',()=>{const name=prompt('Nama skin baru:','Skin Riding '+(skins.length+1));if(name===null)return;const n=name.trim().slice(0,24);if(!n)return toast('Nama skin belum diisi');skins.unshift({name:n,colors:current.colors.map(c=>c.slice())});skins=skins.slice(0,12);localStorage.setItem('mzRideSkins',JSON.stringify(skins));renderSkins();toast('Skin baru dibuat');});
+$('colorValue').addEventListener('input',e=>{rideSaved=false;const hsv=rideRgbToHsv(current.colors[colorTarget]);current.pal=0;current.colors[colorTarget]=rideHsvToRgb(hsv[0],hsv[1],(+e.target.value)/100);syncRideColor(true);});
+$('quickColors').innerHTML=['#FF0000','#FFA500','#FFD200','#FFFFFF','#00AEEF','#00C853','#7C4DFF','#FF4081'].map(c=>'<button data-color="'+c+'" style="background:'+c+'" aria-label="'+c+'"></button>').join('');$('quickColors').addEventListener('click',e=>{const b=e.target.closest('[data-color]');if(!b)return;rideSaved=false;current.colors[colorTarget]=rgb(b.dataset.color);current.pal=0;syncRideColor(true);});
+$('saveColor').addEventListener('click',()=>{rideSaved=false;savedColors.unshift(current.colors.map(c=>c.slice()));savedColors=savedColors.slice(0,8);localStorage.setItem('mzRideColors',JSON.stringify(savedColors));renderSkins();toast('Warna disimpan');});
+$('newSkin').addEventListener('click',()=>{rideSaved=false;const name=prompt('Nama skin baru:','Skin Riding '+(skins.length+1));if(name===null)return;const n=name.trim().slice(0,24);if(!n)return toast('Nama skin belum diisi');skins.unshift({name:n,colors:current.colors.map(c=>c.slice())});skins=skins.slice(0,12);localStorage.setItem('mzRideSkins',JSON.stringify(skins));renderSkins();toast('Skin baru dibuat');});
 $('skinGrid').addEventListener('click',e=>{const b=e.target.closest('[data-skind]');if(!b)return;const a=b.dataset.skind==='skin'?skins:savedColors,c=a[+b.dataset.si];if(!c)return;current.colors=c.colors?c.colors.map(x=>x.slice()):c.map(x=>x.slice());current.pal=0;updateColorInputs();cacheCurrentFx();applyCurrent(true,true);});
 $('paletteGrid').addEventListener('click',e=>{const b=e.target.closest('[data-pal]');if(b)applyPalette(+b.dataset.pal);});
-$('addToPlaylist').addEventListener('click',async()=>{const i=+$('addTarget').value;const edit=$('addToPlaylist').dataset.edit;const at=edit!==undefined?+edit:(playlists[i]?.count||0);try{await saveSlot(i,at);delete $('addToPlaylist').dataset.edit;$('addToPlaylist').textContent='＋ Tambah slot';openPlaylist=i;setView('playlists');}catch(e){toast('Gagal menyimpan slot: '+e.message);}});
+$('addToPlaylist').addEventListener('click',async()=>{const i=+$('addTarget').value;const edit=$('addToPlaylist').dataset.edit;const at=edit!==undefined?+edit:(playlists[i]?.count||0);try{await saveSlot(i,at);delete $('addToPlaylist').dataset.edit;$('addToPlaylist').textContent='Simpan perubahan slot';$('editSlotPanel').style.display='none';openPlaylist=i;renderPlaylists();setView('playlists');}catch(e){toast('Gagal menyimpan slot: '+e.message);}});
 $('playlistGrid').addEventListener('click',e=>{const b=e.target.closest('[data-playlist]');if(!b)return;openPlaylist=+b.dataset.playlist;renderPlaylists();});
 $('playlistDetail').addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;const i=openPlaylist,p=playlists[i];try{
 if(b.id==='renamePlaylist'){await api('/mizuma/riding/playlist/meta?index='+i+'&name='+encodeURIComponent($('playlistName').value));toast('Nama playlist disimpan');await refreshPlaylists();}
@@ -1141,18 +1252,28 @@ else if(b.id==='addSelectedSlot'){await saveSlot(i,p.count);}
 else if(b.id==='clearPlaylist'){if(confirm('Kosongkan seluruh slot playlist ini?')){await api('/mizuma/riding/playlist/clear?index='+i);await new Promise(r=>setTimeout(r,100));await refreshPlaylists();}}
 else if(b.dataset.removeSlot!==undefined){await api('/mizuma/riding/playlist/slot?index='+i+'&slot='+b.dataset.removeSlot+'&remove=1');await refreshPlaylists();}
 else if(b.dataset.move){const from=+b.dataset.slot,to=from+(b.dataset.move==='up'?-1:1);await api('/mizuma/riding/playlist/reorder?index='+i+'&from='+from+'&to='+to);await refreshPlaylists();}
-else if(b.dataset.editSlot!==undefined){const s=p.slots[+b.dataset.editSlot];if(!s)return;current.kind=s.isShow?'show':'fx';current.showIndex=s.showIndex||0;current.fx=s.fx||0;current.pal=s.pal;current.colors=colorsOf(s);current.params={sx:s.sx,ix:s.ix,c1:s.c1,c2:s.c2,c3:s.c3,o1:s.o1,o2:s.o2,o3:s.o3};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}current.duration=s.duration||20;renderSelected();setView('effects');$('addTarget').value=i;$('durationSec').value=current.duration;$('addToPlaylist').textContent='Simpan perubahan slot';$('addToPlaylist').dataset.edit=String(b.dataset.editSlot);toast('Ubah efek/warna, lalu simpan kembali ke playlist');}
+else if(b.dataset.editSlot!==undefined){const s=p.slots[+b.dataset.editSlot];if(!s)return;current.kind=s.isShow?'show':'fx';current.showIndex=s.showIndex||0;current.fx=s.fx||0;current.pal=s.pal;current.colors=colorsOf(s);current.params={sx:s.sx,ix:s.ix,c1:s.c1,c2:s.c2,c3:s.c3,o1:s.o1,o2:s.o2,o3:s.o3};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}current.duration=s.duration||20;renderSelected();setView('effects');$('addTarget').value=i;$('durationSec').value=current.duration;$('addToPlaylist').textContent='Simpan perubahan slot';$('addToPlaylist').dataset.edit=String(b.dataset.editSlot);$('editSlotPanel').style.display='block';toast('Ubah efek atau animasi, lalu simpan kembali ke playlist');}
 }catch(err){toast('Aksi playlist gagal: '+err.message);}});
 
 }
-async function init(){drawRideWheel();setSide('both',true);bind();await loadSwitches();await loadWled();await refreshPlaylists();renderSkins();if(welcomingPage){$('ridingTitle').textContent='Welcoming';$('ridingSubtitle').textContent='Pilih animasi pembuka, efek native, dan atur warna';$('ridingPageBadge').textContent='Animasi / Efek Native';$('fxSearch').placeholder='Cari animasi atau efek Welcoming...';document.querySelector('#mainTabs button[data-view=effects]').textContent='Efek';document.querySelector('#mainTabs button[data-view=colors]').textContent='Warna';document.querySelector('#mainTabs button[data-view=playlists]').style.display='none';$('view-playlists').style.display='none';$('mainTabs').style.gridTemplateColumns='repeat(2,minmax(0,1fr))';$('durationSec').parentElement.style.display='none';$('addTarget').parentElement.parentElement.style.display='none';}if(colorPage){$('ridingTitle').textContent='Warna';$('ridingSubtitle').textContent='Atur warna solid, skin, dan palette';$('ridingPageBadge').style.display='none';$('mainTabs').style.display='none';setView('colors');}setInterval(()=>{if(activeView==='playlists'&&!welcomingPage&&document.activeElement?.id!=='playlistName')refreshPlaylists();},4000);}
+async function init(){drawRideWheel();setSide('both',true);bind();await loadSwitches();await loadWled();await refreshPlaylists();renderSkins();if(welcomingPage){$('ridingTitle').textContent='Welcoming';$('ridingSubtitle').textContent='Pilih animasi pembuka, efek native, dan atur warna';$('ridingPageBadge').textContent='Animasi / Efek Native';$('fxSearch').placeholder='Cari animasi atau efek Welcoming...';$('mainTabs').innerHTML='<button data-view="effects" class="on">Daftar Animasi</button><button data-view="colors">Warna / Skin</button>';$('view-playlists').style.display='none';$('durationSec').parentElement.style.display='none';$('addTarget').parentElement.parentElement.style.display='none';}if(colorPage){$('ridingTitle').textContent='Warna';$('ridingSubtitle').textContent='Atur warna solid, skin, dan palette';setView('colors');}updateRideHeader();setInterval(()=>{if(activeView==='playlists'&&!welcomingPage&&document.activeElement?.id!=='playlistName')refreshPlaylists();},4000);}
 init();
 })();
 </script>
 <script>
 (function(){
 function inject(url,done){fetch(url).then(r=>r.text()).then(done).catch(()=>{});}
-inject('/mizuma/frag/header',t=>{const e=document.getElementById('mzH');if(e)e.outerHTML=t;inject('/mizuma/frag/nav',n=>{const x=document.getElementById('mzN');if(x)x.outerHTML=n;const a=document.querySelector('.bottomnav a[href="'+location.pathname+'"]');if(a)a.classList.add('active');inject('/mizuma/frag/script',s=>{try{(new Function(s))();}catch(e){}});});});
+inject('/mizuma/frag/header',t=>{
+ const e=document.getElementById('mzH');if(e)e.outerHTML=t;
+ if(location.pathname==='/led'){
+  const h=document.querySelector('.mzheader'),brand=h&&h.querySelector('.brandtext'),status=h&&h.querySelector('.status');
+  if(brand)brand.innerHTML='<div class="ride-state"><span id="rideHeaderState">Sedang menyala</span><span id="rideHeaderSaved" class="saved">✓ Tersimpan</span></div><div class="ride-now" id="rideHeaderName">Memuat efek...</div><div class="ride-meta" id="rideHeaderMeta">Single Effect</div>';
+  if(status&&!status.querySelector('#rideBrightnessOpen')){const b=document.createElement('button');b.id='rideBrightnessOpen';b.className='ride-brightness';b.type='button';b.setAttribute('aria-label','Atur kecerahan');b.textContent='☼';b.addEventListener('click',()=>document.getElementById('brightnessOverlay').classList.add('show'));status.appendChild(b);}
+  if(window.mzRideHeaderSync)window.mzRideHeaderSync();
+ }
+ if(location.pathname!=='/led'){const x=document.getElementById('mzN');if(x)x.remove();return;}
+ inject('/mizuma/frag/nav',n=>{const x=document.getElementById('mzN');if(x)x.outerHTML=n;const a=document.querySelector('.bottomnav a[href="'+location.pathname+'"]');if(a)a.classList.add('active');if(location.pathname==='/led')document.body.style.paddingBottom='calc(var(--nav-h) + env(safe-area-inset-bottom))';inject('/mizuma/frag/script',s=>{try{(new Function(s))();}catch(e){}});});
+});
 })();
 </script>
 </body></html>
