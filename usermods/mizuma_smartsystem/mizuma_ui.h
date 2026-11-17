@@ -919,47 +919,186 @@ body{padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));}
 .playgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.plcard{padding:10px;text-align:left;border:1px solid var(--bd);border-radius:13px;background:var(--s1);min-width:0}.plcard.on{border-color:var(--ac)}.plthumb{display:flex;height:28px;overflow:hidden;border-radius:7px;background:#080808;margin-bottom:8px}.plthumb i{flex:1;min-width:0}.plcard b{display:block;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.plcard small{display:block;color:var(--tx2);font-size:10px;margin-top:3px}.plstatus{font-size:9px;color:var(--ok);margin-top:5px;font-weight:800}.pldetail{margin-top:10px}.plhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}.plhead b{flex:1;font-size:14px}.slotrow{display:flex;align-items:center;gap:7px;padding:8px;margin-bottom:6px;background:var(--s2);border:1px solid var(--bd);border-radius:10px}.slotrow .n{font-size:10px;color:var(--tx3);width:16px}.slotrow .swatches{display:flex;gap:2px;width:36px;height:22px;border-radius:5px;overflow:hidden;flex:none}.slotrow .swatches i{flex:1}.slotrow .meta{flex:1;min-width:0}.slotrow .meta b{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.slotrow .meta small{display:block;font-size:9px;color:var(--tx2);margin-top:2px}.slotrow button{width:32px;height:32px;flex:none;border-radius:8px;background:var(--s3);border:1px solid var(--bd2);font-size:12px}.slotrow .edit{color:var(--ac)}.plname{display:flex;gap:7px;margin-bottom:8px}.plname input{flex:1;min-width:0}.plactions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}.plactions button{padding:10px 3px;font-size:11px;font-weight:800;border-radius:9px;background:var(--s2);border:1px solid var(--bd2)}.plactions .play{background:var(--ac);border-color:var(--ac);color:#111}
 .color-mode{display:flex;gap:6px;margin-bottom:10px}.color-mode button{flex:1;padding:9px 5px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:11px;color:var(--tx2);font-weight:700}.color-mode button.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}.rgbrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rgbitem{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:8px;text-align:center}.rgbitem label{display:block;font-size:10px;color:var(--tx2);margin-bottom:6px}.rgbitem input[type=color]{width:100%;height:38px;border:0;padding:0;background:none}.wheelbox{display:flex;flex-direction:column;align-items:center;gap:9px;margin:12px 0 4px}.wheel-target{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}.wheel-target button{padding:7px 4px;border:1px solid var(--bd);border-radius:9px;background:var(--s2);font-size:10px;font-weight:700;color:var(--tx2)}.wheel-target button.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}#rideColorWheel{display:block;width:min(230px,72vw);height:auto;aspect-ratio:1;touch-action:none;border-radius:50%}.wheel-value{display:flex;align-items:center;gap:9px;width:100%;font-size:10px;color:var(--tx2)}.wheel-value input{flex:1;min-width:0;accent-color:var(--ac)}.wheel-value b{min-width:32px;text-align:right;color:var(--tx)}.wheel-hex{font-size:10px;color:var(--tx2);font-weight:700}.quick{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.quick button{width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.2)}.palgrid,.skingrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.pal{position:relative;display:flex;align-items:center;gap:8px;padding:9px 8px;border:1px solid var(--bd);border-radius:10px;background:var(--s1);min-width:0;text-align:left}.pal.on{border-color:var(--ac)}.pal i{width:42px;height:18px;border-radius:5px;flex:none}.pal b{font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.skin{padding:9px;border:1px solid var(--bd);background:var(--s1);border-radius:10px;text-align:left}.skin.on{border-color:var(--ac)}.skin .swatches{height:26px;display:flex;overflow:hidden;border-radius:6px;margin-bottom:6px}.skin .swatches i{flex:1}.skin b{display:block;font-size:11px}.skin small{font-size:9px;color:var(--tx2)}.sectiontitle{font-size:10px;color:var(--tx2);font-weight:800;letter-spacing:.5px;text-transform:uppercase;margin:14px 0 7px}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.field{margin-top:9px}.field label{display:block;font-size:10px;color:var(--tx2);margin-bottom:4px}.hide{display:none!important}.empty{padding:20px 12px;text-align:center;border:1px dashed var(--bd2);border-radius:12px;color:var(--tx2);font-size:12px}.toast{position:fixed;z-index:100;left:50%;bottom:calc(var(--nav-h) + 78px);transform:translateX(-50%);padding:9px 14px;border-radius:22px;background:var(--s2);border:1px solid var(--bd2);font-size:11px;font-weight:700;color:var(--ok);opacity:0;pointer-events:none;transition:opacity .18s;white-space:nowrap}.toast.show{opacity:1}
 @media(min-width:520px){.rw{padding-left:18px;padding-right:18px}.fxgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.ctrlgrid{grid-template-columns:1.3fr 1fr}}
+
+/* ===== Riding layout: mengikuti alur visual prototipe Mizuma v19 ===== */
+html,body{height:100%;overflow:hidden}
+body.ride-layout{display:flex;flex-direction:column;min-height:0;padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom));}
+#mzH{flex:0 0 auto}
+.rw{width:100%;max-width:620px;margin:0 auto;padding:7px 10px 8px;display:flex;flex:1;flex-direction:column;min-height:0;overflow:hidden;gap:0}
+.rhead{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin:0 2px 7px;min-height:38px}
+.rhead .eyebrow{font-size:9px;letter-spacing:1px}
+.rtitle{font-size:18px;line-height:1.1;margin-top:1px}
+.rsub{font-size:10px;margin-top:2px}
+.legacy{font-size:10px;padding:7px 9px}
+.tabs{display:flex;flex:0 0 auto;grid-template-columns:none;gap:0;margin:0 -10px 0;padding:0 8px;border:0;border-bottom:1px solid var(--bd);border-radius:0;background:var(--s1)}
+.tabs button{flex:1;min-width:0;padding:10px 5px 8px;border-radius:0;border-bottom:3px solid transparent;background:transparent;font-size:12px;color:var(--tx2)}
+.tabs button.on{background:transparent;color:var(--tx);border-bottom-color:var(--ac)}
+.ride-controls{flex:0 0 auto;background:var(--bg);border-bottom:1px solid var(--bd);padding:7px 0 8px}
+.side-chooser{display:grid;grid-template-columns:minmax(0,1fr) 88px minmax(0,1fr);gap:7px;align-items:stretch}
+.side-choice{min-width:0;min-height:43px;padding:6px 5px;border:1px solid var(--bd);border-radius:11px;background:var(--s1);color:var(--tx2);display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:750}
+.side-choice.on,.side-choice.active{border-color:var(--ac);background:var(--acd);color:var(--ac)}
+.side-symbol{font-size:12px;color:var(--tx3)}
+.side-middle{display:flex;flex-direction:column;gap:4px;min-width:0}
+.side-middle .side-choice{flex:1;min-height:0;padding:5px 3px}
+.fav-filter{flex:1;padding:5px 2px;font-size:10px;text-align:center;min-width:0}
+.fav-filter.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}
+.output-row{display:flex;align-items:center;gap:7px;margin-top:7px}
+.tool.compact{flex:0 0 64px;min-height:34px;padding:4px 3px;font-size:10px;border-radius:9px}
+.tool.compact small{font-size:8px;margin-top:1px}
+.tool.compact.on{color:var(--ac);border-color:var(--ac);background:var(--acd)}
+.brightness-inline{display:flex;align-items:center;gap:7px;min-width:0;flex:1;background:var(--s1);border:1px solid var(--bd);border-radius:9px;padding:4px 8px;height:34px}
+.brightness-inline .sun{font-size:13px;color:var(--tx2)}
+.brightness-inline input{flex:1;min-width:0}
+.brightness-inline b{font-size:10px;min-width:24px;text-align:right}
+.view{display:none;min-height:0}
+.view.on{display:flex;flex:1;flex-direction:column;min-height:0;gap:7px}
+#view-effects{overflow:hidden}
+.effect-catalog{display:flex;flex:1 1 auto;flex-direction:column;min-height:0;margin:0;padding:9px 10px 7px;overflow:hidden}
+.fxbar{flex:0 0 auto;display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.catalog-heading{font-size:10px;font-weight:800;color:var(--tx2);text-transform:uppercase;letter-spacing:.55px;white-space:nowrap}
+.fxbar .search{flex:1;min-width:0;padding:8px 10px;font-size:11px}
+.fx-scroll{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding-right:1px}
+.catalogGroup{margin-bottom:9px}
+.catalogTitle{margin:5px 0 6px;font-size:9px}
+.fxgrid{display:grid;grid-template-columns:1fr;gap:5px}
+.fx{display:flex;align-items:center;gap:8px;min-height:40px;padding:7px 38px 7px 10px;border-radius:10px;text-align:left;position:relative}
+.fx b{flex:1;min-width:0;font-size:12px;white-space:normal;line-height:1.2;padding-right:0}
+.fx small{flex:0 0 auto;margin:0 0 0 auto;font-size:9px;white-space:nowrap;color:var(--tx3)}
+.fx .fav{right:5px;top:3px;width:28px;height:30px;display:flex;align-items:center;justify-content:center;font-size:17px}
+.selected-panel{flex:0 0 auto;width:100%;max-height:42%;min-height:0;margin:0;padding:9px 10px calc(9px + env(safe-area-inset-bottom,0px));overflow-y:auto;-webkit-overflow-scrolling:touch}
+.selected{gap:8px}
+.selected .swatch{width:40px;height:26px}
+.selected .desc b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.selected .desc small{font-size:9px}
+.selected-panel .sectiontitle{margin:8px 0 5px;font-size:9px}
+.params{gap:6px 12px}
+.param label{font-size:9px;margin-bottom:2px}
+.param input{height:14px}
+.switchrow{padding:4px 0;font-size:10px}
+.switch{transform:scale(.85);transform-origin:right center}
+#paramHint{font-size:9px;margin-top:4px}
+.selected-actions{gap:6px;margin-top:7px}
+.selected-actions .btn{margin-top:0;padding:8px 5px;font-size:10px}
+.playlist-add{display:grid;grid-template-columns:78px 1fr;gap:7px;margin-top:5px;align-items:end}
+.playlist-add .field{margin-top:0;min-width:0}
+.playlist-add .field label{font-size:9px}
+.playlist-add input,.playlist-add select{padding:8px 7px;font-size:10px;min-width:0}
+.playlist-add .btnrow{gap:5px}
+.playlist-add .btn{margin-top:0;padding:8px 6px;font-size:10px;white-space:nowrap}
+#view-playlists{overflow:auto;padding-bottom:3px}
+.playlist-gallery{flex:0 0 auto;margin:0;padding:10px}
+.playlist-gallery .playgrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.plcard{padding:9px;border-radius:11px}
+.plthumb{height:24px}
+.pldetail{flex:1 0 auto;margin:0;padding:10px;min-height:0}
+.pldetail .slotgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.slotcard{min-width:0;position:relative;background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:7px 6px 8px;overflow:hidden}
+.slotcard .swatches{display:flex;width:100%;height:25px;border-radius:6px;overflow:hidden;margin-bottom:6px}
+.slotcard .swatches i{flex:1;min-width:0}
+.slotcard .slot-title{display:block;font-size:10px;font-weight:750;line-height:1.2;min-height:24px;overflow:hidden}
+.slotcard .slot-meta{display:block;font-size:9px;color:var(--tx2);margin-top:3px}
+.slotcard .slot-actions{display:flex;gap:3px;margin-top:6px}
+.slotcard .slot-actions button{flex:1;min-width:0;height:27px;border-radius:7px;background:var(--s3);border:1px solid var(--bd2);font-size:10px;padding:0 2px}
+.slotcard .slot-actions .edit{color:var(--ac)}
+.pldetail .sectiontitle{margin:10px 0 4px}
+#view-colors{overflow:auto;padding-bottom:4px}
+.color-page-panel,.palette-panel{flex:0 0 auto;margin:0;padding:11px}
+.color-page-head{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:8px}
+.color-page-head .cap{margin:0}
+.color-page-head .hint{margin-top:2px}
+.back-riding{display:none}
+.colorPage .back-riding{display:block}
+@media(max-height:700px){.selected-panel{max-height:39%}.rhead{min-height:34px}.ride-controls{padding-top:5px;padding-bottom:6px}.side-choice{min-height:38px}.output-row{margin-top:5px}.effect-catalog{padding-top:7px}}
+@media(min-width:520px){.rw{padding-left:16px;padding-right:16px}.tabs{margin-left:-16px;margin-right:-16px}.effect-catalog{padding-left:12px;padding-right:12px}.selected-panel{padding-left:12px;padding-right:12px}}
 </style></head>
-<body>
+<body class="ride-layout">
 <div id="mzH"></div>
 <div class="rw">
- <div class="rhead"><div class="lead"><div class="eyebrow">MIZUMA SMART SYSTEM</div><div class="rtitle" id="ridingTitle">Riding</div><div class="rsub" id="ridingSubtitle">Atur efek, warna, dan playlist saat berkendara</div></div><span class="legacy" id="ridingPageBadge">Single / Playlist</span></div>
- <section class="panel">
-  <div class="ctrlgrid">
-   <div><div class="cap">Sisi lampu</div><div class="segmented" id="sideSelect"><button data-side="kiri">Kiri</button><button data-side="both" class="on">Semua</button><button data-side="kanan">Kanan</button></div></div>
-   <div><div class="cap">Pengaturan output</div><div class="toolrow"><button class="tool" id="swapBtn">⇄ Posisi<small>Normal</small></button><button class="tool" id="reverseBtn">↔ Arah<small>Normal</small></button></div></div>
+ <div class="rhead">
+  <div class="lead">
+   <div class="eyebrow">MIZUMA SMART SYSTEM</div>
+   <div class="rtitle" id="ridingTitle">Riding</div>
+   <div class="rsub" id="ridingSubtitle">Atur efek, warna, dan playlist saat berkendara</div>
   </div>
-  <div class="brrow"><label for="brightness">Kecerahan</label><input id="brightness" type="range" min="1" max="255" value="180"><b id="brightnessVal">180</b></div>
+  <span class="legacy" id="ridingPageBadge">Single / Playlist</span>
+ </div>
+
+ <!-- Susunan navigasi internal mengikuti prototipe v19: Single Effect / Playlist Animasi. -->
+ <div class="tabs" id="mainTabs">
+  <button data-view="effects" class="on">Single Effect</button>
+  <button data-view="playlists">Playlist Animasi</button>
+  <button data-view="colors">Warna / Skin</button>
+ </div>
+
+ <!-- Pemilih sisi tanpa canvas atau live-preview. -->
+ <section class="ride-controls">
+  <div class="side-chooser" id="sideSelect" role="group" aria-label="Pilih sisi lampu">
+   <button class="side-choice" data-side="kiri" type="button"><span class="side-symbol">◀</span><b>Kiri</b></button>
+   <div class="side-middle">
+    <button class="barbtn fav-filter" id="favFilter" type="button">☆ Favorit</button>
+    <button class="side-choice all on" data-side="both" type="button"><b>Semua</b></button>
+   </div>
+   <button class="side-choice" data-side="kanan" type="button"><span class="side-symbol">▶</span><b>Kanan</b></button>
+  </div>
+  <div class="output-row">
+   <button class="tool compact" id="swapBtn" type="button">⇄ Posisi<small>Normal</small></button>
+   <button class="tool compact" id="reverseBtn" type="button">↔ Arah<small>Normal</small></button>
+   <div class="brightness-inline">
+    <span class="sun" aria-hidden="true">☀</span>
+    <input id="brightness" type="range" min="1" max="255" value="180" aria-label="Kecerahan">
+    <b id="brightnessVal">180</b>
+   </div>
+  </div>
  </section>
- <div class="tabs" id="mainTabs"><button data-view="effects" class="on">Single Effect</button><button data-view="playlists">Playlist</button><button data-view="colors">Warna / Skin</button></div>
+
  <section class="view on" id="view-effects">
-  <div class="panel">
-   <div class="bar"><input class="search" id="fxSearch" placeholder="Cari efek WLED..."><button class="barbtn on" id="favFilter">Semua</button></div>
-   <div class="fxgrid" id="fxGrid"><div class="empty">Memuat efek dari WLED...</div></div>
+  <div class="panel effect-catalog">
+   <div class="bar fxbar">
+    <span class="catalog-heading">Daftar Efek</span>
+    <input class="search" id="fxSearch" placeholder="Cari efek..." aria-label="Cari efek">
+   </div>
+   <div class="fx-scroll">
+    <div class="fxgrid" id="fxGrid"><div class="empty">Memuat efek dari WLED...</div></div>
+   </div>
   </div>
-  <div class="panel">
-   <div class="cap">Efek terpilih</div>
-   <div class="selected"><span class="swatch" id="currentSwatch"></span><div class="desc"><b id="currentFxName">Memuat...</b><small id="currentFxInfo">Atur warna dan parameter efek</small></div><button class="barbtn" id="saveSingle">Simpan</button></div>
-   <div class="sectiontitle">Parameter efek</div><div id="params" class="params"><div class="hint">Parameter mengikuti metadata efek WLED.</div></div>
+  <div class="panel selected-panel" id="selectedPanel">
+   <div class="selected">
+    <span class="swatch" id="currentSwatch"></span>
+    <div class="desc"><b id="currentFxName">Memuat...</b><small id="currentFxInfo">Atur warna dan parameter efek</small></div>
+    <button class="barbtn" id="saveSingle" type="button">Simpan</button>
+   </div>
+   <div class="sectiontitle">Parameter efek</div>
+   <div id="params" class="params"><div class="hint">Parameter mengikuti metadata efek WLED.</div></div>
    <div class="hint" id="paramHint"></div>
-   <div class="btnrow"><button class="btn outline" id="openColors">Atur warna</button><button class="btn primary" id="applySingle">Terapkan efek</button></div>
-   <div class="field"><label for="durationSec">Durasi slot playlist (detik)</label><input id="durationSec" type="number" inputmode="numeric" min="1" max="600" step="1" value="20"></div>
-   <div class="field"><label for="addTarget">Tambahkan efek ini ke playlist</label><div class="btnrow"><select id="addTarget"><option value="0">Playlist 1</option><option value="1">Playlist 2</option><option value="2">Playlist 3</option><option value="3">Playlist 4</option></select><button class="btn primary" id="addToPlaylist">＋ Tambah slot</button></div></div>
+   <div class="btnrow selected-actions">
+    <button class="btn outline" id="openColors" type="button">Ubah warna</button>
+    <button class="btn primary" id="applySingle" type="button">Pakai efek</button>
+   </div>
+   <div class="playlist-add">
+    <div class="field"><label for="durationSec">Durasi slot playlist (detik)</label><input id="durationSec" type="number" inputmode="numeric" min="1" max="600" step="1" value="20"></div>
+    <div class="field"><label for="addTarget">Tambahkan efek ini ke playlist</label><div class="btnrow"><select id="addTarget"><option value="0">Playlist 1</option><option value="1">Playlist 2</option><option value="2">Playlist 3</option><option value="3">Playlist 4</option></select><button class="btn primary" id="addToPlaylist" type="button">＋ Tambah slot</button></div></div>
+   </div>
   </div>
  </section>
+
  <section class="view" id="view-playlists">
-  <div class="panel"><div class="cap">Playlist Riding · tersimpan di ESP32</div><div class="playgrid" id="playlistGrid"><div class="empty">Memuat playlist...</div></div><div class="hint">Playlist berjalan dari engine ESP32. HP boleh ditutup setelah playlist dimulai.</div></div>
+  <div class="panel playlist-gallery">
+   <div class="cap">Playlist Riding · tersimpan di ESP32</div>
+   <div class="playgrid" id="playlistGrid"><div class="empty">Memuat playlist...</div></div>
+   <div class="hint">Playlist berjalan dari engine ESP32. HP boleh ditutup setelah playlist dimulai.</div>
+  </div>
   <div class="panel pldetail" id="playlistDetail"><div class="empty">Pilih playlist untuk mengelola slot.</div></div>
  </section>
+
  <section class="view" id="view-colors">
-  <div class="panel">
-   <div class="cap">Warna untuk efek terpilih</div>
+  <div class="panel color-page-panel">
+   <div class="color-page-head"><div><div class="cap">Warna untuk efek terpilih</div><div class="hint">Atur warna solid, skin efek, atau palette WLED.</div></div><button class="barbtn back-riding" id="backToRiding" type="button">‹ Kembali</button></div>
    <div class="color-mode" id="colorMode"><button data-mode="solid" class="on">Warna Solid</button><button data-mode="skin">Skin Efek</button></div>
    <div id="solidEditor"><div class="rgbrow"><div class="rgbitem"><label>Warna utama</label><input type="color" id="color0"></div><div class="rgbitem"><label>Warna kedua</label><input type="color" id="color1"></div><div class="rgbitem"><label>Warna ketiga</label><input type="color" id="color2"></div></div><div class="wheelbox"><div class="wheel-target" id="colorTarget"><button type="button" class="on" data-target="0">Utama</button><button type="button" data-target="1">Kedua</button><button type="button" data-target="2">Ketiga</button></div><canvas id="rideColorWheel" width="260" height="260" aria-label="Pilih warna dari roda warna"></canvas><div class="wheel-value"><label for="colorValue">Kecerahan</label><input id="colorValue" type="range" min="0" max="100" value="100"><b id="colorValueText">100%</b></div><div class="wheel-hex" id="colorHex">#FFA500</div></div><div class="quick" id="quickColors"></div></div>
    <div id="skinEditor" class="hide"><div class="skingrid" id="skinGrid"></div></div>
-   <div class="btnrow"><button class="btn" id="saveColor">Simpan warna</button><button class="btn outline" id="newSkin">＋ Buat skin baru</button></div>
+   <div class="btnrow"><button class="btn" id="saveColor" type="button">Simpan warna</button><button class="btn outline" id="newSkin" type="button">＋ Buat skin baru</button></div>
   </div>
-  <div class="panel"><div class="cap">Palette WLED</div><div class="palgrid" id="paletteGrid"><div class="empty">Memuat palette...</div></div><div class="hint">Palette berasal dari firmware WLED yang sedang terpasang.</div></div>
+  <div class="panel palette-panel"><div class="cap">Palette WLED</div><div class="palgrid" id="paletteGrid"><div class="empty">Memuat palette...</div></div><div class="hint">Palette berasal dari firmware WLED yang sedang terpasang.</div></div>
  </section>
 </div>
 <div id="mzN"></div><div id="toast" class="toast"></div>
@@ -1092,7 +1231,7 @@ function paletteGradient(i){const a=palStops[i];if(!a||!a.length)return'linear-g
 async function loadPalStops(page=0){try{const r=await jfetch('/json/palx?page='+page);const d=await r.json();Object.keys(d.p||{}).forEach(k=>palStops[k]=d.p[k]);if(typeof d.m==='number'&&page<d.m)await loadPalStops(page+1);else renderPalettes();}catch(e){}}
 function renderSkins(){const built=savedColors.map((c,i)=>({name:'Warna '+(i+1),colors:c,kind:'color',i}));const custom=skins.map((c,i)=>({name:c.name,colors:c.colors,kind:'skin',i}));const all=[...custom,...built];$('skinGrid').innerHTML=all.length?all.map(x=>'<button class="skin" data-skind="'+x.kind+'" data-si="'+x.i+'"><span class="swatches">'+x.colors.map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><b>'+esc(x.name)+'</b><small>'+(x.kind==='skin'?'Skin custom':'Warna tersimpan')+'</small></button>').join(''):'<div class="empty">Belum ada warna atau skin yang disimpan.</div>';}
 function renderPlaylists(){if(!playlists.length){$('playlistGrid').innerHTML='<div class="empty">Belum ada playlist.</div>';return;}$('playlistGrid').innerHTML=playlists.map((p,i)=>{const cols=p.slots.flatMap(x=>colorsOf(x)).slice(0,6);const strip=cols.length?cols.map(c=>'<i style="background:'+hex(c)+'"></i>').join(''):'<i style="background:#222"></i>';return'<button class="plcard'+(i===openPlaylist?' on':'')+'" data-playlist="'+i+'"><span class="plthumb">'+strip+'</span><b>'+esc(p.name||('Playlist '+(i+1)))+'</b><small>'+p.count+'/12 slot</small>'+(player.active&&player.playlist===i?'<span class="plstatus">● '+(player.paused?'DIJEDA':'SEDANG BERJALAN')+'</span>':'')+'</button>';}).join('');renderPlaylistDetail();}
-function renderPlaylistDetail(){const box=$('playlistDetail');if(openPlaylist<0||!playlists[openPlaylist]){box.innerHTML='<div class="empty">Pilih playlist untuk mengelola slot.</div>';return;}const p=playlists[openPlaylist];let rows=p.slots.map((s,j)=>{const nm=s.isShow?(showNames[s.showIndex]||('Animasi Mizuma '+(s.showIndex+1))):(allFx[s.fx]||('Efek '+s.fx));return '<div class="slotrow"><span class="n">'+(j+1)+'</span><span class="swatches">'+colorsOf(s).map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><span class="meta"><b>'+esc(nm)+'</b><small>'+(s.isShow?'Animasi Mizuma':'Efek WLED')+' · '+s.duration+' detik</small></span><button data-move="up" data-slot="'+j+'" '+(!j?'disabled':'')+'>↑</button><button data-move="down" data-slot="'+j+'" '+(j===p.slots.length-1?'disabled':'')+'>↓</button><button class="edit" data-edit-slot="'+j+'">Edit</button><button data-remove-slot="'+j+'">×</button></div>';}).join('');box.innerHTML='<div class="plhead"><b>Kelola playlist</b><span class="pill"><span class="statusdot"></span>'+p.count+'/12 slot</span></div><div class="plname"><input id="playlistName" type="text" maxlength="24" value="'+esc(p.name||('Playlist '+(openPlaylist+1)))+'"><button class="barbtn" id="renamePlaylist">Simpan</button></div><div class="plactions"><button class="play" id="playPlaylist">▶ Putar</button><button id="pausePlaylist">'+(player.active&&player.playlist===openPlaylist&&!player.paused?'Ⅱ Jeda':'▶ Lanjut')+'</button><button id="stopPlaylist">■ Stop</button></div><div class="sectiontitle">Urutan slot</div>'+(rows||'<div class="empty">Playlist masih kosong. Tambahkan efek dari Single Effect.</div>')+'<div class="btnrow"><button class="btn" id="addSelectedSlot" '+(p.count>=12?'disabled':'')+'>＋ Tambah efek terpilih</button><button class="btn" id="clearPlaylist">Kosongkan</button></div><div class="hint">Geser urutan slot dengan tombol panah. Durasi setiap slot diatur saat menambahkan atau mengedit.</div>';
+function renderPlaylistDetail(){const box=$('playlistDetail');if(openPlaylist<0||!playlists[openPlaylist]){box.innerHTML='<div class="empty">Pilih playlist untuk mengelola slot.</div>';return;}const p=playlists[openPlaylist];let rows=p.slots.map((s,j)=>{const nm=s.isShow?(showNames[s.showIndex]||('Animasi Mizuma '+(s.showIndex+1))):(allFx[s.fx]||('Efek '+s.fx));return '<div class="slotcard"><span class="swatches">'+colorsOf(s).map(c=>'<i style="background:'+hex(c)+'"></i>').join('')+'</span><b class="slot-title">'+(j+1)+'. '+esc(nm)+'</b><small class="slot-meta">'+(s.isShow?'Animasi Mizuma':'Efek WLED')+' · '+s.duration+' detik</small><div class="slot-actions"><button data-move="up" data-slot="'+j+'" '+(!j?'disabled':'')+' aria-label="Pindah ke atas">↑</button><button data-move="down" data-slot="'+j+'" '+(j===p.slots.length-1?'disabled':'')+' aria-label="Pindah ke bawah">↓</button><button class="edit" data-edit-slot="'+j+'">Edit</button><button data-remove-slot="'+j+'" aria-label="Hapus slot">×</button></div></div>';}).join('');box.innerHTML='<div class="plhead"><b>Kelola playlist</b><span class="pill"><span class="statusdot"></span>'+p.count+'/12 slot</span></div><div class="plname"><input id="playlistName" type="text" maxlength="24" value="'+esc(p.name||('Playlist '+(openPlaylist+1)))+'"><button class="barbtn" id="renamePlaylist">Simpan</button></div><div class="plactions"><button class="play" id="playPlaylist">▶ Putar</button><button id="pausePlaylist">'+(player.active&&player.playlist===openPlaylist&&!player.paused?'Ⅱ Jeda':'▶ Lanjut')+'</button><button id="stopPlaylist">■ Stop</button></div><div class="sectiontitle">Urutan slot</div><div class="slotgrid">'+(rows||'<div class="empty">Playlist masih kosong. Tambahkan efek dari Single Effect.</div>')+'</div><div class="btnrow"><button class="btn" id="addSelectedSlot" '+(p.count>=12?'disabled':'')+'>＋ Tambah efek terpilih</button><button class="btn" id="clearPlaylist">Kosongkan</button></div><div class="hint">Atur urutan dengan tombol panah. Durasi setiap slot diatur saat menambahkan atau mengedit.</div>';
 }
 function setView(v){activeView=v;document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.view===v));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));if(v==='colors'){renderPalettes();renderSkins();}}
 async function refreshPlaylists(){try{const d=await fetch('/mizuma/riding/playlists',{cache:'no-store'}).then(r=>r.json());playlists=d.playlists||[];player={active:!!d.active,paused:!!d.paused,playlist:d.playlist||0,slot:d.slot||0,side:d.side||'both'};renderPlaylists();}catch(e){$('playlistGrid').innerHTML='<div class="empty">Gagal membaca playlist engine.</div>';}}
@@ -1112,6 +1251,7 @@ async function loadSwitches(){try{const a=await fetch('/mizuma/side-swap').then(
 async function loadWled(){try{const [e,f,p,state,saved,shows,durations]=await Promise.all([jfetch('/json/eff').then(r=>r.json()),jfetch('/json/fxdata').then(r=>r.json()),jfetch('/json/pal').then(r=>r.json()),jfetch('/json/state').then(r=>r.json()),fetch('/mizuma/presets',{cache:'no-store'}).then(r=>r.json()),fetch('/mizuma/shows',{cache:'no-store'}).then(r=>r.json()),fetch('/mizuma/show-durations',{cache:'no-store'}).then(r=>r.json())]);allFx=e;fxData=f;palNames=p;showNames=shows||[];showDurations=durations||[];fxList=allFx.map((name,id)=>({id,name})).filter(x=>fxOk(x.id,x.name)).sort((a,b)=>a.id===0?-1:b.id===0?1:a.name.localeCompare(b.name));welcomeNativeList=WELCOME_NATIVE_FX.map(spec=>{let id=allFx.findIndex(n=>String(n).toLowerCase()===spec.match.toLowerCase());if(id<0&&spec.fallback)id=allFx.findIndex(n=>String(n).toLowerCase()===spec.fallback.toLowerCase());return id>=0?{id,name:spec.label}:null;}).filter(Boolean);const seg=state.seg||[];const id=selectedSegId('kanan'),live=seg.find(x=>x&&x.id===id)||seg[id],presetKey=welcomingPage?'welcomingKanan':'ridingKanan',s=saved[presetKey]||live;if(s){current.kind=s.isShow?'show':'fx';current.showIndex=s.showIndex??0;current.fx=s.fx??0;current.pal=s.pal??0;current.colors=colorsOf(s);current.params={sx:s.sx??128,ix:s.ix??128,c1:s.c1??128,c2:s.c2??128,c3:s.c3??128,o1:s.o1?1:0,o2:s.o2?1:0,o3:s.o3?1:0};if(current.kind==='fx'){paramCache[current.fx]=Object.assign({},current.params);cacheCurrentFx();}}if(state.bri){$('brightness').value=state.bri;$('brightnessVal').textContent=state.bri;}catalogReady=true;renderSelected();renderPalettes();loadPalStops();}catch(e){$('fxGrid').innerHTML='<div class="empty">Tidak dapat membaca katalog WLED. Pastikan WLED API aktif.</div>';toast('Gagal memuat katalog WLED');}}
 function bind(){
 $('mainTabs').addEventListener('click',e=>{const b=e.target.closest('button[data-view]');if(b)setView(b.dataset.view);});
+$('backToRiding').addEventListener('click',()=>setView('effects'));
 $('sideSelect').addEventListener('click',e=>{const b=e.target.closest('button[data-side]');if(b)setSide(b.dataset.side);});
 $('swapBtn').addEventListener('click',async()=>{try{const d=await api('/mizuma/side-swap?enabled='+(sideSwap?'0':'1'));sideSwap=!!d.enabled;$('swapBtn').classList.toggle('on',sideSwap);$('swapBtn').querySelector('small').textContent=sideSwap?'Ditukar':'Normal';toast('Pemetaan sisi diperbarui');}catch(e){toast('Gagal mengubah posisi output');}});
 $('reverseBtn').addEventListener('click',async()=>{try{const d=await api('/mizuma/show/reverse?enabled='+(reverse?'0':'1'));reverse=!!d.enabled;$('reverseBtn').classList.toggle('on',reverse);$('reverseBtn').querySelector('small').textContent=reverse?'Dibalik':'Normal';toast('Arah efek diperbarui');}catch(e){toast('Tidak ada segmen aktif atau gagal mengubah arah');}});
@@ -1147,7 +1287,7 @@ else if(b.dataset.editSlot!==undefined){const s=p.slots[+b.dataset.editSlot];if(
 }catch(err){toast('Aksi playlist gagal: '+err.message);}});
 
 }
-async function init(){drawRideWheel();setSide('both',true);bind();await loadSwitches();await loadWled();await refreshPlaylists();renderSkins();if(welcomingPage){$('ridingTitle').textContent='Welcoming';$('ridingSubtitle').textContent='Pilih animasi pembuka, efek native, dan atur warna';$('ridingPageBadge').textContent='Animasi / Efek Native';$('fxSearch').placeholder='Cari animasi atau efek Welcoming...';document.querySelector('#mainTabs button[data-view=effects]').textContent='Efek';document.querySelector('#mainTabs button[data-view=colors]').textContent='Warna';document.querySelector('#mainTabs button[data-view=playlists]').style.display='none';$('view-playlists').style.display='none';$('mainTabs').style.gridTemplateColumns='repeat(2,minmax(0,1fr))';$('durationSec').parentElement.style.display='none';$('addTarget').parentElement.parentElement.style.display='none';}if(colorPage){$('ridingTitle').textContent='Warna';$('ridingSubtitle').textContent='Atur warna solid, skin, dan palette';$('ridingPageBadge').style.display='none';$('mainTabs').style.display='none';setView('colors');}setInterval(()=>{if(activeView==='playlists'&&!welcomingPage&&document.activeElement?.id!=='playlistName')refreshPlaylists();},4000);}
+async function init(){drawRideWheel();setSide('both',true);bind();await loadSwitches();await loadWled();await refreshPlaylists();renderSkins();if(welcomingPage){$('ridingTitle').textContent='Welcoming';$('ridingSubtitle').textContent='Pilih animasi pembuka, efek native, dan atur warna';$('ridingPageBadge').textContent='Animasi / Efek Native';$('fxSearch').placeholder='Cari animasi atau efek Welcoming...';document.querySelector('#mainTabs button[data-view=effects]').textContent='Efek';document.querySelector('#mainTabs button[data-view=colors]').style.display='';document.querySelector('#mainTabs button[data-view=colors]').textContent='Warna';document.querySelector('#mainTabs button[data-view=playlists]').style.display='none';$('view-playlists').style.display='none';$('mainTabs').style.gridTemplateColumns='repeat(2,minmax(0,1fr))';$('durationSec').parentElement.style.display='none';$('addTarget').parentElement.parentElement.style.display='none';}else if(!colorPage){document.querySelector('#mainTabs button[data-view=colors]').style.display='none';$('mainTabs').style.gridTemplateColumns='repeat(2,minmax(0,1fr))';}if(colorPage){$('ridingTitle').textContent='Warna';$('ridingSubtitle').textContent='Atur warna solid, skin, dan palette';$('ridingPageBadge').style.display='none';$('mainTabs').style.display='none';document.body.classList.add('colorPage');$('backToRiding').style.display='none';setView('colors');}else{$('backToRiding').style.display='block';}setInterval(()=>{if(activeView==='playlists'&&!welcomingPage&&document.activeElement?.id!=='playlistName')refreshPlaylists();},4000);}
 init();
 })();
 </script>
