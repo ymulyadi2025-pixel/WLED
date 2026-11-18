@@ -84,6 +84,8 @@ extern void handlePresets();
     struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; bool loop=false; bool reverseOverride=false; };
     ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
     bool bootDone = false;
+    bool bootWelcomePending = false;
+    uint32_t bootWelcomeAt = 0;
     bool usingNativeWelcomePreset = false;
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
     bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
@@ -961,6 +963,7 @@ void handlePlStop(AsyncWebServerRequest *req){
  * - Tidak ada ketergantungan Wi-Fi/HTTP dan tidak mengubah sistem palette.
  */
 void startWelcomeSequence(){
+  // Jadwalkan welcome dari loop tanpa blokir startup Wi-Fi/WLED.
   usingNativeWelcomePreset = false;
 
   if (bootPreset > 0) {
@@ -987,17 +990,8 @@ void startWelcomeSequence(){
     applyModeSide("welcoming", "both");
   }
 
-  // Paksa frame awal dijadwalkan sebelum WLED meneruskan startup jaringan.
-  // Tunggu hanya sebentar agar transfer frame sebelumnya tidak bertabrakan.
+  // Hanya jadwalkan frame awal; render diteruskan oleh strip.service() normal WLED.
   strip.trigger();
-  const uint32_t renderWaitStart = millis();
-  while (strip.isUpdating() && (uint32_t)(millis() - renderWaitStart) < 40U) {
-    delay(1);
-  }
-  if (!strip.isUpdating()) {
-    strip.service();
-  }
-
   bootStage = 1;
   bootDone = false;
   bootT = millis(); // awal durasi dihitung sesudah render frame Welcome dijadwalkan
@@ -1012,20 +1006,21 @@ loadSkinFile();
 loadSolidColorFile();
 if(ridingPl>=PL_MAX||(ridingPl>=0&&pls[ridingPl].n==0))ridingPl=-1;
 cmdQueue=xQueueCreate(MZ_CMD_QUEUE_LEN,sizeof(MzCmd)); // harus ada sebelum route HTTP didaftarkan
-// Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 tSetupMs=millis();
 showFxResolved=resolveShowEffects();
 DEBUG_PRINTF_P(PSTR("[Mizuma] %u/%u efek WLED siap untuk 55 show\n"),(unsigned)showFxResolved,(unsigned)MZ_FXN_COUNT);
 if(showFxResolved<MZ_FXN_COUNT)DEBUG_PRINTLN(F("[Mizuma] PERINGATAN: beberapa tahap akan dilewati karena nama FX tidak ditemukan pada build ini."));
-startWelcomeSequence();
 apBehavior=AP_BEHAVIOR_ALWAYS;
+bootWelcomePending=true;
+bootWelcomeAt=millis();
 DEBUG_PRINTLN(F("[Mizuma] Usermod utama siap"));
 #ifndef MZ_NO_UI
 // UI hanya diberi cara membaca data kendaraan; selebihnya UI berbicara ke engine lewat API HTTP di bawah.
 mizumaUiRegister(server,[this](){MizumaVehicleInfo v;v.name=vehicleName;v.brand=vehicleBrand;v.plate=vehiclePlate;v.year=vehicleYear;return v;});
 #endif
 server.on("/mizuma/status",HTTP_GET,[this](AsyncWebServerRequest *req){
-  const bool apOn = (WiFi.softAPgetStationNum() > 0);
+  const uint8_t wifiMode = WiFi.getMode();
+  const bool apOn = ((wifiMode & WIFI_AP) != 0);
   const bool staOn = (WiFi.status() == WL_CONNECTED);
   const String staIP = staOn ? WiFi.localIP().toString() : String("");
   const String ssid = staOn ? WiFi.SSID() : String("Mizuma Smart System");
@@ -1048,8 +1043,8 @@ server.on("/mizuma/status",HTTP_GET,[this](AsyncWebServerRequest *req){
   req->send(200, "application/json", json);
 });
 server.on("/mizuma/debug",HTTP_GET,[this](AsyncWebServerRequest *req){
-char buf[288];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u,\"showFxResolved\":%u,\"maxShowMs\":%u}",
-(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis(),(unsigned)showFxResolved,(unsigned)MZ_SHOW_MAX_DURATION_MS);
+char buf[448];snprintf(buf,sizeof(buf),"{\"heap\":%u,\"minHeap\":%u,\"maxAlloc\":%u,\"setupMs\":%u,\"welcomeMs\":%u,\"nowMs\":%u,\"showFxResolved\":%u,\"maxShowMs\":%u,\"wifiMode\":%u,\"wifiStatus\":%d,\"apClients\":%u,\"bootWelcomePending\":%s,\"bootDone\":%s,\"resetReason\":%d}",
+(unsigned)ESP.getFreeHeap(),(unsigned)ESP.getMinFreeHeap(),(unsigned)ESP.getMaxAllocHeap(),(unsigned)tSetupMs,(unsigned)tWelcomeMs,(unsigned)millis(),(unsigned)showFxResolved,(unsigned)MZ_SHOW_MAX_DURATION_MS,(unsigned)WiFi.getMode(),(int)WiFi.status(),(unsigned)WiFi.softAPgetStationNum(),bootWelcomePending?"true":"false",bootDone?"true":"false",(int)esp_reset_reason());
 req->send(200,"application/json",buf);});
 server.on("/mizuma/shows",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(1800);out+="[";for(uint8_t i=0;i<MZ_SHOW_COUNT;i++){if(i)out+=",";out+='"';out+=jsonEscape(String(MZ_SHOWS[i].name));out+='"';}out+="]";req->send(200,"application/json",out);});
@@ -1125,6 +1120,10 @@ void loop() override {
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   tickPlaylist();
   tickShowEngine();
+  if(bootWelcomePending && (uint32_t)(millis()-bootWelcomeAt)>=250U){
+    bootWelcomePending=false;
+    startWelcomeSequence();
+  }
   if(plSavePending&&(uint32_t)(millis()-plSaveT)>1500U){plSavePending=false;plSaveFile();}
   if(cfgSavePending && (uint32_t)(millis() - cfgSaveT) > 1500U){
     cfgSavePending=false;
