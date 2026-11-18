@@ -8,17 +8,25 @@
 //   GET       /mizuma/status          -> {ap, sta, staIP, ssid}
 //   GET       /mizuma/debug           -> {heap, minHeap, maxAlloc, setupMs, welcomeMs, nowMs, showFxResolved, maxShowMs}
 //   GET       /mizuma/shows           -> ["nama show", ...]            GET /mizuma/show-durations -> [ms, ...]
-//   GET|POST  /mizuma/show            ?index=N&side=S                  jalankan show Welcoming terpilih
+//   GET|POST  /mizuma/show            ?index=N&side=S                  jalankan show (preview)
 //   GET|POST  /mizuma/show/stop       ?side=S
 //   GET|POST  /mizuma/show/palette    ?pal=0..255&side=S               0 = palette asli resep show
 //   GET|POST  /mizuma/show/reverse    (GET: status)  ?enabled=1|0      arah global
 //   GET|POST  /mizuma/apply           ?mode=welcoming|riding|sein|rem|hazard&side=S
 //   GET|POST  /mizuma/preset          ?slot=<welcomingKanan|...|hazardKiri>&fx&pal&r&g&b&r1..b2&sx&ix&c1..c3&o1..o3&bri&isShow&showIndex
 //   GET       /mizuma/presets         -> semua 10 slot
-//   GET       /mizuma/riding/playlists -> 4 playlist + status player
-//   POST      /mizuma/riding/playlist/meta|clear|slot|reorder|start|pause|stop
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
+//   --- Playlist Riding (maks 4 playlist x 12 slot; berjalan di engine, tetap jalan saat HP terputus) ---
+//   GET   /mizuma/playlists          -> {use, lists:[{n, c}]}           use = indeks playlist yang dipakai Riding (-1 = Single Effect)
+//   GET   /mizuma/pl/list?i=N        -> {name, it:[{d(0.1dtk), rv, R:{..}, L:{..}}]}
+//   POST  /mizuma/pl/save            body JSON {list,name,it:[...]}     simpan satu playlist
+//   POST  /mizuma/pl/delete?list=N
+//   POST  /mizuma/pl/use?list=N      N=-1 -> kembali ke preset Single Effect (ridingKanan/ridingKiri)
+//   POST  /mizuma/pl/play?list=N&slot=J&hold=0|1   putar / pratinjau satu slot
+//   POST  /mizuma/pl/pause?on=1|0    jeda / lanjut        POST /mizuma/pl/stop   hentikan pratinjau, pulihkan Riding
+//   GET   /mizuma/pl/state           -> {use, run, hold, list, slot, el}
+//   Slot preset riding (ridingKanan/Kiri) kini boleh berisi show Mizuma (isShow=1&showIndex=N); show diulang terus.
 // =====================================================================================================================================
 #include "wled.h"
 #include "mizuma_shows.h"     // 55 rangkaian animasi multi-stage Mizuma
@@ -64,44 +72,13 @@ extern void handlePresets();
     uint8_t bri = 180;
     };
     PresetSlot pslots[10];
-
-    // Playlist Riding disimpan di konfigurasi ESP32 (maks. 4 playlist x 12 slot).
-    static const uint8_t MZ_RIDE_PLAYLIST_COUNT = 4;
-    static const uint8_t MZ_RIDE_PLAYLIST_SLOTS = 12;
-    struct RidePlaylistSlot {
-      bool valid = false;
-      bool isShow = false;
-      uint8_t showIndex = 0;
-      uint8_t fx = 0, pal = 0;
-      uint8_t r = 255, g = 165, b = 0;
-      uint8_t r1 = 255, g1 = 255, b1 = 255;
-      uint8_t r2 = 255, g2 = 26, b2 = 0;
-      uint8_t sx = 128, ix = 128;
-      uint8_t c1 = 128, c2 = 128, c3 = 128;
-      uint8_t o1 = 0, o2 = 0, o3 = 0;
-      uint8_t bri = 180;
-      uint16_t durationSec = 20;
-    };
-    struct RidePlaylist {
-      char name[25] = {0};
-      uint8_t count = 0;
-      RidePlaylistSlot slots[MZ_RIDE_PLAYLIST_SLOTS];
-    };
-    struct RidePlaylistRunner {
-      bool active = false, paused = false;
-      uint8_t playlist = 0, slot = 0, side = 0;
-      uint32_t slotStartedAt = 0, pausedAt = 0;
-    };
-    RidePlaylist ridingPlaylists[MZ_RIDE_PLAYLIST_COUNT];
-    RidePlaylistRunner rideRunner;
-
     static const uint16_t NATIVE_WELCOME_FALLBACK_MS = 7000; // hanya untuk preset boot WLED native, bukan show Mizuma
     int bootStage = 0;
     uint32_t bootT = 0;
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
     uint8_t  showFxResolved = 0;              // jumlah nama efek WLED yang berhasil dipetakan
     uint8_t  showModeIds[MZ_FXN_COUNT];       // indeks aktual efek WLED, di-resolve saat boot
-    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; };
+    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; bool loop=false; };
     ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
@@ -114,7 +91,7 @@ extern void handlePresets();
        showRunner[], atau memanggil deallocateData() (WLED: reset/dealokasi tidak boleh terjadi saat efek berjalan).
        Aturan: handler hanya memvalidasi argumen lalu menitipkan perintah; processCmdQueue() di loop() adalah
        satu-satunya tempat yang mengeksekusi perubahan. loop() berjalan sebelum strip.service() pada task yang sama. */
-    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_RIDE_PLAY_START, MZ_CMD_RIDE_PLAY_PAUSE, MZ_CMD_RIDE_PLAY_STOP };
+    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP };
     struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; char mode[10]; };
     static const uint8_t MZ_CMD_QUEUE_LEN = 12;
     QueueHandle_t cmdQueue = nullptr;
@@ -189,97 +166,24 @@ int modeBase(const String &mode){
 if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 4;
 if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
 bool applyModeSide(const String &mode,const String &side,uint16_t transition100ms=0){
-rideRunner.active=false;rideRunner.paused=false;
+stopPlaylist();
 if(mode=="welcoming")return applyWelcomeModeSide(side);
 stopShowRunners("both");
 int base=modeBase(mode);if(base<0)return false;
-if(mode=="riding"){
-  if(side!="both"&&side!="kanan"&&side!="kiri")return false;
-  StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();root["on"]=true;root["transition"]=transition100ms;
-  if(bri==0)root["bri"]=savedBri;
-  JsonArray seg=root.createNestedArray("seg");
-  const bool useRight=(side=="both"||side=="kanan"),useLeft=(side=="both"||side=="kiri");
-  PresetSlot rightSlot,leftSlot;
-  if(useRight){rightSlot=getEffectiveSlot(2);addSegmentFromSlot(seg,physicalSegForLogicalSide(true),2);}
-  if(useLeft){leftSlot=getEffectiveSlot(3);addSegmentFromSlot(seg,physicalSegForLogicalSide(false),3);}
-  deserializeState(root);
-  if(useRight&&rightSlot.isShow)startShowRunner(true,rightSlot.showIndex);
-  if(useLeft&&leftSlot.isShow)startShowRunner(false,leftSlot.showIndex);
-  tickShowEngine();
-  return true;
-}
-if(side=="both"){applyTwoSlots(base,base+1,transition100ms);return true;}
-if(side=="kanan"){applySingleSlot(base);return true;}
-if(side=="kiri"){applySingleSlot(base+1);return true;}
-return false;}
-
-// ---------------- RIDING PLAYLIST ENGINE ----------------
-void addRideSegment(JsonArray seg,uint8_t segId,const RidePlaylistSlot &p){
-  JsonObject s=seg.createNestedObject();
-  s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["rev"]=showReverse;
-  s["sx"]=p.sx;s["ix"]=p.ix;s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;
-  s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
-  JsonArray col=s.createNestedArray("col");
-  JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
-  JsonArray c1=col.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
-  JsonArray c2=col.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);
-}
-void applyRidePlaylistSlot(){
-  if(!rideRunner.active||rideRunner.playlist>=MZ_RIDE_PLAYLIST_COUNT)return;
-  RidePlaylist &pl=ridingPlaylists[rideRunner.playlist];
-  if(!pl.count||rideRunner.slot>=pl.count)return;
-  const RidePlaylistSlot &p=pl.slots[rideRunner.slot];
-  if(!p.valid)return;
-  stopShowRunners("both");
-  StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
-  root["on"]=true;root["transition"]=3;
-  if(bri==0)root["bri"]=savedBri;
-  JsonArray seg=root.createNestedArray("seg");
-  if(rideRunner.side==0){
-    addRideSegment(seg,physicalSegForLogicalSide(true),p);
-    addRideSegment(seg,physicalSegForLogicalSide(false),p);
-  }else if(rideRunner.side==1){
-    addRideSegment(seg,physicalSegForLogicalSide(true),p);
-  }else{
-    addRideSegment(seg,physicalSegForLogicalSide(false),p);
-  }
-  deserializeState(root);
-  if(p.isShow){const String sideName=String(mzSideName(rideRunner.side));startShow((int)p.showIndex,sideName);if(p.pal!=0)execShowPalette(p.pal,sideName);}
-}
-void startRidePlaylist(uint8_t index,uint8_t side){
-  if(index>=MZ_RIDE_PLAYLIST_COUNT||side>2)return;
-  RidePlaylist &pl=ridingPlaylists[index];
-  if(!pl.count)return;
-  stopShowRunners("both");
-  rideRunner.active=true;rideRunner.paused=false;rideRunner.playlist=index;rideRunner.slot=0;rideRunner.side=side;
-  rideRunner.slotStartedAt=millis();rideRunner.pausedAt=0;
-  applyRidePlaylistSlot();
-}
-void pauseRidePlaylist(bool paused){
-  if(!rideRunner.active||rideRunner.paused==paused)return;
-  const uint32_t now=millis();
-  if(paused){rideRunner.paused=true;rideRunner.pausedAt=now;}
-  else{rideRunner.slotStartedAt+=(uint32_t)(now-rideRunner.pausedAt);rideRunner.paused=false;rideRunner.pausedAt=0;}
-}
-void stopRidePlaylist(bool restoreRiding){
-  const uint8_t side=rideRunner.side;
-  rideRunner.active=false;rideRunner.paused=false;rideRunner.pausedAt=0;
-  stopShowRunners("both");
-  if(restoreRiding)applyModeSide("riding",String(mzSideName(side)));
-}
-void tickRidingPlaylist(){
-  if(!rideRunner.active||rideRunner.paused||rideRunner.playlist>=MZ_RIDE_PLAYLIST_COUNT)return;
-  RidePlaylist &pl=ridingPlaylists[rideRunner.playlist];
-  if(!pl.count){rideRunner.active=false;return;}
-  if(rideRunner.slot>=pl.count)rideRunner.slot=0;
-  const uint16_t duration=(pl.slots[rideRunner.slot].durationSec<1)?1:pl.slots[rideRunner.slot].durationSec;
-  const uint32_t now=millis();
-  if((uint32_t)(now-rideRunner.slotStartedAt)>=(uint32_t)duration*1000UL){
-    rideRunner.slot=(uint8_t)((rideRunner.slot+1U)%pl.count);
-    rideRunner.slotStartedAt=now;
-    applyRidePlaylistSlot();
-  }
-}
+if(side!="both"&&side!="kanan"&&side!="kiri")return false;
+if(base==2&&ridingPl>=0&&ridingPl<PL_MAX&&pls[ridingPl].n>0)return startPlaylist(ridingPl,0,false);
+if(side=="both")applyTwoSlots(base,base+1,transition100ms);
+else if(side=="kanan")applySingleSlot(base);
+else applySingleSlot(base+1);
+if(base==2)startSlotShows(side=="both"||side=="kanan",side=="both"||side=="kiri");
+return true;}
+// Slot Riding boleh berisi show Mizuma: jalankan dan ulang terus (loop).
+void startSlotShows(bool useR,bool useL){
+for(uint8_t k=0;k<2;k++){
+if(k==0&&!useR)continue;if(k==1&&!useL)continue;
+PresetSlot p=getEffectiveSlot(2+k);
+if(p.isShow&&p.showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,p.showIndex);showRunner[k].loop=true;}}
+tickShowEngine();}
 
 // ---------------- MIZUMA SHOW ENGINE (WLED 16.0.1) ----------------
 char lowerAscii(char c){return (c>='A'&&c<='Z')?(char)(c+('a'-'A')):c;}
@@ -425,7 +329,7 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
 void startShowRunner(bool logicalRight,uint8_t showIndex){
   if(showIndex>=MZ_SHOW_COUNT)return;
   ShowRunner &r=showRunner[logicalRight?0:1];
-  r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;
+  r.loop=false;r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;
   const uint8_t segId=physicalSegForLogicalSide(logicalRight);
   r.userPalette=(segId<strip.getSegmentsNum())?strip.getSegment(segId).palette:0;
   r.startedAt=millis();
@@ -457,13 +361,17 @@ void tickShowEngine(){
       }
       r.stageIndex++;
     }
-    if(elapsed>=show.durationMs)r.active=false; // selesai setelah cue terakhir + waktu penutup show
+    if(elapsed>=show.durationMs){
+      if(r.loop){r.stageIndex=0;r.currentStageIndex=255;r.startedAt=now;} // Riding: show diulang terus
+      else r.active=false; // selesai setelah cue terakhir + waktu penutup show
+    }
   }
 }
-bool startShow(int index,const String &side){
+bool startShowPreview(int index,const String &side){
   if(index<0||index>=MZ_SHOW_COUNT)return false;
   if(side!="both"&&side!="kanan"&&side!="kiri")return false;
-  stopShowRunners(side); // hentikan show sebelumnya pada sisi yang dipilih
+  stopPlaylist();
+  stopShowRunners(side); // jangan biarkan runner preview sebelumnya hidup pada sisi lain
   if(bri==0){bri=savedBri?savedBri:180;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
   if(side=="both"){
     startShowRunner(true,(uint8_t)index);startShowRunner(false,(uint8_t)index);
@@ -620,7 +528,7 @@ int i=slotIdx(slotName);
 if(i<0){req->send(400,"application/json","{\"ok\":false}");return;}
 PresetSlot p;p.valid=true;
 p.isShow=(i<=3&&req->hasArg("isShow")&&(req->arg("isShow")=="1"||req->arg("isShow")=="true"));
-p.showIndex=(i<=3&&p.isShow)?(uint8_t)constrain(req->arg("showIndex").toInt(),0,MZ_SHOW_COUNT-1):0;
+p.showIndex=(i<=3)?(uint8_t)constrain(req->arg("showIndex").toInt(),0,MZ_SHOW_COUNT-1):0;
 p.fx=p.isShow?0:argU8(req,"fx",0);p.pal=argU8(req,"pal",0);
 p.r=argU8(req,"r",255);p.g=argU8(req,"g",255);p.b=argU8(req,"b",255);
 p.r1=argU8(req,"r1",0);p.g1=argU8(req,"g1",0);p.b1=argU8(req,"b1",0);
@@ -653,99 +561,6 @@ if(!enqueueCmd(c)){sendBusy(req);return;}
 String json=String("{\"ok\":true,\"enabled\":")+(en?"true":"false")+"}";
 req->send(200,"application/json",json);}
 
-uint8_t ridePlaylistIndex(AsyncWebServerRequest *req){
-  if(!req->hasArg("index"))return 255;
-  const int i=req->arg("index").toInt();
-  return (i>=0&&i<MZ_RIDE_PLAYLIST_COUNT)?(uint8_t)i:255;
-}
-void handleRidePlaylists(AsyncWebServerRequest *req){
-  String out;out.reserve(12000);out+="{\"playlists\":[";
-  for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
-    if(i)out+=",";
-    RidePlaylist &pl=ridingPlaylists[i];
-    out+="{\"name\":\"";out+=jsonEscape(String(pl.name));out+="\",\"count\":";out+=String(pl.count);out+=",\"slots\":[";
-    for(uint8_t j=0;j<pl.count;j++){
-      if(j)out+=",";
-      const RidePlaylistSlot &p=pl.slots[j];
-      char b[420];
-      snprintf(b,sizeof(b),"{\"fx\":%u,\"isShow\":%s,\"showIndex\":%u,\"pal\":%u,\"col\":[[%u,%u,%u],[%u,%u,%u],[%u,%u,%u]],\"sx\":%u,\"ix\":%u,\"c1\":%u,\"c2\":%u,\"c3\":%u,\"o1\":%u,\"o2\":%u,\"o3\":%u,\"bri\":%u,\"duration\":%u}",
-      (unsigned)p.fx,p.isShow?"true":"false",(unsigned)p.showIndex,(unsigned)p.pal,(unsigned)p.r,(unsigned)p.g,(unsigned)p.b,(unsigned)p.r1,(unsigned)p.g1,(unsigned)p.b1,(unsigned)p.r2,(unsigned)p.g2,(unsigned)p.b2,
-      (unsigned)p.sx,(unsigned)p.ix,(unsigned)p.c1,(unsigned)p.c2,(unsigned)p.c3,(unsigned)p.o1,(unsigned)p.o2,(unsigned)p.o3,(unsigned)p.bri,(unsigned)p.durationSec);
-      out+=b;
-    }
-    out+="]}";
-  }
-  out+="],\"active\":";out+=(rideRunner.active?"true":"false");
-  out+=",\"paused\":";out+=(rideRunner.paused?"true":"false");
-  out+=",\"playlist\":";out+=String(rideRunner.playlist);
-  out+=",\"slot\":";out+=String(rideRunner.slot);
-  out+=",\"side\":\"";out+=mzSideName(rideRunner.side);out+="\"}";
-  req->send(200,"application/json",out);
-}
-void handleRidePlaylistMeta(AsyncWebServerRequest *req){
-  const uint8_t i=ridePlaylistIndex(req);if(i==255){req->send(400,"application/json","{\"ok\":false,\"error\":\"index\"}");return;}
-  if(req->hasArg("name")){String n=req->arg("name");n.trim();if(n.length()>24)n=n.substring(0,24);if(!n.length())n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));}
-  queueSave();req->send(200,"application/json","{\"ok\":true}");
-}
-void handleRidePlaylistClear(AsyncWebServerRequest *req){
-  const uint8_t i=ridePlaylistIndex(req);if(i==255){req->send(400,"application/json","{\"ok\":false}");return;}
-  if(rideRunner.active&&rideRunner.playlist==i){MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_STOP;c.flag=1;if(!enqueueCmd(c)){sendBusy(req);return;}}
-  ridingPlaylists[i]=RidePlaylist();
-  String n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));
-  queueSave();req->send(200,"application/json","{\"ok\":true}");
-}
-void handleRidePlaylistSlot(AsyncWebServerRequest *req){
-  const uint8_t i=ridePlaylistIndex(req);if(i==255||!req->hasArg("slot")){req->send(400,"application/json","{\"ok\":false}");return;}
-  RidePlaylist &pl=ridingPlaylists[i];const int at=req->arg("slot").toInt();
-  if(at<0||at>=MZ_RIDE_PLAYLIST_SLOTS){req->send(400,"application/json","{\"ok\":false,\"error\":\"slot\"}");return;}
-  if(req->hasArg("remove")&&req->arg("remove")=="1"){
-    if(at>=pl.count){req->send(404,"application/json","{\"ok\":false}");return;}
-    for(uint8_t k=(uint8_t)at;k+1<pl.count;k++)pl.slots[k]=pl.slots[k+1];
-    if(pl.count)pl.count--;pl.slots[pl.count]=RidePlaylistSlot();queueSave();req->send(200,"application/json","{\"ok\":true}");return;
-  }
-  if(at>(int)pl.count|| (at==(int)pl.count&&pl.count>=MZ_RIDE_PLAYLIST_SLOTS)){req->send(409,"application/json","{\"ok\":false,\"error\":\"playlist_full_or_gap\"}");return;}
-  RidePlaylistSlot p=(at<pl.count&&pl.slots[at].valid)?pl.slots[at]:RidePlaylistSlot();
-  p.valid=true;
-  if(req->hasArg("isShow"))p.isShow=(req->arg("isShow")=="1"||req->arg("isShow")=="true");
-  if(p.isShow){p.showIndex=(uint8_t)constrain(req->arg("showIndex").toInt(),0,MZ_SHOW_COUNT-1);p.fx=0;}
-  else{p.showIndex=0;p.fx=argU8(req,"fx",p.fx);}
-  p.pal=argU8(req,"pal",p.pal);
-  p.r=argU8(req,"r",p.r);p.g=argU8(req,"g",p.g);p.b=argU8(req,"b",p.b);
-  p.r1=argU8(req,"r1",p.r1);p.g1=argU8(req,"g1",p.g1);p.b1=argU8(req,"b1",p.b1);
-  p.r2=argU8(req,"r2",p.r2);p.g2=argU8(req,"g2",p.g2);p.b2=argU8(req,"b2",p.b2);
-  p.sx=argU8(req,"sx",p.sx);p.ix=argU8(req,"ix",p.ix);
-  p.c1=argU8(req,"c1",p.c1);p.c2=argU8(req,"c2",p.c2);p.c3=argU8(req,"c3",p.c3);
-  p.o1=argU8(req,"o1",p.o1)?1:0;p.o2=argU8(req,"o2",p.o2)?1:0;p.o3=argU8(req,"o3",p.o3)?1:0;
-  p.bri=argU8(req,"bri",p.bri);if(!p.bri)p.bri=180;
-  if(req->hasArg("duration"))p.durationSec=(uint16_t)constrain(req->arg("duration").toInt(),1,600);
-  pl.slots[at]=p;if(at>=pl.count)pl.count=(uint8_t)(at+1);queueSave();
-  req->send(200,"application/json","{\"ok\":true}");
-}
-void handleRidePlaylistReorder(AsyncWebServerRequest *req){
-  const uint8_t i=ridePlaylistIndex(req);if(i==255||!req->hasArg("from")||!req->hasArg("to")){req->send(400,"application/json","{\"ok\":false}");return;}
-  RidePlaylist &pl=ridingPlaylists[i];const int from=req->arg("from").toInt(),to=req->arg("to").toInt();
-  if(from<0||to<0||from>=pl.count||to>=pl.count){req->send(400,"application/json","{\"ok\":false}");return;}
-  if(from!=to){RidePlaylistSlot tmp=pl.slots[from];if(from<to){for(int k=from;k<to;k++)pl.slots[k]=pl.slots[k+1];}else{for(int k=from;k>to;k--)pl.slots[k]=pl.slots[k-1];}pl.slots[to]=tmp;queueSave();}
-  req->send(200,"application/json","{\"ok\":true}");
-}
-void handleRidePlaylistStart(AsyncWebServerRequest *req){
-  const uint8_t i=ridePlaylistIndex(req);const uint8_t sc=mzSideCode(req->hasArg("side")?req->arg("side"):String("both"));
-  if(i==255||sc==255){req->send(400,"application/json","{\"ok\":false}");return;}
-  if(!ridingPlaylists[i].count){req->send(409,"application/json","{\"ok\":false,\"error\":\"empty\"}");return;}
-  MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_START;c.value=i;c.side=sc;if(!enqueueCmd(c)){sendBusy(req);return;}
-  req->send(200,"application/json","{\"ok\":true}");
-}
-void handleRidePlaylistPause(AsyncWebServerRequest *req){
-  if(!req->hasArg("paused")){req->send(400,"application/json","{\"ok\":false}");return;}
-  MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_PAUSE;c.flag=(req->arg("paused")=="1"||req->arg("paused")=="true")?1:0;
-  if(!enqueueCmd(c)){sendBusy(req);return;}req->send(200,"application/json","{\"ok\":true}");
-}
-void handleRidePlaylistStop(AsyncWebServerRequest *req){
-  const bool restore=!req->hasArg("restore")||req->arg("restore")!="0";
-  MzCmd c={};c.type=MZ_CMD_RIDE_PLAY_STOP;c.flag=restore?1:0;
-  if(!enqueueCmd(c)){sendBusy(req);return;}req->send(200,"application/json","{\"ok\":true}");
-}
-
 // ===== EKSEKUTOR ANTREAN: satu-satunya jalur yang mengubah Segment/showRunner dari permintaan web =====
 void processCmdQueue(){
   if(!cmdQueue)return;
@@ -753,21 +568,16 @@ void processCmdQueue(){
   for(uint8_t budget=MZ_CMD_QUEUE_LEN;budget>0&&xQueueReceive(cmdQueue,&c,0)==pdTRUE;budget--){
     const String side=String(mzSideName(c.side));
     switch(c.type){
-      case MZ_CMD_SHOW_START:
-        // Pemilihan Welcoming manual menghentikan playlist Riding agar engine tidak saling menimpa.
-        if(rideRunner.active)stopRidePlaylist(false);
-        startShow((int)c.value,side);break;
-      case MZ_CMD_SHOW_STOP:
-        // Saat pengguna beralih dari animasi Welcoming ke efek WLED, hentikan playlist aktif lebih dulu.
-        if(rideRunner.active)stopRidePlaylist(false);
-        stopShowRunners(side);break;
+      case MZ_CMD_SHOW_START:   startShowPreview((int)c.value,side);break;
+      case MZ_CMD_SHOW_STOP:    stopShowRunners(side);break;
       case MZ_CMD_SHOW_PALETTE: execShowPalette(c.value,side);break;
       case MZ_CMD_DIRECTION:    applyCurrentShowDirection();break;
       case MZ_CMD_APPLY:        applyModeSide(String(c.mode),side);break;
-      case MZ_CMD_SIDE_SWAP:   rideRunner.active=false;rideRunner.paused=false;stopShowRunners("both");sideSwap=(c.flag!=0);queueSave();break;
-      case MZ_CMD_RIDE_PLAY_START: startRidePlaylist(c.value,c.side);break;
-      case MZ_CMD_RIDE_PLAY_PAUSE: pauseRidePlaylist(c.flag!=0);break;
-      case MZ_CMD_RIDE_PLAY_STOP:  stopRidePlaylist(c.flag!=0);break;
+      case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);queueSave();break;
+      case MZ_CMD_PL_PLAY:      startPlaylist((int)c.value,(int)(c.flag&0x7F),(c.flag&0x80)!=0);break;
+      case MZ_CMD_PL_PAUSE:     execPlPause(c.flag!=0);break;
+      case MZ_CMD_PL_USE:       ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;queueSave();applyModeSide("riding","both");break;
+      case MZ_CMD_PL_STOP:      applyModeSide("riding","both");break;
       default: break;
     }
   }
@@ -782,6 +592,207 @@ bri = savedBri;
 stateUpdated(CALL_MODE_DIRECT_CHANGE);
 queueSave();
 req->send(200,"application/json","{\"ok\":true}");}
+
+
+/* ===== PLAYLIST RIDING =====
+   Maks 4 playlist x 12 slot. Jadwal slot berjalan di sini (loop task), bukan di browser, sehingga tetap berputar
+   saat HP terputus. Tiap slot menyimpan konfigurasi LENGKAP untuk kedua sisi (efek atau show Mizuma, palette, 3 warna,
+   parameter) + durasi (0.1 dtk) + reverse. Disimpan di file /mz_pl.bin (bukan di cfg.json agar config tetap kecil). */
+static const uint8_t PL_MAX=4, PL_SLOTS=12;
+struct PlSide{uint8_t isShow;uint8_t showIndex;uint8_t fx;uint8_t pal;uint8_t col[9];uint8_t sx,ix,c1,c2,c3,o1,o2,o3;};
+struct PlSlot{uint16_t d;uint8_t rv;uint8_t pad;PlSide s[2];};   // s[0]=Kanan, s[1]=Kiri (logis)
+struct PlList{char name[21];uint8_t n;PlSlot it[PL_SLOTS];};
+PlList pls[PL_MAX];
+int8_t ridingPl=-1;                 // -1: Riding memakai preset Single Effect
+volatile bool plBusy=false;         // true saat HTTP sedang menulis pls[]; runner menunggu
+bool plSavePending=false;uint32_t plSaveT=0;
+struct PlRun{bool active=false;bool hold=false;uint8_t list=0;uint8_t slot=0;uint32_t startedAt=0;uint32_t heldAt=0;};
+PlRun plRun;
+
+void plSaveFile(){File f=WLED_FS.open(F("/mz_pl.bin"),"w");if(!f)return;const uint8_t h[4]={'M','Z','P',2};f.write(h,4);f.write((const uint8_t*)pls,sizeof(pls));f.close();}
+void plLoadFile(){
+  File f=WLED_FS.open(F("/mz_pl.bin"),"r");if(!f)return;
+  uint8_t h[4]={0,0,0,0};
+  if(f.size()==(4+sizeof(pls))&&f.read(h,4)==4&&h[0]=='M'&&h[1]=='Z'&&h[2]=='P'&&h[3]==2){f.read((uint8_t*)pls,sizeof(pls));}
+  f.close();
+  for(uint8_t i=0;i<PL_MAX;i++){pls[i].name[20]=0;if(pls[i].n>PL_SLOTS)pls[i].n=0;}
+}
+void plQueueSave(){plSavePending=true;plSaveT=millis();}
+uint32_t plSlotMs(const PlSlot &sl){uint32_t ms=(uint32_t)sl.d*100U;if(ms<100U)ms=100U;return ms;}
+
+void stopPlaylist(){plRun.active=false;plRun.hold=false;}
+
+// Dieksekusi hanya dari task loop().
+void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
+  if(li>=PL_MAX||si>=pls[li].n)return;
+  const PlSlot sl=pls[li].it[si];               // salinan lokal: aman terhadap edit dari task HTTP
+  stopShowRunners("both");
+  StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
+  root["on"]=true;root["transition"]=3;if(bri==0)root["bri"]=savedBri;
+  JsonArray seg=root.createNestedArray("seg");
+  for(uint8_t k=0;k<2;k++){
+    const PlSide &p=sl.s[k];
+    JsonObject o=seg.createNestedObject();
+    o["id"]=physicalSegForLogicalSide(k==0);o["on"]=true;
+    o["fx"]=p.isShow?0:p.fx;o["pal"]=p.pal;
+    o["rev"]=p.isShow?showReverse:((sl.rv!=0)!=showReverse);   // stage show memakai flag arah resepnya sendiri (XOR di show engine)
+    o["sx"]=p.sx;o["ix"]=p.ix;o["c1"]=p.c1;o["c2"]=p.c2;o["c3"]=p.c3;o["o1"]=p.o1;o["o2"]=p.o2;o["o3"]=p.o3;
+    JsonArray col=o.createNestedArray("col");
+    for(uint8_t c=0;c<3;c++){JsonArray a=col.createNestedArray();a.add(p.col[c*3]);a.add(p.col[c*3+1]);a.add(p.col[c*3+2]);}
+  }
+  deserializeState(root);
+  for(uint8_t k=0;k<2;k++){
+    if(sl.s[k].isShow&&sl.s[k].showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,sl.s[k].showIndex);showRunner[k].loop=loopShows;}
+  }
+  tickShowEngine();
+}
+bool startPlaylist(int li,int si,bool hold){
+  if(li<0||li>=PL_MAX||pls[li].n==0)return false;
+  if(si<0||si>=pls[li].n)si=0;
+  plRun.active=true;plRun.hold=hold;plRun.list=(uint8_t)li;plRun.slot=(uint8_t)si;plRun.startedAt=millis();
+  applyPlSlot((uint8_t)li,(uint8_t)si,hold||pls[li].n==1);
+  return true;
+}
+void execPlPause(bool on){
+  if(!plRun.active)return;
+  if(on&&!plRun.hold){plRun.hold=true;plRun.heldAt=millis();}
+  else if(!on&&plRun.hold){plRun.hold=false;plRun.startedAt=millis()-(plRun.heldAt-plRun.startedAt);}
+}
+void tickPlaylist(){
+  if(!plRun.active||plBusy)return;
+  const PlList &L=pls[plRun.list];
+  if(L.n==0){plRun.active=false;return;}
+  if(plRun.hold||L.n==1)return;
+  if(plRun.slot>=L.n)plRun.slot=0;
+  const uint32_t now=millis();
+  if((uint32_t)(now-plRun.startedAt)>=plSlotMs(L.it[plRun.slot])){
+    plRun.slot=(uint8_t)((plRun.slot+1)%L.n);plRun.startedAt=now;applyPlSlot(plRun.list,plRun.slot,false);
+  }
+}
+void plParseSide(JsonObject o,PlSide &p){
+  memset(&p,0,sizeof(p));
+  if(o.isNull()){p.col[0]=255;p.col[1]=165;return;}
+  p.isShow=((int)(o["show"]|0))?1:0;
+  p.showIndex=(uint8_t)constrain((int)(o["si"]|0),0,MZ_SHOW_COUNT-1);
+  p.fx=(uint8_t)constrain((int)(o["fx"]|0),0,255);p.pal=(uint8_t)constrain((int)(o["pal"]|0),0,255);
+  JsonArray col=o["col"];
+  for(uint8_t c=0;c<3;c++){JsonArray ca=col[c];for(uint8_t k=0;k<3;k++){int v=ca.isNull()?0:(int)(ca[k]|0);p.col[c*3+k]=(uint8_t)constrain(v,0,255);}}
+  p.sx=(uint8_t)constrain((int)(o["sx"]|128),0,255);p.ix=(uint8_t)constrain((int)(o["ix"]|128),0,255);
+  p.c1=(uint8_t)constrain((int)(o["c1"]|128),0,255);p.c2=(uint8_t)constrain((int)(o["c2"]|128),0,255);p.c3=(uint8_t)constrain((int)(o["c3"]|128),0,255);
+  p.o1=((int)(o["o1"]|0))?1:0;p.o2=((int)(o["o2"]|0))?1:0;p.o3=((int)(o["o3"]|0))?1:0;
+}
+void plSideJson(String &out,const PlSide &p){
+  char b[230];
+  snprintf(b,sizeof(b),"{\"show\":%u,\"si\":%u,\"fx\":%u,\"pal\":%u,\"col\":[[%u,%u,%u],[%u,%u,%u],[%u,%u,%u]],\"sx\":%u,\"ix\":%u,\"c1\":%u,\"c2\":%u,\"c3\":%u,\"o1\":%u,\"o2\":%u,\"o3\":%u}",
+    (unsigned)p.isShow,(unsigned)p.showIndex,(unsigned)p.fx,(unsigned)p.pal,
+    (unsigned)p.col[0],(unsigned)p.col[1],(unsigned)p.col[2],(unsigned)p.col[3],(unsigned)p.col[4],(unsigned)p.col[5],(unsigned)p.col[6],(unsigned)p.col[7],(unsigned)p.col[8],
+    (unsigned)p.sx,(unsigned)p.ix,(unsigned)p.c1,(unsigned)p.c2,(unsigned)p.c3,(unsigned)p.o1,(unsigned)p.o2,(unsigned)p.o3);
+  out+=b;
+}
+void handlePlSave(AsyncWebServerRequest *req){
+  char *buf=(char*)req->_tempObject;
+  if(!buf){req->send(400,"application/json","{\"ok\":false,\"error\":\"no_body\"}");return;}
+  DynamicJsonDocument doc(14336);
+  if(deserializeJson(doc,buf)!=DeserializationError::Ok){req->send(400,"application/json","{\"ok\":false,\"error\":\"json\"}");return;}
+  JsonObject o=doc.as<JsonObject>();
+  const int li=o["list"]|-1;
+  if(li<0||li>=PL_MAX){req->send(400,"application/json","{\"ok\":false,\"error\":\"list\"}");return;}
+  JsonArray it=o["it"];
+  plBusy=true;
+  PlList &L=pls[li];
+  strlcpy(L.name,(const char*)(o["name"]|"Playlist"),sizeof(L.name));
+  uint8_t n=0;
+  if(!it.isNull()){
+    for(JsonObject x:it){
+      if(n>=PL_SLOTS)break;
+      PlSlot &sl=L.it[n];memset(&sl,0,sizeof(sl));
+      const int d=x["d"]|50;sl.d=(uint16_t)constrain(d,1,9999);
+      sl.rv=((int)(x["rv"]|0))?1:0;
+      JsonObject r=x["R"];JsonObject l=x["L"];
+      plParseSide(r,sl.s[0]);plParseSide(l,sl.s[1]);
+      n++;
+    }
+  }
+  L.n=n;
+  plBusy=false;
+  if(plRun.active&&plRun.list==li&&plRun.slot>=n)plRun.slot=0;
+  plQueueSave();
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handlePlList(AsyncWebServerRequest *req){
+  const int li=req->hasArg("i")?req->arg("i").toInt():-1;
+  if(li<0||li>=PL_MAX){req->send(400,"application/json","{\"ok\":false}");return;}
+  const PlList &L=pls[li];
+  String out;out.reserve(160+(size_t)L.n*470);
+  out+="{\"name\":\"";out+=jsonEscape(String(L.name));out+="\",\"it\":[";
+  for(uint8_t k=0;k<L.n;k++){
+    if(k)out+=',';
+    char b[48];snprintf(b,sizeof(b),"{\"d\":%u,\"rv\":%u,\"R\":",(unsigned)L.it[k].d,(unsigned)L.it[k].rv);out+=b;
+    plSideJson(out,L.it[k].s[0]);out+=",\"L\":";plSideJson(out,L.it[k].s[1]);out+="}";
+  }
+  out+="]}";
+  req->send(200,"application/json",out);
+}
+void handlePlSummary(AsyncWebServerRequest *req){
+  String out;out.reserve(220);
+  out+="{\"use\":";out+=String((int)ridingPl);out+=",\"lists\":[";
+  for(uint8_t i=0;i<PL_MAX;i++){
+    if(i)out+=',';
+    out+="{\"n\":\"";out+=jsonEscape(String(pls[i].name));out+="\",\"c\":";out+=String((int)pls[i].n);out+="}";
+  }
+  out+="]}";
+  req->send(200,"application/json",out);
+}
+void handlePlState(AsyncWebServerRequest *req){
+  char b[140];
+  const uint32_t el=plRun.active?(plRun.hold?(plRun.heldAt-plRun.startedAt):(uint32_t)(millis()-plRun.startedAt)):0;
+  snprintf(b,sizeof(b),"{\"use\":%d,\"run\":%s,\"hold\":%s,\"list\":%u,\"slot\":%u,\"el\":%u}",
+    (int)ridingPl,plRun.active?"true":"false",plRun.hold?"true":"false",(unsigned)plRun.list,(unsigned)plRun.slot,(unsigned)el);
+  req->send(200,"application/json",b);
+}
+void handlePlDelete(AsyncWebServerRequest *req){
+  const int li=req->hasArg("list")?req->arg("list").toInt():-1;
+  if(li<0||li>=PL_MAX){req->send(400,"application/json","{\"ok\":false}");return;}
+  plBusy=true;
+  for(int k=li;k<PL_MAX-1;k++)pls[k]=pls[k+1];
+  memset(&pls[PL_MAX-1],0,sizeof(PlList));
+  plBusy=false;
+  const bool wasUsed=(ridingPl==li);
+  if(ridingPl==li)ridingPl=-1;else if(ridingPl>li)ridingPl--;
+  if(plRun.active){if(plRun.list==li)plRun.active=false;else if(plRun.list>li)plRun.list--;}
+  plQueueSave();queueSave();
+  if(wasUsed){MzCmd c={};c.type=MZ_CMD_PL_STOP;enqueueCmd(c);}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handlePlUse(AsyncWebServerRequest *req){
+  if(!req->hasArg("list")){req->send(400,"application/json","{\"ok\":false}");return;}
+  const int li=req->arg("list").toInt();
+  if(li>=PL_MAX||(li>=0&&pls[li].n==0)){req->send(409,"application/json","{\"ok\":false,\"error\":\"empty\"}");return;}
+  MzCmd c={};c.type=MZ_CMD_PL_USE;c.value=(uint8_t)(li<0?0:li);c.flag=(li<0)?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handlePlPlay(AsyncWebServerRequest *req){
+  if(!req->hasArg("list")){req->send(400,"application/json","{\"ok\":false}");return;}
+  const int li=req->arg("list").toInt();
+  const int si=req->hasArg("slot")?req->arg("slot").toInt():0;
+  const bool hold=req->hasArg("hold")&&req->arg("hold").toInt()!=0;
+  if(li<0||li>=PL_MAX||pls[li].n==0||si<0||si>=PL_SLOTS){req->send(409,"application/json","{\"ok\":false,\"error\":\"empty\"}");return;}
+  MzCmd c={};c.type=MZ_CMD_PL_PLAY;c.value=(uint8_t)li;c.flag=(uint8_t)si|(hold?0x80:0);
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handlePlPause(AsyncWebServerRequest *req){
+  const bool on=!req->hasArg("on")||req->arg("on").toInt()!=0;
+  MzCmd c={};c.type=MZ_CMD_PL_PAUSE;c.flag=on?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handlePlStop(AsyncWebServerRequest *req){
+  MzCmd c={};c.type=MZ_CMD_PL_STOP;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
 
 /*
  * Startup R6:
@@ -839,9 +850,8 @@ void startWelcomeSequence(){
 
 public:
 void setup() override {
-for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
-  if(!ridingPlaylists[i].name[0]){String n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));}
-}
+plLoadFile();
+if(ridingPl>=PL_MAX||(ridingPl>=0&&pls[ridingPl].n==0))ridingPl=-1;
 cmdQueue=xQueueCreate(MZ_CMD_QUEUE_LEN,sizeof(MzCmd)); // harus ada sebelum route HTTP didaftarkan
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
 tSetupMs=millis();
@@ -904,14 +914,25 @@ server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String
 server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){handleSideSwap(req);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
-server.on("/mizuma/riding/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidePlaylists(req);});
-server.on("/mizuma/riding/playlist/meta",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistMeta(req);});
-server.on("/mizuma/riding/playlist/clear",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistClear(req);});
-server.on("/mizuma/riding/playlist/slot",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistSlot(req);});
-server.on("/mizuma/riding/playlist/reorder",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistReorder(req);});
-server.on("/mizuma/riding/playlist/start",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistStart(req);});
-server.on("/mizuma/riding/playlist/pause",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistPause(req);});
-server.on("/mizuma/riding/playlist/stop",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidePlaylistStop(req);});
+server.on("/mizuma/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlSummary(req);});
+server.on("/mizuma/pl/list",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlList(req);});
+server.on("/mizuma/pl/state",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlState(req);});
+server.on("/mizuma/pl/delete",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlDelete(req);});
+server.on("/mizuma/pl/use",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlUse(req);});
+server.on("/mizuma/pl/play",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlPlay(req);});
+server.on("/mizuma/pl/pause",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlPause(req);});
+server.on("/mizuma/pl/stop",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlStop(req);});
+// Simpan playlist: body JSON dikumpulkan manual (dibebaskan otomatis oleh server via free() saat request selesai).
+server.on("/mizuma/pl/save",HTTP_POST,
+  [this](AsyncWebServerRequest *req){handlePlSave(req);},
+  nullptr,
+  [](AsyncWebServerRequest *req,uint8_t *data,size_t len,size_t index,size_t total){
+    if(total==0||total>9000)return;
+    if(index==0){req->_tempObject=malloc(total+1);if(req->_tempObject)((char*)req->_tempObject)[0]=0;}
+    char *b=(char*)req->_tempObject;if(!b)return;
+    memcpy(b+index,data,len);
+    if(index+len==total)b[total]=0;
+  });
 server.on("/mizuma/presets",HTTP_GET,[this](AsyncWebServerRequest *req){
 String out;out.reserve(2600);out+="{";
 for(int i=0;i<10;i++){PresetSlot p=getEffectiveSlot(i);char buf[340];
@@ -924,8 +945,9 @@ out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
+  tickPlaylist();
   tickShowEngine();
-  tickRidingPlaylist();
+  if(plSavePending&&(uint32_t)(millis()-plSaveT)>1500U){plSavePending=false;plSaveFile();}
   if(cfgSavePending && (uint32_t)(millis() - cfgSaveT) > 1500U){
     cfgSavePending=false;
     serializeConfigToFS();
@@ -971,16 +993,7 @@ s["bri"]=pslots[i].bri;}
 top["bri"]=savedBri;
 top["sideSwap"]=sideSwap;
 top["showReverse"]=showReverse;
-JsonArray rp=top.createNestedArray("ridingPlaylists");
-for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
-  RidePlaylist &pl=ridingPlaylists[i];JsonObject po=rp.createNestedObject();po["name"]=pl.name;JsonArray slots=po.createNestedArray("slots");
-  for(uint8_t j=0;j<pl.count;j++){
-    const RidePlaylistSlot &p=pl.slots[j];JsonObject so=slots.createNestedObject();
-    so["valid"]=p.valid;so["isShow"]=p.isShow;so["showIndex"]=p.showIndex;so["fx"]=p.fx;so["pal"]=p.pal;
-    so["r"]=p.r;so["g"]=p.g;so["b"]=p.b;so["r1"]=p.r1;so["g1"]=p.g1;so["b1"]=p.b1;so["r2"]=p.r2;so["g2"]=p.g2;so["b2"]=p.b2;
-    so["sx"]=p.sx;so["ix"]=p.ix;so["c1"]=p.c1;so["c2"]=p.c2;so["c3"]=p.c3;so["o1"]=p.o1;so["o2"]=p.o2;so["o3"]=p.o3;so["bri"]=p.bri;so["duration"]=p.durationSec;
-  }
-}}
+top["ridingPl"]=(int)ridingPl;}
 
 bool readFromConfig(JsonObject &root) override {
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
@@ -1009,23 +1022,7 @@ pslots[i].bri=s["bri"]|180;}}
 savedBri=top["bri"]|180;
 sideSwap=top["sideSwap"]|false;
 showReverse=top["showReverse"]|false;
-for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT;i++){
-  if(!ridingPlaylists[i].name[0]){String n="Playlist "+String(i+1);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));}
-}
-JsonArray rp=top["ridingPlaylists"].as<JsonArray>();
-if(!rp.isNull()){
-  for(uint8_t i=0;i<MZ_RIDE_PLAYLIST_COUNT&&i<rp.size();i++){
-    JsonObject po=rp[i];String n=po["name"]|"";n.trim();if(!n.length())n="Playlist "+String(i+1);if(n.length()>24)n=n.substring(0,24);n.toCharArray(ridingPlaylists[i].name,sizeof(ridingPlaylists[i].name));
-    JsonArray slots=po["slots"].as<JsonArray>();ridingPlaylists[i].count=0;
-    if(!slots.isNull())for(uint8_t j=0;j<MZ_RIDE_PLAYLIST_SLOTS&&j<slots.size();j++){
-      JsonObject so=slots[j];RidePlaylistSlot p;p.valid=so["valid"]|true;
-      p.isShow=so["isShow"]|false;p.showIndex=(uint8_t)constrain((int)(so["showIndex"]|0),0,MZ_SHOW_COUNT-1);p.fx=so["fx"]|0;p.pal=so["pal"]|0;
-      p.r=so["r"]|255;p.g=so["g"]|165;p.b=so["b"]|0;p.r1=so["r1"]|255;p.g1=so["g1"]|255;p.b1=so["b1"]|255;p.r2=so["r2"]|255;p.g2=so["g2"]|26;p.b2=so["b2"]|0;
-      p.sx=so["sx"]|128;p.ix=so["ix"]|128;p.c1=so["c1"]|128;p.c2=so["c2"]|128;p.c3=so["c3"]|128;p.o1=so["o1"]|0;p.o2=so["o2"]|0;p.o3=so["o3"]|0;p.bri=so["bri"]|180;p.durationSec=(uint16_t)constrain((int)(so["duration"]|20),1,600);
-      if(p.valid){ridingPlaylists[i].slots[ridingPlaylists[i].count++]=p;}
-    }
-  }
-}
+ridingPl=(int8_t)((int)(top["ridingPl"]|-1));
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}
