@@ -19,6 +19,7 @@
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
 //   GET|POST  /mizuma/skins           metadata skin custom perangkat (maks 30, termasuk titik warna)
 //   POST      /mizuma/skins/delete?id=<id>
+//   GET|POST  /mizuma/colors          enam slot warna solid custom (disimpan di filesystem perangkat)
 //   --- Playlist Riding (maks 4 playlist x 12 slot; berjalan di engine, tetap jalan saat HP terputus) ---
 //   GET   /mizuma/playlists          -> {use, lists:[{n, c}]}           use = indeks playlist yang dipakai Riding (-1 = Single Effect)
 //   GET   /mizuma/pl/list?i=N        -> {name, it:[{d(0.1dtk), R:{..,rv}, L:{..,rv}}]}
@@ -612,6 +613,8 @@ static const uint8_t SKIN_MAX=30, SKIN_STOPS_MAX=8;
 struct SkinStopMeta{uint8_t pos;char color[8];};
 struct SkinMeta{char id[25];char name[25];uint8_t count;int8_t slot;SkinStopMeta stops[SKIN_STOPS_MAX];};
 SkinMeta skinMeta[SKIN_MAX];uint8_t skinCount=0;
+static const uint8_t SOLID_COLOR_SLOTS=6;
+char solidColorSlots[SOLID_COLOR_SLOTS][8]={};bool solidColorSlotsInitialized=false;
 int8_t ridingPl=-1;                 // -1: Riding memakai preset Single Effect
 volatile bool plBusy=false;         // true saat HTTP sedang menulis pls[]; runner menunggu
 bool plSavePending=false;uint32_t plSaveT=0;
@@ -749,6 +752,54 @@ bool skinHexColor(const char *s){
   if(!s||strlen(s)!=7||s[0]!='#')return false;
   for(uint8_t i=1;i<7;i++){const char c=s[i];if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')||(c>='A'&&c<='F')))return false;}
   return true;
+}
+bool saveSolidColorFile(const char slots[][8]){
+  File f=WLED_FS.open(F("/mz_colors.bin"),"w");if(!f)return false;
+  const uint8_t h[4]={'M','Z','C',1};
+  const bool ok=f.write(h,sizeof(h))==sizeof(h)&&f.write((const uint8_t*)slots,SOLID_COLOR_SLOTS*8U)==SOLID_COLOR_SLOTS*8U;
+  f.close();return ok;
+}
+void loadSolidColorFile(){
+  File f=WLED_FS.open(F("/mz_colors.bin"),"r");if(!f)return;
+  uint8_t h[4]={0,0,0,0};char slots[SOLID_COLOR_SLOTS][8]={};
+  if(f.read(h,sizeof(h))==sizeof(h)&&h[0]=='M'&&h[1]=='Z'&&h[2]=='C'&&h[3]==1&&f.size()==sizeof(h)+SOLID_COLOR_SLOTS*8U&&f.read((uint8_t*)slots,sizeof(slots))==sizeof(slots)){
+    bool valid=true;
+    for(uint8_t i=0;i<SOLID_COLOR_SLOTS;i++){
+      slots[i][7]=0;
+      if(slots[i][0]&&!skinHexColor(slots[i]))valid=false;
+    }
+    if(valid){memcpy(solidColorSlots,slots,sizeof(slots));solidColorSlotsInitialized=true;}
+  }
+  f.close();
+}
+void handleSolidColors(AsyncWebServerRequest *req,bool get){
+  if(get){
+    String out="{\"initialized\":";out+=solidColorSlotsInitialized?"true":"false";out+=",\"slots\":[";
+    for(uint8_t i=0;i<SOLID_COLOR_SLOTS;i++){if(i)out+=',';if(solidColorSlots[i][0]){out+='"';out+=solidColorSlots[i];out+='"';}else out+="null";}
+    out+="]}";req->send(200,"application/json",out);return;
+  }
+  char *buf=(char*)req->_tempObject;
+  if(!buf){req->send(400,"application/json","{\"ok\":false,\"error\":\"no_body\"}");return;}
+  DynamicJsonDocument doc(512);
+  if(deserializeJson(doc,buf)!=DeserializationError::Ok){req->send(400,"application/json","{\"ok\":false,\"error\":\"json\"}");return;}
+  JsonArray slots=doc["slots"];
+  if(slots.size()!=SOLID_COLOR_SLOTS){req->send(400,"application/json","{\"ok\":false,\"error\":\"slots\"}");return;}
+  char next[SOLID_COLOR_SLOTS][8]={};
+  for(uint8_t i=0;i<SOLID_COLOR_SLOTS;i++){
+    JsonVariant v=slots[i];
+    if(v.isNull())continue;
+    if(!v.is<const char*>()){req->send(400,"application/json","{\"ok\":false,\"error\":\"color\"}");return;}
+    const char *color=v.as<const char*>();
+    if(!skinHexColor(color)){req->send(400,"application/json","{\"ok\":false,\"error\":\"color\"}");return;}
+    strlcpy(next[i],color,sizeof(next[i]));
+  }
+  char old[SOLID_COLOR_SLOTS][8];memcpy(old,solidColorSlots,sizeof(old));const bool oldInitialized=solidColorSlotsInitialized;
+  memcpy(solidColorSlots,next,sizeof(next));solidColorSlotsInitialized=true;
+  if(!saveSolidColorFile(solidColorSlots)){
+    memcpy(solidColorSlots,old,sizeof(old));solidColorSlotsInitialized=oldInitialized;
+    req->send(500,"application/json","{\"ok\":false,\"error\":\"storage\"}");return;
+  }
+  req->send(200,"application/json","{\"ok\":true}");
 }
 void handleSkinSave(AsyncWebServerRequest *req){
   char *buf=(char*)req->_tempObject;
@@ -958,6 +1009,7 @@ public:
 void setup() override {
 plLoadFile();
 loadSkinFile();
+loadSolidColorFile();
 if(ridingPl>=PL_MAX||(ridingPl>=0&&pls[ridingPl].n==0))ridingPl=-1;
 cmdQueue=xQueueCreate(MZ_CMD_QUEUE_LEN,sizeof(MzCmd)); // harus ada sebelum route HTTP didaftarkan
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
@@ -1025,6 +1077,15 @@ server.on("/mizuma/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handle
 server.on("/mizuma/pl/list",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlList(req);});
 server.on("/mizuma/pl/state",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlState(req);});
 server.on("/mizuma/skins/delete",HTTP_POST,[this](AsyncWebServerRequest *req){handleSkinDelete(req);});
+server.on("/mizuma/colors",HTTP_GET,[this](AsyncWebServerRequest *req){handleSolidColors(req,true);});
+server.on("/mizuma/colors",HTTP_POST,[this](AsyncWebServerRequest *req){handleSolidColors(req,false);},nullptr,
+  [](AsyncWebServerRequest *req,uint8_t *data,size_t len,size_t index,size_t total){
+    if(total==0||total>512)return;
+    if(index==0){req->_tempObject=malloc(total+1);if(req->_tempObject)((char*)req->_tempObject)[0]=0;}
+    char *b=(char*)req->_tempObject;if(!b)return;
+    memcpy(b+index,data,len);
+    if(index+len==total)b[total]=0;
+  });
 server.on("/mizuma/skins",HTTP_GET,[this](AsyncWebServerRequest *req){handleSkinList(req);});
 server.on("/mizuma/skins",HTTP_POST,[this](AsyncWebServerRequest *req){handleSkinSave(req);},nullptr,
   [](AsyncWebServerRequest *req,uint8_t *data,size_t len,size_t index,size_t total){
