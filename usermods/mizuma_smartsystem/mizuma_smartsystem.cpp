@@ -17,9 +17,11 @@
 //   GET       /mizuma/presets         -> semua 10 slot
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
+//   GET|POST  /mizuma/skins           metadata skin custom perangkat (maks 30, termasuk titik warna)
+//   POST      /mizuma/skins/delete?id=<id>
 //   --- Playlist Riding (maks 4 playlist x 12 slot; berjalan di engine, tetap jalan saat HP terputus) ---
 //   GET   /mizuma/playlists          -> {use, lists:[{n, c}]}           use = indeks playlist yang dipakai Riding (-1 = Single Effect)
-//   GET   /mizuma/pl/list?i=N        -> {name, it:[{d(0.1dtk), rv, R:{..}, L:{..}}]}
+//   GET   /mizuma/pl/list?i=N        -> {name, it:[{d(0.1dtk), R:{..,rv}, L:{..,rv}}]}
 //   POST  /mizuma/pl/save            body JSON {list,name,it:[...]}     simpan satu playlist
 //   POST  /mizuma/pl/delete?list=N
 //   POST  /mizuma/pl/use?list=N      N=-1 -> kembali ke preset Single Effect (ridingKanan/ridingKiri)
@@ -78,7 +80,7 @@ extern void handlePresets();
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
     uint8_t  showFxResolved = 0;              // jumlah nama efek WLED yang berhasil dipetakan
     uint8_t  showModeIds[MZ_FXN_COUNT];       // indeks aktual efek WLED, di-resolve saat boot
-    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; bool loop=false; };
+    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; bool loop=false; bool reverseOverride=false; };
     ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
     bool bootDone = false;
     bool usingNativeWelcomePreset = false;
@@ -307,7 +309,7 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   if(st.c2>=0)seg.custom2=(uint8_t)constrain(st.c2,0,255);
   if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
   if(st.o>=0)seg.check1=(st.o!=0);
-  const bool stageReverse=(((st.flags&1U)!=0) ^ showReverse); // resep dan pilihan pengguna digabungkan
+  const bool stageReverse=(((st.flags&1U)!=0) ^ showReverse ^ showRunner[logicalRight?0:1].reverseOverride); // resep, arah global, dan override sisi
   // WLED menyimpan reverse sebagai option bit 1 (REVERSE = 0x0002).
   // Gunakan setter resmi agar stateChanged WLED ikut diperbarui, lalu reset runtime FX.
   if(seg.reverse!=stageReverse){
@@ -326,10 +328,10 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   strip.setTransition(previousTransition); // restore WLED's global/default transition time
 }
 
-void startShowRunner(bool logicalRight,uint8_t showIndex){
+void startShowRunner(bool logicalRight,uint8_t showIndex,bool reverseOverride=false){
   if(showIndex>=MZ_SHOW_COUNT)return;
   ShowRunner &r=showRunner[logicalRight?0:1];
-  r.loop=false;r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;
+  r.loop=false;r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;r.reverseOverride=reverseOverride;
   const uint8_t segId=physicalSegForLogicalSide(logicalRight);
   r.userPalette=(segId<strip.getSegmentsNum())?strip.getSegment(segId).palette:0;
   r.startedAt=millis();
@@ -469,7 +471,7 @@ uint8_t applyCurrentShowDirection(){
     ShowRunner &r=showRunner[logical];
     if(r.hasCurrentShow && r.showIndex<MZ_SHOW_COUNT && r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
       const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
-      targetReverse=(((st.flags&1U)!=0) ^ showReverse);
+      targetReverse=(((st.flags&1U)!=0) ^ showReverse ^ r.reverseOverride);
     }
     if(seg.reverse!=targetReverse){
       // Bit 1 adalah opsi REVERSE resmi pada Segment WLED.
@@ -597,23 +599,50 @@ req->send(200,"application/json","{\"ok\":true}");}
 /* ===== PLAYLIST RIDING =====
    Maks 4 playlist x 12 slot. Jadwal slot berjalan di sini (loop task), bukan di browser, sehingga tetap berputar
    saat HP terputus. Tiap slot menyimpan konfigurasi LENGKAP untuk kedua sisi (efek atau show Mizuma, palette, 3 warna,
-   parameter) + durasi (0.1 dtk) + reverse. Disimpan di file /mz_pl.bin (bukan di cfg.json agar config tetap kecil). */
+   parameter, reverse per sisi) + durasi (0.1 dtk). Disimpan di file /mz_pl.bin (bukan di cfg.json agar config tetap kecil). */
 static const uint8_t PL_MAX=4, PL_SLOTS=12;
-struct PlSide{uint8_t isShow;uint8_t showIndex;uint8_t fx;uint8_t pal;uint8_t col[9];uint8_t sx,ix,c1,c2,c3,o1,o2,o3;};
-struct PlSlot{uint16_t d;uint8_t rv;uint8_t pad;PlSide s[2];};   // s[0]=Kanan, s[1]=Kiri (logis)
+struct PlSide{uint8_t isShow;uint8_t showIndex;uint8_t fx;uint8_t pal;uint8_t col[9];uint8_t sx,ix,c1,c2,c3,o1,o2,o3,rv;};
+struct PlSlot{uint16_t d;uint8_t pad[2];PlSide s[2];};   // s[0]=Kanan, s[1]=Kiri (logis)
 struct PlList{char name[21];uint8_t n;PlSlot it[PL_SLOTS];};
+struct PlSideV2{uint8_t isShow;uint8_t showIndex;uint8_t fx;uint8_t pal;uint8_t col[9];uint8_t sx,ix,c1,c2,c3,o1,o2,o3;};
+struct PlSlotV2{uint16_t d;uint8_t rv;uint8_t pad;PlSideV2 s[2];};
+struct PlListV2{char name[21];uint8_t n;PlSlotV2 it[PL_SLOTS];};
 PlList pls[PL_MAX];
+static const uint8_t SKIN_MAX=30, SKIN_STOPS_MAX=8;
+struct SkinStopMeta{uint8_t pos;char color[8];};
+struct SkinMeta{char id[25];char name[25];uint8_t count;int8_t slot;SkinStopMeta stops[SKIN_STOPS_MAX];};
+SkinMeta skinMeta[SKIN_MAX];uint8_t skinCount=0;
 int8_t ridingPl=-1;                 // -1: Riding memakai preset Single Effect
 volatile bool plBusy=false;         // true saat HTTP sedang menulis pls[]; runner menunggu
 bool plSavePending=false;uint32_t plSaveT=0;
 struct PlRun{bool active=false;bool hold=false;uint8_t list=0;uint8_t slot=0;uint32_t startedAt=0;uint32_t heldAt=0;};
 PlRun plRun;
 
-void plSaveFile(){File f=WLED_FS.open(F("/mz_pl.bin"),"w");if(!f)return;const uint8_t h[4]={'M','Z','P',2};f.write(h,4);f.write((const uint8_t*)pls,sizeof(pls));f.close();}
+void plSaveFile(){File f=WLED_FS.open(F("/mz_pl.bin"),"w");if(!f)return;const uint8_t h[4]={'M','Z','P',3};f.write(h,4);f.write((const uint8_t*)pls,sizeof(pls));f.close();}
 void plLoadFile(){
   File f=WLED_FS.open(F("/mz_pl.bin"),"r");if(!f)return;
   uint8_t h[4]={0,0,0,0};
-  if(f.size()==(4+sizeof(pls))&&f.read(h,4)==4&&h[0]=='M'&&h[1]=='Z'&&h[2]=='P'&&h[3]==2){f.read((uint8_t*)pls,sizeof(pls));}
+  if(f.read(h,4)==4&&h[0]=='M'&&h[1]=='Z'&&h[2]=='P'){
+    if(h[3]==3&&f.size()==(4+sizeof(pls))){f.read((uint8_t*)pls,sizeof(pls));}
+    else if(h[3]==2&&f.size()==(4+sizeof(PlListV2)*PL_MAX)){
+      PlListV2 old[PL_MAX];
+      if(f.read((uint8_t*)old,sizeof(old))==sizeof(old)){
+        for(uint8_t i=0;i<PL_MAX;i++){
+          strlcpy(pls[i].name,old[i].name,sizeof(pls[i].name));pls[i].n=old[i].n;
+          for(uint8_t j=0;j<PL_SLOTS;j++){
+            PlSlot &dst=pls[i].it[j];const PlSlotV2 &src=old[i].it[j];
+            dst.d=src.d;
+            for(uint8_t k=0;k<2;k++){
+              const PlSideV2 &a=src.s[k];PlSide &b=dst.s[k];
+              b.isShow=a.isShow;b.showIndex=a.showIndex;b.fx=a.fx;b.pal=a.pal;memcpy(b.col,a.col,sizeof(b.col));
+              b.sx=a.sx;b.ix=a.ix;b.c1=a.c1;b.c2=a.c2;b.c3=a.c3;b.o1=a.o1;b.o2=a.o2;b.o3=a.o3;b.rv=src.rv;
+            }
+          }
+        }
+        plSavePending=true;plSaveT=millis();
+      }
+    }
+  }
   f.close();
   for(uint8_t i=0;i<PL_MAX;i++){pls[i].name[20]=0;if(pls[i].n>PL_SLOTS)pls[i].n=0;}
 }
@@ -635,14 +664,14 @@ void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
     JsonObject o=seg.createNestedObject();
     o["id"]=physicalSegForLogicalSide(k==0);o["on"]=true;
     o["fx"]=p.isShow?0:p.fx;o["pal"]=p.pal;
-    o["rev"]=p.isShow?showReverse:((sl.rv!=0)!=showReverse);   // stage show memakai flag arah resepnya sendiri (XOR di show engine)
+    o["rev"]=((p.rv!=0)!=showReverse);
     o["sx"]=p.sx;o["ix"]=p.ix;o["c1"]=p.c1;o["c2"]=p.c2;o["c3"]=p.c3;o["o1"]=p.o1;o["o2"]=p.o2;o["o3"]=p.o3;
     JsonArray col=o.createNestedArray("col");
     for(uint8_t c=0;c<3;c++){JsonArray a=col.createNestedArray();a.add(p.col[c*3]);a.add(p.col[c*3+1]);a.add(p.col[c*3+2]);}
   }
   deserializeState(root);
   for(uint8_t k=0;k<2;k++){
-    if(sl.s[k].isShow&&sl.s[k].showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,sl.s[k].showIndex);showRunner[k].loop=loopShows;}
+    if(sl.s[k].isShow&&sl.s[k].showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,sl.s[k].showIndex,sl.s[k].rv!=0);showRunner[k].loop=loopShows;}
   }
   tickShowEngine();
 }
@@ -680,14 +709,89 @@ void plParseSide(JsonObject o,PlSide &p){
   p.sx=(uint8_t)constrain((int)(o["sx"]|128),0,255);p.ix=(uint8_t)constrain((int)(o["ix"]|128),0,255);
   p.c1=(uint8_t)constrain((int)(o["c1"]|128),0,255);p.c2=(uint8_t)constrain((int)(o["c2"]|128),0,255);p.c3=(uint8_t)constrain((int)(o["c3"]|128),0,255);
   p.o1=((int)(o["o1"]|0))?1:0;p.o2=((int)(o["o2"]|0))?1:0;p.o3=((int)(o["o3"]|0))?1:0;
+  p.rv=((int)(o["rv"]|0))?1:0;
 }
 void plSideJson(String &out,const PlSide &p){
-  char b[230];
-  snprintf(b,sizeof(b),"{\"show\":%u,\"si\":%u,\"fx\":%u,\"pal\":%u,\"col\":[[%u,%u,%u],[%u,%u,%u],[%u,%u,%u]],\"sx\":%u,\"ix\":%u,\"c1\":%u,\"c2\":%u,\"c3\":%u,\"o1\":%u,\"o2\":%u,\"o3\":%u}",
+  char b[256];
+  snprintf(b,sizeof(b),"{\"show\":%u,\"si\":%u,\"fx\":%u,\"pal\":%u,\"col\":[[%u,%u,%u],[%u,%u,%u],[%u,%u,%u]],\"sx\":%u,\"ix\":%u,\"c1\":%u,\"c2\":%u,\"c3\":%u,\"o1\":%u,\"o2\":%u,\"o3\":%u,\"rv\":%u}",
     (unsigned)p.isShow,(unsigned)p.showIndex,(unsigned)p.fx,(unsigned)p.pal,
     (unsigned)p.col[0],(unsigned)p.col[1],(unsigned)p.col[2],(unsigned)p.col[3],(unsigned)p.col[4],(unsigned)p.col[5],(unsigned)p.col[6],(unsigned)p.col[7],(unsigned)p.col[8],
-    (unsigned)p.sx,(unsigned)p.ix,(unsigned)p.c1,(unsigned)p.c2,(unsigned)p.c3,(unsigned)p.o1,(unsigned)p.o2,(unsigned)p.o3);
+    (unsigned)p.sx,(unsigned)p.ix,(unsigned)p.c1,(unsigned)p.c2,(unsigned)p.c3,(unsigned)p.o1,(unsigned)p.o2,(unsigned)p.o3,(unsigned)p.rv);
   out+=b;
+}
+bool saveSkinFile(){
+  File f=WLED_FS.open(F("/mz_skins.bin"),"w");if(!f)return false;
+  const uint8_t h[5]={'M','Z','S',1,skinCount};
+  const bool ok=f.write(h,sizeof(h))==sizeof(h)&&f.write((const uint8_t*)skinMeta,(size_t)skinCount*sizeof(SkinMeta))==(size_t)skinCount*sizeof(SkinMeta);
+  f.close();return ok;
+}
+void loadSkinFile(){
+  File f=WLED_FS.open(F("/mz_skins.bin"),"r");if(!f)return;
+  uint8_t h[5]={0,0,0,0,0};
+  if(f.read(h,sizeof(h))==sizeof(h)&&h[0]=='M'&&h[1]=='Z'&&h[2]=='S'&&h[3]==1&&h[4]<=SKIN_MAX&&f.size()==sizeof(h)+(size_t)h[4]*sizeof(SkinMeta)){
+    skinCount=h[4];if(skinCount)f.read((uint8_t*)skinMeta,(size_t)skinCount*sizeof(SkinMeta));
+    for(uint8_t i=0;i<skinCount;i++){skinMeta[i].id[sizeof(skinMeta[i].id)-1]=0;skinMeta[i].name[sizeof(skinMeta[i].name)-1]=0;if(skinMeta[i].count>SKIN_STOPS_MAX)skinMeta[i].count=0;}
+  }
+  f.close();
+}
+void handleSkinList(AsyncWebServerRequest *req){
+  String out;out.reserve(128+(size_t)skinCount*330);out+='[';
+  for(uint8_t i=0;i<skinCount;i++){
+    if(i)out+=',';
+    const SkinMeta &k=skinMeta[i];
+    out+="{\"id\":\"";out+=jsonEscape(String(k.id));out+="\",\"n\":\"";out+=jsonEscape(String(k.name));out+="\",\"slot\":";out+=String((int)k.slot);out+=",\"st\":[";
+    for(uint8_t j=0;j<k.count;j++){if(j)out+=',';out+='[';out+=String((unsigned)k.stops[j].pos);out+=",\"";out+=k.stops[j].color;out+="\"]";}
+    out+="]}";
+  }
+  out+=']';req->send(200,"application/json",out);
+}
+bool skinHexColor(const char *s){
+  if(!s||strlen(s)!=7||s[0]!='#')return false;
+  for(uint8_t i=1;i<7;i++){const char c=s[i];if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')||(c>='A'&&c<='F')))return false;}
+  return true;
+}
+void handleSkinSave(AsyncWebServerRequest *req){
+  char *buf=(char*)req->_tempObject;
+  if(!buf){req->send(400,"application/json","{\"ok\":false,\"error\":\"no_body\"}");return;}
+  DynamicJsonDocument doc(2048);
+  if(deserializeJson(doc,buf)!=DeserializationError::Ok){req->send(400,"application/json","{\"ok\":false,\"error\":\"json\"}");return;}
+  JsonObject o=doc.as<JsonObject>();String id=o["id"]|"";String name=o["n"]|"";JsonArray st=o["st"];
+  if(id.length()==0||id.length()>=sizeof(skinMeta[0].id)||name.length()==0||name.length()>=sizeof(skinMeta[0].name)||st.size()<2||st.size()>SKIN_STOPS_MAX){
+    req->send(400,"application/json","{\"ok\":false,\"error\":\"fields\"}");return;
+  }
+  for(size_t i=0;i<id.length();i++){const char c=id[i];if(!((c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-')){req->send(400,"application/json","{\"ok\":false,\"error\":\"id\"}");return;}}
+  SkinMeta next={};strlcpy(next.id,id.c_str(),sizeof(next.id));strlcpy(next.name,name.c_str(),sizeof(next.name));
+  next.count=(uint8_t)st.size();next.slot=(int8_t)constrain((int)(o["slot"]|-1),-1,SKIN_MAX-1);
+  for(uint8_t i=0;i<next.count;i++){
+    JsonArray stop=st[i];if(stop.size()!=2){req->send(400,"application/json","{\"ok\":false,\"error\":\"stop\"}");return;}
+    const int pos=stop[0]|-1;const char *color=stop[1]|"";
+    if(pos<0||pos>100||!skinHexColor(color)){req->send(400,"application/json","{\"ok\":false,\"error\":\"stop\"}");return;}
+    next.stops[i].pos=(uint8_t)pos;strlcpy(next.stops[i].color,color,sizeof(next.stops[i].color));
+  }
+  int idx=-1;for(uint8_t i=0;i<skinCount;i++)if(id==skinMeta[i].id){idx=i;break;}
+  if(idx<0&&skinCount>=SKIN_MAX){req->send(409,"application/json","{\"ok\":false,\"error\":\"full\"}");return;}
+  SkinMeta old={};if(idx>=0)old=skinMeta[idx];else idx=skinCount++;
+  skinMeta[idx]=next;
+  if(!saveSkinFile()){
+    if(idx+1==skinCount&&old.id[0]==0)skinCount--;else skinMeta[idx]=old;
+    req->send(500,"application/json","{\"ok\":false,\"error\":\"storage\"}");return;
+  }
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleSkinDelete(AsyncWebServerRequest *req){
+  if(!req->hasArg("id")){req->send(400,"application/json","{\"ok\":false,\"error\":\"id\"}");return;}
+  const String id=req->arg("id");uint8_t idx=0;while(idx<skinCount&&id!=skinMeta[idx].id)idx++;
+  if(idx>=skinCount){req->send(404,"application/json","{\"ok\":false,\"error\":\"not_found\"}");return;}
+  const uint8_t oldCount=skinCount;SkinMeta removed=skinMeta[idx];
+  for(uint8_t i=idx;i+1<skinCount;i++)skinMeta[i]=skinMeta[i+1];
+  skinCount--;
+  if(!saveSkinFile()){
+    for(uint8_t i=skinCount;i>idx;i--)skinMeta[i]=skinMeta[i-1];
+    skinMeta[idx]=removed;skinCount=oldCount;
+    req->send(500,"application/json","{\"ok\":false,\"error\":\"storage\"}");return;
+  }
+  memset(&skinMeta[skinCount],0,sizeof(SkinMeta));
+  req->send(200,"application/json","{\"ok\":true}");
 }
 void handlePlSave(AsyncWebServerRequest *req){
   char *buf=(char*)req->_tempObject;
@@ -707,9 +811,11 @@ void handlePlSave(AsyncWebServerRequest *req){
       if(n>=PL_SLOTS)break;
       PlSlot &sl=L.it[n];memset(&sl,0,sizeof(sl));
       const int d=x["d"]|50;sl.d=(uint16_t)constrain(d,1,9999);
-      sl.rv=((int)(x["rv"]|0))?1:0;
+      const uint8_t legacyRv=((int)(x["rv"]|0))?1:0;
       JsonObject r=x["R"];JsonObject l=x["L"];
       plParseSide(r,sl.s[0]);plParseSide(l,sl.s[1]);
+      if(!r.containsKey("rv"))sl.s[0].rv=legacyRv;
+      if(!l.containsKey("rv"))sl.s[1].rv=legacyRv;
       n++;
     }
   }
@@ -727,7 +833,7 @@ void handlePlList(AsyncWebServerRequest *req){
   out+="{\"name\":\"";out+=jsonEscape(String(L.name));out+="\",\"it\":[";
   for(uint8_t k=0;k<L.n;k++){
     if(k)out+=',';
-    char b[48];snprintf(b,sizeof(b),"{\"d\":%u,\"rv\":%u,\"R\":",(unsigned)L.it[k].d,(unsigned)L.it[k].rv);out+=b;
+    char b[32];snprintf(b,sizeof(b),"{\"d\":%u,\"R\":",(unsigned)L.it[k].d);out+=b;
     plSideJson(out,L.it[k].s[0]);out+=",\"L\":";plSideJson(out,L.it[k].s[1]);out+="}";
   }
   out+="]}";
@@ -851,6 +957,7 @@ void startWelcomeSequence(){
 public:
 void setup() override {
 plLoadFile();
+loadSkinFile();
 if(ridingPl>=PL_MAX||(ridingPl>=0&&pls[ridingPl].n==0))ridingPl=-1;
 cmdQueue=xQueueCreate(MZ_CMD_QUEUE_LEN,sizeof(MzCmd)); // harus ada sebelum route HTTP didaftarkan
 // Mulai Welcoming sebelum registrasi route HTTP dan sebelum WLED memulai Wi-Fi.
@@ -917,6 +1024,16 @@ server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(r
 server.on("/mizuma/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlSummary(req);});
 server.on("/mizuma/pl/list",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlList(req);});
 server.on("/mizuma/pl/state",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlState(req);});
+server.on("/mizuma/skins/delete",HTTP_POST,[this](AsyncWebServerRequest *req){handleSkinDelete(req);});
+server.on("/mizuma/skins",HTTP_GET,[this](AsyncWebServerRequest *req){handleSkinList(req);});
+server.on("/mizuma/skins",HTTP_POST,[this](AsyncWebServerRequest *req){handleSkinSave(req);},nullptr,
+  [](AsyncWebServerRequest *req,uint8_t *data,size_t len,size_t index,size_t total){
+    if(total==0||total>2048)return;
+    if(index==0){req->_tempObject=malloc(total+1);if(req->_tempObject)((char*)req->_tempObject)[0]=0;}
+    char *b=(char*)req->_tempObject;if(!b)return;
+    memcpy(b+index,data,len);
+    if(index+len==total)b[total]=0;
+  });
 server.on("/mizuma/pl/delete",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlDelete(req);});
 server.on("/mizuma/pl/use",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlUse(req);});
 server.on("/mizuma/pl/play",HTTP_POST,[this](AsyncWebServerRequest *req){handlePlPlay(req);});
