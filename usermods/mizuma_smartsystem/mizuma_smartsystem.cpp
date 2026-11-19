@@ -16,6 +16,8 @@
 //   GET|POST  /mizuma/preset          ?slot=<welcomingKanan|...|hazardKiri>&fx&pal&r&g&b&r1..b2&sx&ix&c1..c3&o1..o3&bri&isShow&showIndex
 //   GET       /mizuma/presets         -> semua 10 slot
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
+//   GET|POST  /mizuma/riding/mode     ?mode=manual|semi-auto|auto|playlist
+//   GET|POST  /mizuma/riding/colors   side=kanan|kiri&palette=0|1&pal&r&g&b (warna sisi tersimpan di config Mizuma)
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
 //   GET|POST  /mizuma/skins           metadata skin custom perangkat (maks 30, termasuk titik warna)
 //   POST      /mizuma/skins/delete?id=<id>
@@ -81,7 +83,7 @@ extern void handlePresets();
     uint32_t tSetupMs = 0, tWelcomeMs = 0;   // diagnostik waktu boot (lihat /mizuma/debug)
     uint8_t  showFxResolved = 0;              // jumlah nama efek WLED yang berhasil dipetakan
     uint8_t  showModeIds[MZ_FXN_COUNT];       // indeks aktual efek WLED, di-resolve saat boot
-    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; bool loop=false; bool reverseOverride=false; };
+    struct ShowRunner { bool active=false; bool hasCurrentShow=false; bool logicalRight=true; uint8_t showIndex=0; uint8_t stageIndex=0; uint8_t currentStageIndex=255; uint8_t userPalette=0; uint8_t expectedMode=255; uint32_t startedAt=0; bool loop=false; bool reverseOverride=false; bool wholeStrip=false; };
     ShowRunner showRunner[2];                  // 0=Kanan, 1=Kiri (logis; dipetakan melalui sideSwap)
     bool bootDone = false;
     bool bootWelcomePending = false;
@@ -89,6 +91,12 @@ extern void handlePresets();
     bool usingNativeWelcomePreset = false;
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
     bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
+    enum RidingMode : uint8_t { RIDING_MANUAL=0, RIDING_SEMI_AUTO=1, RIDING_AUTO=2, RIDING_PLAYLIST=3 };
+    static const uint8_t SEG_COLOR_RIGHT=0, SEG_COLOR_LEFT=1, SEG_FX_RIGHT=2, SEG_FX_LEFT=3, SEG_FX_WHOLE=4;
+    struct RidingColor { bool palette=true; uint8_t pal=2; uint8_t r=255,g=255,b=255; };
+    RidingColor ridingColors[2];             // 0=Kanan, 1=Kiri (logis)
+    RidingMode ridingMode = RIDING_MANUAL;
+    bool ridingSegmentsReady = false;
 
     /* ===== ANTREAN PERINTAH WEB -> loop() =====
        Handler HTTP berjalan di task async_tcp, sedangkan strip.service() berjalan di task loop.
@@ -96,8 +104,8 @@ extern void handlePresets();
        showRunner[], atau memanggil deallocateData() (WLED: reset/dealokasi tidak boleh terjadi saat efek berjalan).
        Aturan: handler hanya memvalidasi argumen lalu menitipkan perintah; processCmdQueue() di loop() adalah
        satu-satunya tempat yang mengeksekusi perubahan. loop() berjalan sebelum strip.service() pada task yang sama. */
-    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP };
-    struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; char mode[10]; };
+    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR };
+    struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; uint8_t r,g,b; char mode[10]; };
     static const uint8_t MZ_CMD_QUEUE_LEN = 12;
     QueueHandle_t cmdQueue = nullptr;
     static uint8_t mzSideCode(const String &s){ if(s=="both")return 0; if(s=="kanan")return 1; if(s=="kiri")return 2; return 255; }
@@ -145,14 +153,109 @@ extern void handlePresets();
     
     void addSegmentFromSlot(JsonArray seg,uint8_t segId,uint8_t slotIdx){
     PresetSlot p=getEffectiveSlot(slotIdx);
-    JsonObject s=seg.createNestedObject();
-    s["id"]=segId;s["on"]=true;s["fx"]=p.fx;s["pal"]=p.pal;s["rev"]=showReverse;s["sx"]=p.sx;s["ix"]=p.ix;
-    s["c1"]=p.c1;s["c2"]=p.c2;s["c3"]=p.c3;s["o1"]=p.o1;s["o2"]=p.o2;s["o3"]=p.o3;
-JsonArray col=s.createNestedArray("col");
-JsonArray c0=col.createNestedArray();c0.add(p.r);c0.add(p.g);c0.add(p.b);
-JsonArray c1=col.createNestedArray();c1.add(p.r1);c1.add(p.g1);c1.add(p.b1);
-JsonArray c2=col.createNestedArray();c2.add(p.r2);c2.add(p.g2);c2.add(p.b2);}
-uint8_t physicalSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?0:1;}
+    const bool logicalRight=(slotIdx%2)==0;
+    JsonObject color=seg.createNestedObject();
+    color["id"]=physicalColorSegForLogicalSide(logicalRight);color["on"]=true;
+    color["fx"]=FX_MODE_PALETTE;color["pal"]=p.pal;color["sx"]=0;color["ix"]=0;
+    color["c1"]=0;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
+    JsonArray colorCol=color.createNestedArray("col");
+    JsonArray cc0=colorCol.createNestedArray();cc0.add(p.r);cc0.add(p.g);cc0.add(p.b);
+    JsonArray cc1=colorCol.createNestedArray();cc1.add(p.r1);cc1.add(p.g1);cc1.add(p.b1);
+    JsonArray cc2=colorCol.createNestedArray();cc2.add(p.r2);cc2.add(p.g2);cc2.add(p.b2);
+
+    JsonObject effect=seg.createNestedObject();
+    effect["id"]=segId;effect["on"]=true;effect["fx"]=p.fx;effect["pal"]=2;
+    effect["rev"]=showReverse;effect["sx"]=p.sx;effect["ix"]=p.ix;
+    effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;
+    effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
+    JsonArray effectCol=effect.createNestedArray("col");
+    for(uint8_t i=0;i<3;i++){JsonArray c=effectCol.createNestedArray();c.add(255);c.add(255);c.add(255);}
+}
+uint8_t physicalColorSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?SEG_COLOR_RIGHT:SEG_COLOR_LEFT;}
+uint8_t physicalSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?SEG_FX_RIGHT:SEG_FX_LEFT;}
+void applyRidingColorLayer(bool rightSide){
+  if(!ridingSegmentsReady)return;
+  const uint8_t logicalIndex=rightSide?0:1;
+  Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
+  const RidingColor &color=ridingColors[logicalIndex];
+  seg.setMode(color.palette?FX_MODE_PALETTE:FX_MODE_STATIC,true);
+  seg.setPalette(color.palette?color.pal:2);
+  seg.speed=0;seg.intensity=0;seg.custom1=0;seg.custom2=0;seg.custom3=0;
+  seg.setColor(0,RGBW32(color.r,color.g,color.b,0));
+  seg.setColor(1,0);seg.setColor(2,0);seg.on=true;
+}
+bool busRangeForPin(uint8_t pin,uint16_t &start,uint16_t &stop){
+  bool found=false;
+  for(size_t i=0;i<BusManager::getNumBusses();i++){
+    const Bus *bus=BusManager::getBus(i);
+    if(!bus||!bus->isOk()||!bus->isDigital())continue;
+    uint8_t pins[OUTPUT_MAX_PINS]={255,255,255,255,255};
+    const size_t count=bus->getPins(pins);
+    bool matches=false;
+    for(size_t j=0;j<count&&j<OUTPUT_MAX_PINS;j++)if(pins[j]==pin)matches=true;
+    if(!matches)continue;
+    if(found)return false;
+    const uint32_t end=(uint32_t)bus->getStart()+bus->getLength();
+    if(bus->getLength()==0||end>strip.getLengthTotal())return false;
+    start=bus->getStart();stop=(uint16_t)end;found=true;
+  }
+  return found&&stop>start;
+}
+bool ensureRidingSegments(){
+  if(ridingSegmentsReady)return true;
+  uint16_t rightStart=0,rightStop=0,leftStart=0,leftStop=0;
+  if(!busRangeForPin(5,rightStart,rightStop)||!busRangeForPin(6,leftStart,leftStop))return false;
+  if(rightStart<leftStop&&leftStart<rightStop)return false;
+  const uint16_t wholeStop=strip.getLengthTotal();
+  if(wholeStop==0||wholeStop>65535)return false;
+
+  strip.resetSegments();
+  strip.getSegment(0).setGeometry(rightStart,rightStop);
+  strip.appendSegment(leftStart,leftStop);
+  strip.appendSegment(rightStart,rightStop);
+  strip.appendSegment(leftStart,leftStop);
+  strip.appendSegment(0,wholeStop);
+  if(strip.getSegmentsNum()!=5)return false;
+
+  Segment &rightColor=strip.getSegment(SEG_COLOR_RIGHT);
+  Segment &leftColor=strip.getSegment(SEG_COLOR_LEFT);
+  Segment &rightFx=strip.getSegment(SEG_FX_RIGHT);
+  Segment &leftFx=strip.getSegment(SEG_FX_LEFT);
+  Segment &wholeFx=strip.getSegment(SEG_FX_WHOLE);
+  rightColor.setName("warna kanan");leftColor.setName("warna kiri");
+  rightFx.setName("efek kanan");leftFx.setName("efek kiri");wholeFx.setName("efek sambung");
+  for(Segment *seg:{&rightColor,&leftColor}){
+    seg->setMode(FX_MODE_PALETTE,true);seg->setPalette(2);seg->blendMode=0;
+    seg->speed=0;seg->intensity=0;seg->custom1=0;seg->custom2=0;seg->custom3=0;
+  }
+  for(Segment *seg:{&rightFx,&leftFx,&wholeFx}){
+    seg->setColor(0,WHITE);seg->setColor(1,WHITE);seg->setColor(2,WHITE);
+    seg->setMode(FX_MODE_STATIC,true);seg->setPalette(2);seg->blendMode=6;
+  }
+  strip.setMainSegmentId(SEG_COLOR_RIGHT);
+  ridingSegmentsReady=true;
+  applyRidingColorLayer(true);applyRidingColorLayer(false);
+  return true;
+}
+void applyRidingLayerMode(RidingMode mode){
+  if(!ensureRidingSegments())return;
+  ridingMode=mode;
+  const bool manual=(mode==RIDING_MANUAL||mode==RIDING_PLAYLIST);
+  applyRidingColorLayer(true);applyRidingColorLayer(false);
+  strip.getSegment(SEG_COLOR_RIGHT).on=true;
+  strip.getSegment(SEG_COLOR_LEFT).on=true;
+  strip.getSegment(SEG_FX_RIGHT).on=manual;
+  strip.getSegment(SEG_FX_LEFT).on=manual;
+  strip.getSegment(SEG_FX_WHOLE).on=!manual;
+  strip.trigger();
+}
+void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,uint8_t b){
+  if(side<1||side>2)return;
+  const bool rightSide=side==1;
+  RidingColor &color=ridingColors[rightSide?0:1];
+  color.palette=palette;color.pal=pal;color.r=r;color.g=g;color.b=b;
+  applyRidingColorLayer(rightSide);strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);queueSave();
+}
 void applySingleSlot(uint8_t slotIdx){
 bool rightSide=(slotIdx%2)==0;uint8_t segId=physicalSegForLogicalSide(rightSide);
 StaticJsonDocument<1024> doc;JsonObject root=doc.to<JsonObject>();
@@ -172,11 +275,12 @@ if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 
 if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
 bool applyModeSide(const String &mode,const String &side,uint16_t transition100ms=0){
 stopPlaylist();
-if(mode=="welcoming")return applyWelcomeModeSide(side);
+if(mode=="welcoming"){applyRidingLayerMode(RIDING_MANUAL);return applyWelcomeModeSide(side);}
 stopShowRunners("both");
 int base=modeBase(mode);if(base<0)return false;
 if(side!="both"&&side!="kanan"&&side!="kiri")return false;
 if(base==2&&ridingPl>=0&&ridingPl<PL_MAX&&pls[ridingPl].n>0)return startPlaylist(ridingPl,0,false);
+applyRidingLayerMode(RIDING_MANUAL);
 if(side=="both")applyTwoSlots(base,base+1,transition100ms);
 else if(side=="kanan")applySingleSlot(base);
 else applySingleSlot(base+1);
@@ -283,11 +387,11 @@ void mzTetrixInstantStart(Segment &seg){
 #endif
 }
 
-void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
+void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette,bool wholeStrip=false){
   if(st.fx>=MZ_FXN_COUNT)return;
   const uint8_t modeId=showModeIds[st.fx];
   if(modeId==255)return; // FX tidak ada pada build WLED ini: lewati tahap secara aman
-  const uint8_t segId=physicalSegForLogicalSide(logicalRight);
+  const uint8_t segId=wholeStrip?SEG_FX_WHOLE:physicalSegForLogicalSide(logicalRight);
   if(segId>=strip.getSegmentsNum())return;
   Segment &seg=strip.getSegment(segId);
   if(!seg.isActive())return;
@@ -300,7 +404,10 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
 
   if(seg.mode!=modeId)seg.setMode(modeId,true); // muat default parameter efek WLED
   else if(st.t==0)seg.markForReset();
-  if(userPalette!=0){
+  if(wholeStrip){
+    seg.setPalette(2);
+    seg.setColor(0,WHITE);seg.setColor(1,WHITE);seg.setColor(2,WHITE);
+  }else if(userPalette!=0){
     if(seg.palette!=userPalette)seg.setPalette(userPalette);
   }else{
     const uint8_t recipePalette=(st.pal>=0)?(uint8_t)st.pal:0;
@@ -322,7 +429,7 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   seg.on=true;
   showRunner[logicalRight?0:1].expectedMode=modeId; // dipakai untuk mendeteksi perubahan efek dari luar (UI WLED / preset)
 
-  applyShowStageColors(st,seg,userPalette);
+  if(!wholeStrip)applyShowStageColors(st,seg,userPalette);
 
   if(st.flags&2U)mzTetrixInstantStart(seg); // lihat catatan isolasi di atas applyShowStage()
   if(st.tb>=0)strip.timebase=(unsigned long)(uint16_t)st.tb-(unsigned long)millis();
@@ -331,23 +438,24 @@ void applyShowStage(const MzStage &st,bool logicalRight,uint8_t userPalette){
   strip.setTransition(previousTransition); // restore WLED's global/default transition time
 }
 
-void startShowRunner(bool logicalRight,uint8_t showIndex,bool reverseOverride=false){
+void startShowRunner(bool logicalRight,uint8_t showIndex,bool reverseOverride=false,bool wholeStrip=false){
   if(showIndex>=MZ_SHOW_COUNT)return;
   ShowRunner &r=showRunner[logicalRight?0:1];
-  r.loop=false;r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;r.reverseOverride=reverseOverride;
-  const uint8_t segId=physicalSegForLogicalSide(logicalRight);
+  r.loop=false;r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;r.reverseOverride=reverseOverride;r.wholeStrip=wholeStrip;
+  const uint8_t segId=wholeStrip?SEG_FX_WHOLE:physicalSegForLogicalSide(logicalRight);
   r.userPalette=(segId<strip.getSegmentsNum())?strip.getSegment(segId).palette:0;
   r.startedAt=millis();
 }
 void stopShowRunners(const String &side){
   if(side=="both"||side=="kanan"){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;showRunner[0].expectedMode=255;}
   if(side=="both"||side=="kiri"){showRunner[1].active=false;showRunner[1].hasCurrentShow=false;showRunner[1].currentStageIndex=255;showRunner[1].expectedMode=255;}
+  if(side!="both"&&showRunner[0].wholeStrip){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;showRunner[0].expectedMode=255;showRunner[0].wholeStrip=false;}
 }
 // Jika efek pada segmen berbeda dari yang terakhir dipasang show, berarti pengguna mengganti efek lewat UI WLED,
 // preset, atau API lain. Hentikan show agar pilihan itu tidak ditimpa sampai show selesai.
 void checkExternalOverride(ShowRunner &r){
   if(!r.hasCurrentShow||r.expectedMode==255)return;
-  const uint8_t segId=physicalSegForLogicalSide(r.logicalRight);
+  const uint8_t segId=r.wholeStrip?SEG_FX_WHOLE:physicalSegForLogicalSide(r.logicalRight);
   if(segId>=strip.getSegmentsNum())return;
   Segment &seg=strip.getSegment(segId);
   if(!seg.isActive()||seg.mode==r.expectedMode)return;
@@ -360,8 +468,8 @@ void tickShowEngine(){
     const MzShow &show=MZ_SHOWS[r.showIndex];const uint32_t elapsed=now-r.startedAt;
     while(r.stageIndex<show.n&&elapsed>=show.st[r.stageIndex].t){
       const MzStage &st=show.st[r.stageIndex];
-      if(st.side==0||st.side==(r.logicalRight?1:2)){
-        applyShowStage(st,r.logicalRight,r.userPalette);
+      if(r.wholeStrip||st.side==0||st.side==(r.logicalRight?1:2)){
+        applyShowStage(st,r.logicalRight,r.userPalette,r.wholeStrip);
         r.currentStageIndex=r.stageIndex;
       }
       r.stageIndex++;
@@ -378,6 +486,11 @@ bool startShowPreview(int index,const String &side){
   stopPlaylist();
   stopShowRunners(side); // jangan biarkan runner preview sebelumnya hidup pada sisi lain
   if(bri==0){bri=savedBri?savedBri:180;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+  if(ridingMode==RIDING_AUTO&&side=="both"){
+    startShowRunner(true,(uint8_t)index,false,true);
+    tickShowEngine();
+    return true;
+  }
   if(side=="both"){
     startShowRunner(true,(uint8_t)index);startShowRunner(false,(uint8_t)index);
   }else if(side=="kanan")startShowRunner(true,(uint8_t)index);
@@ -418,6 +531,15 @@ void handleShow(AsyncWebServerRequest *req){
 void execShowPalette(uint8_t pal,const String &side){
   const uint16_t previousTransition=strip.getTransition();
   strip.setTransition(220); // 220 ms saat pengguna mengganti palette
+  if(ridingMode==RIDING_AUTO&&showRunner[0].wholeStrip){
+    Segment &seg=strip.getSegment(SEG_FX_WHOLE);
+    showRunner[0].userPalette=pal;
+    seg.setPalette(pal==0?2:pal);
+    if(showRunner[0].showIndex<MZ_SHOW_COUNT&&showRunner[0].currentStageIndex<MZ_SHOWS[showRunner[0].showIndex].n){
+      applyShowStageColors(MZ_SHOWS[showRunner[0].showIndex].st[showRunner[0].currentStageIndex],seg,pal);
+    }
+    strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);strip.setTransition(previousTransition);return;
+  }
   for(uint8_t logical=0;logical<2;logical++){
     const bool rightSide=(logical==0);
     if(side!="both" && side!=(rightSide?String("kanan"):String("kiri")))continue;
@@ -462,6 +584,21 @@ uint8_t applyCurrentShowDirection(){
   // Reset runtime memastikan efek yang menyimpan state internal membaca arah baru.
   uint8_t activeSegments=0;
   bool changed=false;
+  if(ridingMode==RIDING_AUTO||ridingMode==RIDING_SEMI_AUTO){
+    Segment &seg=strip.getSegment(SEG_FX_WHOLE);
+    if(seg.isActive()&&seg.on){
+      activeSegments++;
+      bool targetReverse=showReverse;
+      ShowRunner &r=showRunner[0];
+      if(r.wholeStrip&&r.hasCurrentShow&&r.showIndex<MZ_SHOW_COUNT&&r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
+        const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
+        targetReverse=(((st.flags&1U)!=0)^showReverse^r.reverseOverride);
+      }
+      if(seg.reverse!=targetReverse){seg.setOption(1,targetReverse);seg.markForReset();changed=true;}
+    }
+    if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+    return activeSegments;
+  }
   for(uint8_t logical=0;logical<2;logical++){
     const bool logicalRight=(logical==0);
     const uint8_t segId=physicalSegForLogicalSide(logicalRight);
@@ -488,6 +625,10 @@ uint8_t applyCurrentShowDirection(){
 }
 // Hanya MEMBACA status segmen (aman); perubahan nyata dilakukan applyCurrentShowDirection() di loop().
 uint8_t countActiveSegments(){
+  if(ridingMode==RIDING_AUTO||ridingMode==RIDING_SEMI_AUTO){
+    if(SEG_FX_WHOLE<strip.getSegmentsNum()&&strip.getSegment(SEG_FX_WHOLE).isActive()&&strip.getSegment(SEG_FX_WHOLE).on)return 1;
+    return 0;
+  }
   uint8_t n=0;
   for(uint8_t logical=0;logical<2;logical++){
     const uint8_t segId=physicalSegForLogicalSide(logical==0);
@@ -565,6 +706,46 @@ MzCmd c={};c.type=MZ_CMD_SIDE_SWAP;c.flag=en?1:0;
 if(!enqueueCmd(c)){sendBusy(req);return;}
 String json=String("{\"ok\":true,\"enabled\":")+(en?"true":"false")+"}";
 req->send(200,"application/json",json);}
+void handleRidingMode(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){
+    const char *name=ridingMode==RIDING_SEMI_AUTO?"semi-auto":ridingMode==RIDING_AUTO?"auto":ridingMode==RIDING_PLAYLIST?"playlist":"manual";
+    String json=String("{\"ok\":true,\"ready\":")+(ridingSegmentsReady?"true":"false")+",\"mode\":\""+name+"\"}";
+    req->send(200,"application/json",json);return;
+  }
+  if(!req->hasArg("mode")){req->send(400,"application/json","{\"ok\":false,\"error\":\"mode required\"}");return;}
+  const String mode=req->arg("mode");
+  uint8_t value=255;
+  if(mode=="manual")value=RIDING_MANUAL;
+  else if(mode=="semi-auto")value=RIDING_SEMI_AUTO;
+  else if(mode=="auto")value=RIDING_AUTO;
+  else if(mode=="playlist")value=RIDING_PLAYLIST;
+  if(value==255){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid mode\"}");return;}
+  if(!ridingSegmentsReady){req->send(503,"application/json","{\"ok\":false,\"error\":\"GPIO 5/6 LED buses not ready\"}");return;}
+  MzCmd c={};c.type=MZ_CMD_RIDING_MODE;c.value=value;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidingColors(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){
+    String json="{\"ok\":true,\"right\":{\"palette\":";
+    json+=ridingColors[0].palette?"true":"false";
+    json+=",\"pal\":"+String(ridingColors[0].pal)+",\"rgb\":["+String(ridingColors[0].r)+","+String(ridingColors[0].g)+","+String(ridingColors[0].b)+"]},\"left\":{\"palette\":";
+    json+=ridingColors[1].palette?"true":"false";
+    json+=",\"pal\":"+String(ridingColors[1].pal)+",\"rgb\":["+String(ridingColors[1].r)+","+String(ridingColors[1].g)+","+String(ridingColors[1].b)+"]}}";
+    req->send(200,"application/json",json);return;
+  }
+  if(!req->hasArg("side")||!req->hasArg("palette")||!req->hasArg("pal")||!req->hasArg("r")||!req->hasArg("g")||!req->hasArg("b")){
+    req->send(400,"application/json","{\"ok\":false,\"error\":\"side, palette, pal and rgb required\"}");return;
+  }
+  const uint8_t side=mzSideCode(req->arg("side"));
+  if(side<1||side>2){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid side\"}");return;}
+  const String mode=req->arg("palette");
+  if(mode!="0"&&mode!="1"){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette mode\"}");return;}
+  MzCmd c={};c.type=MZ_CMD_RIDING_COLOR;c.side=side;c.flag=(mode=="1");c.value=(uint8_t)constrain(req->arg("pal").toInt(),0,255);
+  c.r=(uint8_t)constrain(req->arg("r").toInt(),0,255);c.g=(uint8_t)constrain(req->arg("g").toInt(),0,255);c.b=(uint8_t)constrain(req->arg("b").toInt(),0,255);
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
 
 // ===== EKSEKUTOR ANTREAN: satu-satunya jalur yang mengubah Segment/showRunner dari permintaan web =====
 void processCmdQueue(){
@@ -578,11 +759,13 @@ void processCmdQueue(){
       case MZ_CMD_SHOW_PALETTE: execShowPalette(c.value,side);break;
       case MZ_CMD_DIRECTION:    applyCurrentShowDirection();break;
       case MZ_CMD_APPLY:        applyModeSide(String(c.mode),side);break;
-      case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);queueSave();break;
+      case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);applyRidingColorLayer(true);applyRidingColorLayer(false);queueSave();break;
       case MZ_CMD_PL_PLAY:      startPlaylist((int)c.value,(int)(c.flag&0x7F),(c.flag&0x80)!=0);break;
       case MZ_CMD_PL_PAUSE:     execPlPause(c.flag!=0);break;
-      case MZ_CMD_PL_USE:       ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;queueSave();applyModeSide("riding","both");break;
-      case MZ_CMD_PL_STOP:      applyModeSide("riding","both");break;
+      case MZ_CMD_PL_USE:       ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");break;
+      case MZ_CMD_PL_STOP:      applyRidingLayerMode(RIDING_MANUAL);applyModeSide("riding","both");break;
+      case MZ_CMD_RIDING_MODE:  stopPlaylist();stopShowRunners("both");applyRidingLayerMode((RidingMode)c.value);break;
+      case MZ_CMD_RIDING_COLOR: execRidingColor(c.side,c.flag!=0,c.value,c.r,c.g,c.b);break;
       default: break;
     }
   }
@@ -666,13 +849,18 @@ void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
   JsonArray seg=root.createNestedArray("seg");
   for(uint8_t k=0;k<2;k++){
     const PlSide &p=sl.s[k];
-    JsonObject o=seg.createNestedObject();
-    o["id"]=physicalSegForLogicalSide(k==0);o["on"]=true;
-    o["fx"]=p.isShow?0:p.fx;o["pal"]=p.pal;
-    o["rev"]=((p.rv!=0)!=showReverse);
-    o["sx"]=p.sx;o["ix"]=p.ix;o["c1"]=p.c1;o["c2"]=p.c2;o["c3"]=p.c3;o["o1"]=p.o1;o["o2"]=p.o2;o["o3"]=p.o3;
-    JsonArray col=o.createNestedArray("col");
-    for(uint8_t c=0;c<3;c++){JsonArray a=col.createNestedArray();a.add(p.col[c*3]);a.add(p.col[c*3+1]);a.add(p.col[c*3+2]);}
+    JsonObject color=seg.createNestedObject();
+    color["id"]=physicalColorSegForLogicalSide(k==0);color["on"]=true;color["fx"]=FX_MODE_PALETTE;color["pal"]=p.pal;
+    color["sx"]=0;color["ix"]=0;color["c1"]=0;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
+    JsonArray colorCol=color.createNestedArray("col");
+    for(uint8_t c=0;c<3;c++){JsonArray a=colorCol.createNestedArray();a.add(p.col[c*3]);a.add(p.col[c*3+1]);a.add(p.col[c*3+2]);}
+    JsonObject effect=seg.createNestedObject();
+    effect["id"]=physicalSegForLogicalSide(k==0);effect["on"]=true;
+    effect["fx"]=p.isShow?0:p.fx;effect["pal"]=2;
+    effect["rev"]=((p.rv!=0)!=showReverse);
+    effect["sx"]=p.sx;effect["ix"]=p.ix;effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
+    JsonArray effectCol=effect.createNestedArray("col");
+    for(uint8_t c=0;c<3;c++){JsonArray a=effectCol.createNestedArray();a.add(255);a.add(255);a.add(255);}
   }
   deserializeState(root);
   for(uint8_t k=0;k<2;k++){
@@ -682,6 +870,7 @@ void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
 }
 bool startPlaylist(int li,int si,bool hold){
   if(li<0||li>=PL_MAX||pls[li].n==0)return false;
+  applyRidingLayerMode(RIDING_PLAYLIST);
   if(si<0||si>=pls[li].n)si=0;
   plRun.active=true;plRun.hold=hold;plRun.list=(uint8_t)li;plRun.slot=(uint8_t)si;plRun.startedAt=millis();
   applyPlSlot((uint8_t)li,(uint8_t)si,hold||pls[li].n==1);
@@ -1066,6 +1255,10 @@ server.on("/mizuma/apply",HTTP_GET,[this](AsyncWebServerRequest *req){handleAppl
 server.on("/mizuma/apply",HTTP_POST,[this](AsyncWebServerRequest *req){handleApply(req);});
 server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String json=String("{\"enabled\":")+(sideSwap?"true":"false")+"}";req->send(200,"application/json",json);});
 server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){handleSideSwap(req);});
+server.on("/mizuma/riding/mode",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingMode(req,true);});
+server.on("/mizuma/riding/mode",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingMode(req,false);});
+server.on("/mizuma/riding/colors",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingColors(req,true);});
+server.on("/mizuma/riding/colors",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingColors(req,false);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlSummary(req);});
@@ -1117,10 +1310,12 @@ out+=buf;}
 out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
+  if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(RIDING_MANUAL);
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   tickPlaylist();
   tickShowEngine();
   if(bootWelcomePending && (uint32_t)(millis()-bootWelcomeAt)>=250U){
+    if(!ridingSegmentsReady)return;
     bootWelcomePending=false;
     startWelcomeSequence();
   }
@@ -1170,7 +1365,10 @@ s["bri"]=pslots[i].bri;}
 top["bri"]=savedBri;
 top["sideSwap"]=sideSwap;
 top["showReverse"]=showReverse;
-top["ridingPl"]=(int)ridingPl;}
+top["ridingPl"]=(int)ridingPl;
+JsonObject rc=top.createNestedObject("ridingColors");
+JsonObject rr=rc.createNestedObject("right");rr["palette"]=ridingColors[0].palette;rr["pal"]=ridingColors[0].pal;rr["r"]=ridingColors[0].r;rr["g"]=ridingColors[0].g;rr["b"]=ridingColors[0].b;
+JsonObject rl=rc.createNestedObject("left");rl["palette"]=ridingColors[1].palette;rl["pal"]=ridingColors[1].pal;rl["r"]=ridingColors[1].r;rl["g"]=ridingColors[1].g;rl["b"]=ridingColors[1].b;}
 
 bool readFromConfig(JsonObject &root) override {
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
@@ -1199,6 +1397,11 @@ pslots[i].bri=s["bri"]|180;}}
 savedBri=top["bri"]|180;
 sideSwap=top["sideSwap"]|false;
 showReverse=top["showReverse"]|false;
+JsonObject rc=top["ridingColors"];
+if(!rc.isNull()){
+  JsonObject rr=rc["right"];if(!rr.isNull()){ridingColors[0].palette=rr["palette"]|true;ridingColors[0].pal=rr["pal"]|2;ridingColors[0].r=rr["r"]|255;ridingColors[0].g=rr["g"]|255;ridingColors[0].b=rr["b"]|255;}
+  JsonObject rl=rc["left"];if(!rl.isNull()){ridingColors[1].palette=rl["palette"]|true;ridingColors[1].pal=rl["pal"]|2;ridingColors[1].r=rl["r"]|255;ridingColors[1].g=rl["g"]|255;ridingColors[1].b=rl["b"]|255;}
+}
 ridingPl=(int8_t)((int)(top["ridingPl"]|-1));
 return true;}
 

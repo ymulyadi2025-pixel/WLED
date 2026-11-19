@@ -694,18 +694,20 @@ function throttleLatest(fn,ms){let last=0,t=null,args;return function(){args=arg
 const mpost=u=>fetch(u,{method:'POST',cache:'no-store'});
 
 /* ===== konstanta ===== */
-const SEG_K=0,SEG_L=1,SH=1000;                       // id efek >= 1000 = show Mizuma (indeks show = id-1000)
+const SEG_COLOR_K=0,SEG_COLOR_L=1,SEG_K=2,SEG_L=3,SEG_LINK=4,SH=1000; // layer fisik: warna, efek per sisi, efek sambung
 const FX_BLACKLIST=['frizzles','funky plank','game of life','geq','ghost rider','matrix','metaballs','tartan','polar lights','swirl','lissajous','rubix','invaders','maze','pulser','dna','plasma ball','hipnotic','black hole','cubes','fireworks','akemi','colored bursts','freqmatrix'];
 const MZW_RE=/^(?:MZ\d\d|W\d\d) /;
 const HIDE_AUDIO_FX=true;
+const initialColorTab=new URLSearchParams(location.search).get('t')==='warna';
 const FX_PAL_DEFAULTS={'Fire 2012':'Fire','Fireworks 1D':'Rainbow','Fireworks':'Rainbow','Noise 1':'Pastel','Noise':'Pastel','Pride':'Pride','Aurora':'Aurora','Pacifica':'Pacifica'};
 const SDN={all:'Semua',L:'Kiri',R:'Kanan'};
 const DC=()=>({cs:'one',col:{h:39,s:100,v:100}});
 
 /* ===== state ===== */
-const S={tb:'fx',fside:'all',sel:0,fs:{L:null,R:null},q:'',fo:false,
+const S={tb:'fx',lastRideMode:'fx',fside:'all',sel:0,fs:{L:null,R:null},q:'',fo:false,
   fx:[],fxd:[],shows:[],showMs:[],list:[],palNames:[],palList:[],palRaw:{},palInfo:{cpal:0,cmax:10,um:[],major:0},palSig:'',
   fav:new Set(),fxs:{},fxsSaved:{},pm:{},cu:[],act:{L:null,R:null},lists:[],
+  rideColors:{L:{cs:'pal',pal:2,col:{h:39,s:100,v:100}},R:{cs:'pal',pal:2,col:{h:39,s:100,v:100}}},
   pi:null,si:-1,se:null,dr:null,sp:0,qc:null,listsLoaded:false,
   pl:{use:-1,run:false,hold:false,list:0,slot:0,el:0,at:0,ui:false},showLive:{L:false,R:false},
   sideSwap:false,rev:false,bri:180,net:true,sv:'ok',volt:null,pv:false,ready:false,popKind:null};
@@ -731,6 +733,18 @@ function showSec(i){const m=S.showMs[i-SH];return m?Math.round(m/100)/10:0;}
 function pm(i){if(!S.pm[i]){const d=fxDefs(i),g=function(k,df){return d[k]!=null?d[k]:df;};S.pm[i]={sx:g('sx',128),ix:g('ix',128),c1:g('c1',128),c2:g('c2',128),c3:g('c3',128),o1:g('o1',0),o2:g('o2',0),o3:g('o3',0)};}return S.pm[i];}
 function palIdByName(n){return S.palNames.findIndex(function(x){return x===n;});}
 function cfg(i){if(!S.fxs[i]){let c=DC();if(isShowId(i))c={cs:'pal',pal:0,col:{h:39,s:100,v:100}};else{const d=fxDefs(i);let pi=-1;if(d.pal!=null)pi=d.pal;else if(FX_PAL_DEFAULTS[fxName(i)])pi=palIdByName(FX_PAL_DEFAULTS[fxName(i)]);if(pi>0&&S.palNames[pi]&&S.palNames[pi].charAt(0)!=='*')c={cs:'pal',pal:pi,col:{h:39,s:100,v:100}};}S.fxs[i]=c;}return S.fxs[i];}
+function rideColor(k){return S.rideColors[k]||(S.rideColors[k]=DC());}
+function rideColorKeys(){return sideKeys();}
+function rideColorCurrent(){return rideColor(S.fside==='L'?'L':'R');}
+function rideColorMode(){const m=rideMode();return m==='semi'||m==='auto';}
+function rideColorPayload(c){const v=cfgCols(c,false),rgb=v.col[0];return{palette:c.cs==='one'?0:1,pal:v.pal,r:rgb[0],g:rgb[1],b:rgb[2]};}
+function rideColorStore(k){const c=rideColor(k);return cuEnsure(c).then(function(){const v=rideColorPayload(c);
+  return mpost('/mizuma/riding/colors?side='+sideName(k)+'&palette='+v.palette+'&pal='+v.pal+'&r='+v.r+'&g='+v.g+'&b='+v.b);
+}).then(function(r){if(!r.ok)throw new Error('riding color');return r.json();}).then(function(d){if(!d.ok)throw new Error(d.error||'riding color');});}
+function loadRideColors(){return fetch('/mizuma/riding/colors').then(function(r){if(!r.ok)throw new Error('riding colors');return r.json();}).then(function(d){
+  [['R',d.right],['L',d.left]].forEach(function(x){const q=x[1];if(!q)return;const rgb=q.rgb||[255,255,255],hv=rgb2hsv(rgb[0],rgb[1],rgb[2]),skin=S.cu.find(function(k){return k.slot!=null&&cuId(k)===(q.pal|0);});
+    S.rideColors[x[0]]=q.palette?(skin?{cs:'cus',cu:skin.id,col:{h:hv[0],s:hv[1],v:hv[2]}}:{cs:'pal',pal:q.pal|0,col:{h:hv[0],s:hv[1],v:hv[2]}}):{cs:'one',col:{h:hv[0],s:hv[1],v:hv[2]}};});
+}).catch(function(){toast('Gagal memuat warna kanan/kiri dari perangkat');});}
 
 /* ===== Skin Custom (model v19: titik [posisi%, #hex], 2–8 titik) → palette kustom WLED ===== */
 const findCu=id=>S.cu.find(function(k){return k.id===id;});
@@ -751,7 +765,10 @@ function saveCuMeta(k){return fetch('/mizuma/skins',{method:'POST',headers:{'Con
 function cuEnsure(c){const k=c&&c.cs==='cus'&&findCu(c.cu);return k&&cuNeed(k)?cuInstall(k):Promise.resolve();}
 function cuId(k){return k.slot==null?0:palBase()-k.slot;}
 function cfgCols(c,show){
-  if(show)return{pal:c.cs==='pal'?c.pal:(c.cs==='cus'&&findCu(c.cu)&&findCu(c.cu).slot!=null?cuId(findCu(c.cu)):0),col:[[255,165,0],[0,0,0],[0,0,0]]};
+  if(show){
+    if(c.cs==='one')return{pal:0,col:[hsv(c.col.h,c.col.s,c.col.v),[0,0,0],[0,0,0]]};
+    return{pal:c.cs==='pal'?c.pal:(c.cs==='cus'&&findCu(c.cu)&&findCu(c.cu).slot!=null?cuId(findCu(c.cu)):0),col:[[255,165,0],[0,0,0],[0,0,0]]};
+  }
   if(c.cs==='pal')return{pal:c.pal,col:[hsv(c.col.h,c.col.s,c.col.v),[0,0,0],[0,0,0]]};
   if(c.cs==='cus'){const k=findCu(c.cu);if(k&&k.slot!=null)return{pal:cuId(k),col:[hsv(c.col.h,c.col.s,c.col.v),[0,0,0],[0,0,0]]};}
   return{pal:0,col:[hsv(c.col.h,c.col.s,c.col.v),[0,0,0],[0,0,0]]};}
@@ -767,47 +784,72 @@ const ckn=(c,show)=>cfgName(c,show).replace(/^Skin( Custom)? · /,'').replace(/^
 
 /* ===== sisi & segmen ===== */
 function mapSegId(logical){const right=(logical==='kanan');return(right!==S.sideSwap)?SEG_K:SEG_L;}
+function mapColorSegId(logical){const right=(logical==='kanan');return(right!==S.sideSwap)?SEG_COLOR_K:SEG_COLOR_L;}
 const sideKeys=()=>S.fside==='all'?['R','L']:[S.fside];
 const sideName=k=>k==='R'?'kanan':'kiri';
 const sideArg=()=>S.fside==='all'?'both':sideName(S.fside);
 function segIds(){return sideKeys().map(function(k){return mapSegId(sideName(k));});}
-function selOf(){if(S.fside==='all')return S.sel;const f=S.fs[S.fside];if(f!=null)return f;const a=S.act[S.fside];return a?a.fx:S.sel;}
+function rideMode(){const m=S.tb==='col'?S.lastRideMode:S.tb;return m==='fx'?'manual':m;}
+function effectTargetIds(){const mode=rideMode();return mode==='semi'||mode==='auto'?[SEG_LINK]:segIds();}
+function colorTargets(){return sideKeys().map(function(k){return mapColorSegId(sideName(k));});}
+function selOf(){if(rideColorMode()||S.fside==='all')return S.sel;const f=S.fs[S.fside];if(f!=null)return f;const a=S.act[S.fside];return a?a.fx:S.sel;}
 const snap=i=>JSON.stringify({fx:i,c:cfg(i),p:isShowId(i)?0:pm(i)});
 function isActive(i){return S.pl.use<0&&sideKeys().every(function(k){return S.act[k]&&S.act[k].fx===i;});}
-function isSaved(i){const s=snap(i);return S.pl.use<0&&sideKeys().every(function(k){return S.act[k]&&S.act[k].s===s;});}
+function isSaved(i){if(rideColorMode())return S.pl.use<0&&sideKeys().every(function(k){return S.act[k]&&S.act[k].fx===i;});
+  const s=snap(i);return S.pl.use<0&&sideKeys().every(function(k){return S.act[k]&&S.act[k].s===s;});}
 
 /* ===== lampu: pratinjau langsung ===== */
 function plHold(){if(S.pl.run&&!S.pl.hold){S.pl.hold=true;S.pl.ui=true;mpost('/mizuma/pl/pause?on=1').catch(function(){});}}
-function segsFor(i,ids){const c=cfgCols(cfg(i)),p=pm(i);return ids.map(function(id){return{id:id,on:true,fx:i,rev:S.rev,sx:p.sx,ix:p.ix,c1:p.c1,c2:p.c2,c3:p.c3,o1:p.o1,o2:p.o2,o3:p.o3,pal:c.pal,col:c.col};});}
+function colorSegsFor(i,keys){return(keys||sideKeys()).map(function(k){
+    const separate=rideColorMode(),c=separate?rideColor(k):cfg(i),v=cfgCols(c,!separate&&isShowId(i));
+    return{id:mapColorSegId(sideName(k)),on:true,fx:c.cs==='one'?0:65,pal:v.pal,sx:0,ix:0,c1:0,c2:0,c3:0,o1:0,o2:0,o3:0,col:v.col};
+  });}
+function segsFor(i,ids,keys){const p=pm(i),white=[[255,255,255],[255,255,255],[255,255,255]];
+  const colors=colorSegsFor(i,keys);
+  const effects=ids.map(function(id){return{id:id,on:true,fx:i,pal:2,rev:S.rev,sx:p.sx,ix:p.ix,c1:p.c1,c2:p.c2,c3:p.c3,o1:p.o1,o2:p.o2,o3:p.o3,col:white};});
+  return colors.concat(effects);}
 function stopShowSides(keys){mpost('/mizuma/show/stop?side='+(keys.length===2?'both':sideName(keys[0]))).catch(function(){});}
 function applyLive(i){
-  const c=cfg(i);
-  if(c.cs==='cus'&&findCu(c.cu)&&cuNeed(findCu(c.cu))){cuEnsure(c).then(function(){applyLive(i);}).catch(function(){toast('Gagal memasang skin ke lampu');});return;}
-  plHold();const ks=sideKeys();
-  if(isShowId(i)){ks.forEach(function(k){S.showLive[k]=true;});const side=sideArg(),p=cfgCols(c,true).pal;
-    mpost('/mizuma/show?index='+(i-SH)+'&side='+side).then(function(){if(p)return mpost('/mizuma/show/palette?pal='+p+'&side='+side);}).catch(function(){});}
+  const c=cfg(i),ks=sideKeys(),needs=[];
+  if(c.cs==='cus'&&findCu(c.cu)&&cuNeed(findCu(c.cu)))needs.push(cuEnsure(c));
+  if(rideColorMode())ks.forEach(function(k){const color=rideColor(k);if(color.cs==='cus'&&findCu(color.cu)&&cuNeed(findCu(color.cu)))needs.push(cuEnsure(color));});
+  if(needs.length){Promise.all(needs).then(function(){applyLiveReady(i);}).catch(function(){toast('Gagal memasang skin ke lampu');});return;}
+  applyLiveReady(i);
+}
+function applyLiveReady(i){
+  const ks=sideKeys(),mode=rideMode(),ids=mode==='semi'||mode==='auto'?[SEG_LINK]:segIds(),c=cfg(i);
+  plHold();
+  if(isShowId(i)){ks.forEach(function(k){S.showLive[k]=true;});const side=mode==='auto'?'both':sideArg(),p=mode==='auto'?0:cfgCols(c,true).pal;
+    post({on:true,seg:segsFor(i,[],ks)}).then(function(){return mpost('/mizuma/show?index='+(i-SH)+'&side='+side);}).then(function(){if(mode!=='auto')return mpost('/mizuma/show/palette?pal='+p+'&side='+side);}).catch(function(){});}
   else{const st=ks.filter(function(k){return S.showLive[k];});if(st.length)stopShowSides(st);ks.forEach(function(k){S.showLive[k]=false;});
-    const o={on:true,seg:segsFor(i,segIds())};if(S.bri>0)o.bri=S.bri;post(o);}
+    const o={on:true,seg:segsFor(i,ids,ks)};if(mode==='semi'||mode==='auto')o.seg.push({id:SEG_K,on:false},{id:SEG_L,on:false},{id:SEG_LINK,on:true});if(S.bri>0)o.bri=S.bri;post(o);}
   S.pv=!isSaved(i);updInfo();}
 const applyLiveD=throttleLatest(function(){applyLive(selOf());},120);
-function postParam(k,v){post({seg:segIds().map(function(id){const o={id:id};o[k]=v;return o;})});}
+const rideColorSaveD=debounce(function(keys){Promise.all(keys.map(rideColorStore)).catch(function(){toast('Gagal menyimpan warna sisi ke perangkat');});},450);
+const rideColorLiveD=throttleLatest(function(keys){
+  Promise.all(keys.map(function(k){return cuEnsure(rideColor(k));})).then(function(){post({on:true,seg:colorSegsFor(selOf(),keys)});})
+    .catch(function(){toast('Gagal memasang skin warna ke lampu');});
+},120);
+function rideColorChanged(){
+  if(S.fside==='all')S.rideColors.L=JSON.parse(JSON.stringify(rideColor('R')));
+  const keys=rideColorKeys();rideColorLiveD(keys);rideColorSaveD(keys);S.pv=false;updInfo();
+}
+function postParam(k,v){post({seg:effectTargetIds().map(function(id){const o={id:id};o[k]=v;return o;})});}
 const postParamD=throttleLatest(postParam,120);
 
 /* ===== simpan ke engine ===== */
-function presetQuery(i){const show=isShowId(i),c=cfgCols(cfg(i),show),p=show?{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}:pm(i);
+function presetQuery(i,k){const show=isShowId(i),color=rideColorMode()?rideColor(k):cfg(i),c=cfgCols(color,show&&!rideColorMode()),p=show?{sx:128,ix:128,c1:128,c2:128,c3:128,o1:0,o2:0,o3:0}:pm(i);
   const q={fx:show?0:i,pal:c.pal,r:c.col[0][0],g:c.col[0][1],b:c.col[0][2],r1:c.col[1][0],g1:c.col[1][1],b1:c.col[1][2],r2:c.col[2][0],g2:c.col[2][1],b2:c.col[2][2],sx:p.sx,ix:p.ix,c1:p.c1,c2:p.c2,c3:p.c3,o1:p.o1,o2:p.o2,o3:p.o3};
   if(show){q.isShow=1;q.showIndex=i-SH;}else q.isShow=0;return new URLSearchParams(q).toString();}
-function savePreset(k,i){return fetch('/mizuma/preset?slot=riding'+(k==='R'?'Kanan':'Kiri')+'&'+presetQuery(i),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('ditolak');});}
-function persist(i,msg){const ks=sideKeys();S.sv='saving';rs();
-  return cuEnsure(cfg(i)).then(function(){return Promise.all(ks.map(function(k){return savePreset(k,i);}));})
-   .then(function(){const side=ks.length===2?'both':sideName(ks[0]);
-     if(S.pl.use>=0)return mpost('/mizuma/pl/use?list=-1');
-     return mpost('/mizuma/apply?mode=riding&side='+side);})
-   .then(function(){const s=snap(i);ks.forEach(function(k){S.act[k]={fx:i,s:s};S.showLive[k]=isShowId(i);});S.fxsSaved[i]=JSON.stringify(cfg(i));saveLocal();
+function savePreset(k,i){return fetch('/mizuma/preset?slot=riding'+(k==='R'?'Kanan':'Kiri')+'&'+presetQuery(i,k),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).then(function(d){if(!d.ok)throw new Error('ditolak');});}
+function persist(i,msg){const mode=rideMode(),ks=(mode==='semi'||mode==='auto')?['R','L']:sideKeys();S.sv='saving';rs();
+  return Promise.all(ks.map(function(k){return cuEnsure(rideColorMode()?rideColor(k):cfg(i));})).then(function(){return Promise.all(ks.map(function(k){return savePreset(k,i);}));})
+   .then(function(){if(S.pl.use>=0)return mpost('/mizuma/pl/use?list=-1').then(function(){return setRidingMode(mode==='manual'?'manual':mode);});})
+   .then(function(){applyLive(i);const s=snap(i);ks.forEach(function(k){S.act[k]={fx:i,s:s};S.showLive[k]=isShowId(i);});S.fxsSaved[i]=JSON.stringify(cfg(i));saveLocal();
      S.pl.use=-1;S.pl.run=false;S.pl.hold=false;S.pl.ui=false;S.pv=false;S.sv='ok';S.net=true;rs();toast(msg);R();})
    .catch(function(){S.sv='fail';rs();toast('Gagal menyimpan. Mizuma terputus.');});}
-function useFx(i){if(S.fside==='all')S.sel=i;else S.fs[S.fside]=i;persist(i,fxName(i)+(S.fside==='all'?'':' di LED '+SDN[S.fside].toLowerCase())+' dipakai untuk Riding');}
-function restoreSaved(){S.pv=false;S.pl.ui=false;mpost('/mizuma/apply?mode=riding&side=both').catch(function(){});toast('Pratinjau dibatalkan');setTimeout(pollPl,500);R();}
+function useFx(i){if(rideColorMode()||S.fside==='all')S.sel=i;else S.fs[S.fside]=i;persist(i,fxName(i)+(S.fside==='all'?'':' di LED '+SDN[S.fside].toLowerCase())+' dipakai untuk Riding');}
+function restoreSaved(){const mode=rideMode();S.pv=false;S.pl.ui=false;mpost('/mizuma/apply?mode=riding&side=both').then(function(){return setRidingMode(mode);}).then(loadSaved).then(function(){applyLive(selOf());}).catch(function(){toast('Gagal membatalkan pratinjau');});toast('Pratinjau dibatalkan');setTimeout(pollPl,500);R();}
 
 /* ===== muat data ===== */
 function cfgFromPreset(st){const c0=st.col[0],hv=rgb2hsv(c0[0],c0[1],c0[2]),col={h:hv[0],s:hv[1],v:hv[2]};
@@ -820,7 +862,10 @@ function cfgFromPreset(st){const c0=st.col[0],hv=rgb2hsv(c0[0],c0[1],c0[2]),col=
   return{cs:'pal',pal:st.pal,col:col};}
 function applyPresetState(d){['R','L'].forEach(function(k){const st=d&&d['riding'+(k==='R'?'Kanan':'Kiri')];if(!st||!st.valid)return;
   const fx=st.isShow?SH+(st.showIndex|0):(st.fx|0);
-  S.fxs[fx]=st.isShow?{cs:'pal',pal:st.pal|0,col:{h:39,s:100,v:100}}:cfgFromPreset(st);S.fxsSaved[fx]=JSON.stringify(S.fxs[fx]);
+  if(st.isShow){
+    const c0=st.col&&st.col[0]?st.col[0]:[255,165,0],hv=rgb2hsv(c0[0],c0[1],c0[2]);
+    S.fxs[fx]=st.pal===0?{cs:'one',col:{h:hv[0],s:hv[1],v:hv[2]}}:{cs:'pal',pal:st.pal|0,col:{h:hv[0],s:hv[1],v:hv[2]}};
+  }else S.fxs[fx]=cfgFromPreset(st);S.fxsSaved[fx]=JSON.stringify(S.fxs[fx]);
   if(!st.isShow)S.pm[fx]={sx:st.sx,ix:st.ix,c1:st.c1,c2:st.c2,c3:st.c3,o1:st.o1?1:0,o2:st.o2?1:0,o3:st.o3?1:0};
   S.act[k]={fx:fx,s:snap(fx)};S.showLive[k]=!!st.isShow;});
   if(S.act.R)S.sel=S.act.R.fx;else if(S.act.L)S.sel=S.act.L.fx;else{const f=S.list[0];S.sel=f?f.i:0;}}
@@ -881,28 +926,38 @@ function sideBlock(){const fx=S.tb==='fx',on=k=>S.fside===k?' on':'',oc=k=>' onc
   return'<div class="sbk act" role="group" aria-label="LED kiri dan kanan">'+cell('L','Kiri')+'<div class="sbm">'+(fx?'<button class="chip'+(S.fo?' on':'')+'" onclick="S.fo=!S.fo;R()">★ Favorit</button>':'')+'<button class="sbn A'+on('all')+'"'+oc('all')+'>Semua</button></div>'+cell('R','Kanan')+'</div>';}
 function setSide(sd){S.fside=sd;R();}
 function tbs(a){return'<div class="tabbar">'+a.map(function(x){return'<button class="'+(x[3]?'on':'')+'" onclick="'+x[2]+'">'+x[0]+'</button>';}).join('')+'</div>';}
-function frz(){const t=function(n,k){return[n,'',"goTb('"+k+"')",S.tb===k];};
-  if(S.tb==='pl')return tbs([t('Single Effect','fx'),t('Playlist Animasi','pl')]);
-  return(S.tb==='col'?'':tbs([t('Single Effect','fx'),t('Playlist Animasi','pl')]))+sideBlock();}
-function goTb(k){S.tb=k;S.q='';S.pi=null;R();$('#scr').scrollTop=0;if(k==='pl')ensureLists();}
+function frz(){const active=S.tb==='col'?S.lastRideMode:S.tb,t=function(n,k){return[n,'',"goTb('"+k+"')",active===k];};
+  return tbs([t('Manual','fx'),t('Semi-Auto','semi'),t('Auto','auto'),t('Playlist','pl')])+(active==='pl'?'':sideBlock());}
+function setRidingMode(k){const m=k==='semi'?'semi-auto':k;return mpost('/mizuma/riding/mode?mode='+encodeURIComponent(m)).then(function(r){if(!r.ok)throw new Error('riding mode');return r.json();}).then(function(d){if(!d.ok)throw new Error(d.error||'riding mode');});}
+function goTb(k){S.tb=k;S.q='';S.pi=null;if(k!=='col')S.lastRideMode=k;R();$('#scr').scrollTop=0;
+  if(k==='pl'){ensureLists();return;}
+  const selected=selOf();
+  if(k==='semi'&&isShowId(selected)){const f=S.list.find(function(x){return !x.show;});if(f)S.sel=f.i;}
+  if(k==='auto'&&!isShowId(selected)){if(S.shows.length)S.sel=SH;}
+  setRidingMode(k==='fx'?'manual':k).then(function(){applyLive(selOf());}).catch(function(){toast('GPIO 5/6 belum siap atau mode gagal diaktifkan');});
+}
 
 /* ===== Single Effect ===== */
 function pvl(){
   if(S.tb==='pl'){const nm=S.pl.use>=0&&S.lists[S.pl.use]?S.lists[S.pl.use].n:(S.pl.run&&S.lists[S.pl.list]?S.lists[S.pl.list].n:'-');const on=S.pl.use>=0&&!S.pl.ui;
     return'<div class="pvl" id="pvl"><span>Di lampu · <b>'+esc(nm)+'</b></span><span class="bdg'+(on?' ok':'')+'">'+(on?'Menyala di motor':'Pratinjau saja')+'</span></div>';}
   const i=selOf(),sv=isSaved(i);return'<div class="pvl" id="pvl"><span>Di lampu · <b>'+esc(fxName(i))+'</b>'+(S.pv||S.pl.ui?' <button class="lnk" onclick="restoreSaved()">Batalkan</button>':'')+'</span><span class="bdg'+(sv?' ok':'')+'">'+(sv?'Menyala di motor':'Pratinjau saja')+'</span></div>';}
-function fxList(){const sel=selOf();let h='',n=0;
-  S.list.forEach(function(f){const i=f.i;if(S.fo&&!S.fav.has(i))return;n++;
+function fxList(){const sel=selOf(),mode=rideMode();let h='',n=0;
+  S.list.forEach(function(f){const i=f.i;if(mode==='semi'&&f.show)return;if(mode==='auto'&&!f.show)return;if(S.fo&&!S.fav.has(i))return;n++;
     const on=sel===i,fv=S.fav.has(i),hid=S.q&&f.n.toLowerCase().indexOf(S.q.toLowerCase())<0,ac=isActive(i),sv=ac&&isSaved(i);
     const lab=sv?'✓ Dipakai':(ac?'Simpan':'Pakai');
-    const actions=on?'<button class="fxcolor" aria-label="Ubah warna '+esc(f.n)+'" onclick="event.stopPropagation();qcOpen('+i+')"><i style="background:'+cfgGrad(cfg(i))+'"></i><span>Warna</span></button><button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+(S.fside==='all'?'':' · '+SDN[S.fside])+'</button><button class="star'+(fv?' on':'')+'" aria-label="Favorit" onclick="event.stopPropagation();tf('+i+')">'+(fv?'★':'☆')+'</button>':'';
+    let actions='';
+    if(on&&mode==='manual')actions='<button class="fxcolor" aria-label="Ubah warna '+esc(f.n)+'" onclick="event.stopPropagation();qcOpen('+i+')"><i style="background:'+cfgGrad(cfg(i))+'"></i><span>Warna</span></button><button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+(S.fside==='all'?'':' · '+SDN[S.fside])+'</button>';
+    else if(on&&mode==='semi')actions='<button class="fxcolor" onclick="event.stopPropagation();goNav(\'col\')"><i style="background:'+cfgGrad(rideColorCurrent())+'"></i><span>Warna sisi</span></button><button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+'</button>';
+    else if(on&&mode==='auto')actions='<button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+'</button>';
+    if(on)actions+='<button class="star'+(fv?' on':'')+'" aria-label="Favorit" onclick="event.stopPropagation();tf('+i+')">'+(fv?'★':'☆')+'</button>';
     h+='<div class="fr'+(on?' on':'')+'" data-n="'+esc(f.n.toLowerCase())+'" style="'+(hid?'display:none':'')+'" onclick="pick('+i+')"><span class="no">'+n+'</span><b>'+esc(f.n)+(f.show?' <em class="cb">✦ Mizuma</em>':'')+'</b>'+actions+'</div>';});
   if(!S.fx.length)return'<div class="emp">Memuat daftar efek…</div>';
   if(!h)return'<div class="emp">'+(S.fo?'Belum ada efek favorit. Ketuk efek lalu ★ untuk menambah.':'Tidak ada efek.')+'</div>';
   return h;}
-function vFx(){return pvl()+'<div class="fxlist">'+fxList()+'</div>';}
+function vFx(){const mode=rideMode(),title=mode==='semi'?'Pilih satu efek untuk seluruh LED. Warna kanan dan kiri diatur terpisah.':mode==='auto'?'Pilih animasi Mizuma untuk seluruh LED. Warna tiap sisi tetap berasal dari layer warna.':'Efek kanan dan kiri berjalan terpisah.';return pvl()+'<div class="m" style="padding:0 12px 8px">'+title+'</div><div class="fxlist">'+fxList()+'</div>';}
 function fqx(v){S.q=v;document.querySelectorAll('#scr .fr[data-n]').forEach(function(e){e.style.display=e.dataset.n.indexOf(v.toLowerCase())<0?'none':'';});}
-function pick(i){if(S.fside==='all'){S.sel=i;S.fs={L:null,R:null};}else S.fs[S.fside]=i;applyLive(i);R();}
+function pick(i){if(rideColorMode()||S.fside==='all'){S.sel=i;S.fs={L:null,R:null};}else S.fs[S.fside]=i;applyLive(i);R();}
 function tf(i){S.fav.has(i)?S.fav.delete(i):S.fav.add(i);saveLocal();R();}
 function pbar(i){if(isShowId(i))return'<div class="m" style="width:100%;text-align:center">Show Mizuma · '+fd(showSec(i))+' dtk · diulang terus di Riding. Warna lewat tombol Warna → Skin Efek.</div>';
   const p=parseFxData(S.fxd[i]||''),v=pm(i);
@@ -917,23 +972,26 @@ const saveLocalD=debounce(saveLocal,400);
 function skinRows(c,fp,fc,show){ensurePalX();const cu=[...S.cu.keys()].reverse().map(function(i){const k=S.cu[i],tools=k.ephemeral?'':'<button class="ib" aria-label="Edit skin" onclick="event.stopPropagation();cpEdit('+i+')">✎</button><button class="ib" aria-label="Hapus skin" style="color:var(--bad)" onclick="event.stopPropagation();cpDel('+i+')">🗑</button>';return'<div class="pw cu'+(c.cs==='cus'&&c.cu===k.id?' on':'')+'" onclick="'+fc+'(\''+k.id+'\')"><span class="rd"></span><span class="pn" style="text-align:left">'+esc(k.n)+'<em class="cb">✦ Custom</em></span><span class="ps" style="background:'+cuG(k)+'"></span>'+tools+'</div>';}).join('');
   const bi=S.palList.map(function(e){return'<div class="pw'+(c.cs==='pal'&&c.pal===e.i?' on':'')+'" data-pid="'+e.i+'" onclick="'+fp+'('+e.i+')"><span class="rd"></span><span class="pn">'+esc(e.i===0?(show?'Mizuma Asli':'Default'):e.n)+'</span><span class="ps" style="background:'+(palGrad(e.i)||'var(--s3)')+'"></span></div>';}).join('');
   return cu+'<div class="pg">'+(bi||'<div class="m">Memuat palette…</div>')+'</div>';}
-function vCol(){const i=selOf(),c=cfg(i),show=isShowId(i),note=fxUsesPal(i)?'':'<div class="m" style="margin:0 2px 8px">Efek ini tidak menggunakan palette.</div>';
-  const head='<div class="m" style="margin:0 2px 8px">Warna untuk <b style="color:var(--tx)">'+esc(fxName(i))+'</b> · '+SDN[S.fside]+'</div>';
-  return head+note+(show?'':'<div class="pkx">'+pkHTML(1)+'</div>')+skinRows(c,'setPal','setCu',show);}
-function setMode(k){const i=selOf(),c=cfg(i);if(k==='one'){if(isShowId(i))return;c.cs='one';}else if(c.cs==='one'){c.cs='pal';c.pal=S.palList.length>1?S.palList[1].i:0;}applyLive(i);R();}
-function setPal(id){const c=cfg(selOf());c.cs='pal';c.pal=id;applyLive(selOf());R();}
-function setCu(id){const c=cfg(selOf());c.cs='cus';c.cu=id;applyLive(selOf());R();}
+function vCol(){const i=selOf(),separate=rideColorMode(),c=separate?rideColorCurrent():cfg(i),show=!separate&&isShowId(i),note=!separate&&!fxUsesPal(i)?'<div class="m" style="margin:0 2px 8px">Efek ini tidak menggunakan palette.</div>':'';
+  const head=separate?'<div class="m" style="margin:0 2px 8px">Warna sisi · <b style="color:var(--tx)">'+(S.fside==='all'?'Kanan & kiri':SDN[S.fside])+'</b>. Disimpan di perangkat.</div>':'<div class="m" style="margin:0 2px 8px">Warna untuk <b style="color:var(--tx)">'+esc(fxName(i))+'</b> · '+SDN[S.fside]+'</div>';
+  return head+note+'<div class="pkx">'+pkHTML(1)+'</div>'+skinRows(c,'setPal','setCu',show);}
+function colorChanged(){if(rideColorMode()){rideColorChanged();R();return;}applyLive(selOf());R();}
+function setMode(k){const i=selOf(),c=rideColorMode()?rideColorCurrent():cfg(i);if(k==='one'){if(!rideColorMode()&&isShowId(i))return;c.cs='one';}else if(c.cs==='one'){c.cs='pal';c.pal=S.palList.length>1?S.palList[1].i:0;}colorChanged();}
+function setPal(id){const c=rideColorMode()?rideColorCurrent():cfg(selOf());c.cs='pal';c.pal=id;colorChanged();}
+function setCu(id){const c=rideColorMode()?rideColorCurrent():cfg(selOf());c.cs='cus';c.cu=id;colorChanged();}
 function colDirty(i){return S.fxsSaved[i]!==JSON.stringify(cfg(i));}
-function saveCol(){const i=selOf();S.fxsSaved[i]=JSON.stringify(cfg(i));saveLocal();
+function saveCol(){const i=selOf();if(rideColorMode()){
+    const keys=rideColorKeys();Promise.all(keys.map(rideColorStore)).then(function(){toast('Warna sisi tersimpan di perangkat');}).catch(function(){toast('Gagal menyimpan warna sisi ke perangkat');});return;}
+  S.fxsSaved[i]=JSON.stringify(cfg(i));saveLocal();
   if(isActive(i)){persist(i,'Warna '+fxName(i)+' tersimpan');}else{applyLive(i);R();toast('Warna '+fxName(i)+' tersimpan. Ketuk Pakai untuk memasangnya.');}}
 function foot(){const i=selOf();
   if(S.tb==='fx')return pbar(i);
-  if(S.tb==='col'){const d=colDirty(i)||!isSaved(i);return'<div class="color-actions"><button class="btn fbtn sk" onclick="cpEdit(-1)">＋ Skin Baru</button><button class="btn p fbtn" style="'+(d?'':'opacity:.55')+'" onclick="saveCol()">'+(d?'Simpan warna':'Warna tersimpan ✓')+'</button></div>';}
+  if(S.tb==='col'){const d=rideColorMode()?true:(colDirty(i)||!isSaved(i));return'<div class="color-actions"><button class="btn fbtn sk" onclick="cpEdit(-1)">＋ Skin Baru</button><button class="btn p fbtn" style="'+(d?'':'opacity:.55')+'" onclick="saveCol()">'+(d?'Simpan warna':'Warna tersimpan ✓')+'</button></div>';}
   return'';}
-function wheel(){if(!$('#scr #pkw')||document.querySelector('#sheet.on'))return;const i=selOf(),c=cfg(i);pkBind(c.col,function(){c.cs='one';colLive(i);});}
-function colLive(i){const c=cfg(i);document.querySelectorAll('.blk').forEach(function(b,k){b.classList.toggle('on',(k===0)===(c.cs==='one'));const r=b.querySelector('.rad');if(r)r.classList.toggle('on',(k===0)===(c.cs==='one'));});
+function wheel(){if(!$('#scr #pkw')||document.querySelector('#sheet.on'))return;const i=selOf(),separate=rideColorMode(),c=separate?rideColorCurrent():cfg(i);pkBind(c.col,function(){c.cs='one';if(separate)rideColorChanged();else colLive(i);});}
+function colLive(i){const c=rideColorMode()?rideColorCurrent():cfg(i);document.querySelectorAll('.blk').forEach(function(b,k){b.classList.toggle('on',(k===0)===(c.cs==='one'));const r=b.querySelector('.rad');if(r)r.classList.toggle('on',(k===0)===(c.cs==='one'));});
   const m=document.querySelector('.blk .mini'),sp=document.querySelector('.blk .mt span');if(m)m.style.background='linear-gradient(90deg,'+css(hsv(c.col.h,c.col.s,c.col.v))+','+css(hsv(c.col.h,c.col.s,c.col.v))+')';if(sp)sp.textContent=rx(hsv(c.col.h,c.col.s,c.col.v));
-  $('#foot').innerHTML=foot();applyLiveD();}
+  $('#foot').innerHTML=foot();if(rideColorMode())rideColorChanged();else applyLiveD();}
 
 /* ===== sheet Warna cepat (tombol Warna di baris efek) ===== */
 function qcOpen(i){const c=JSON.parse(JSON.stringify(cfg(i)));S.qc={i:i,c:c,orig:JSON.parse(JSON.stringify(c)),show:isShowId(i)};qcR();}
@@ -941,8 +999,8 @@ function qcPreview(){const d=S.qc;if(!d)return;S.fxs[d.i]=d.c;applyLive(d.i);}
 function qcPal(id){S.qc.c.cs='pal';S.qc.c.pal=id;const b=$('#qcg').scrollTop;qcR();$('#qcg').scrollTop=b;qcPreview();}
 function qcCu(id){S.qc.c.cs='cus';S.qc.c.cu=id;const b=$('#qcg').scrollTop;qcR();$('#qcg').scrollTop=b;qcPreview();}
 function qcR(){const d=S.qc,c=d.c;
-  openSheet('<div style="font-weight:800;margin-bottom:9px">Ubah warna · '+esc(fxName(d.i))+'</div><div class="pbody">'+(d.show?'':'<div>'+pkHTML(1)+'</div>')+'<div class="grow" id="qcg">'+skinRows(c,'qcPal','qcCu',d.show)+'</div></div><div class="row" style="margin-top:12px;flex:none"><button class="btn" onclick="qcCancel()">Batal</button><button class="btn p" onclick="qcApply()">Simpan warna</button></div>',true);
-  if(!d.show)pkBind(c.col,function(){c.cs='one';qcPreview();});refreshPalStrips();}
+  openSheet('<div style="font-weight:800;margin-bottom:9px">Ubah warna · '+esc(fxName(d.i))+'</div><div class="pbody"><div>'+pkHTML(1)+'</div><div class="grow" id="qcg">'+skinRows(c,'qcPal','qcCu',d.show)+'</div></div><div class="row" style="margin-top:12px;flex:none"><button class="btn" onclick="qcCancel()">Batal</button><button class="btn p" onclick="qcApply()">Simpan warna</button></div>',true);
+  pkBind(c.col,function(){c.cs='one';qcPreview();});refreshPalStrips();}
 function qcCancel(){const d=S.qc;if(!d)return;S.fxs[d.i]=d.orig;S.qc=null;closeSheet();applyLive(d.i);R();}
 function qcApply(){const d=S.qc;if(!d)return;S.fxs[d.i]=d.c;if(S.fside==='all')S.sel=d.i;else S.fs[S.fside]=d.i;S.qc=null;closeSheet();saveCol();}
 
@@ -964,7 +1022,7 @@ function cpSave(){const d=S.dr,c=d.c,old=d.i<0?null:JSON.parse(JSON.stringify(S.
   cuInstall(c).then(function(){S.dr=null;
     if(f==='qc'&&S.qc){S.qc.c.cs='cus';S.qc.c.cu=c.id;qcR();qcPreview();toast('Skin “'+esc(c.n)+'” tersimpan');}
     else if(f==='se'&&S.se){S.se.c={cs:'cus',cu:c.id,col:S.se.c.col||DC().col};seR();seColorPreview();toast('Skin tersimpan');}
-    else{const i=selOf(),fc=cfg(i);fc.cs='cus';fc.cu=c.id;closeSheet();applyLive(i);R();toast('Skin “'+esc(c.n)+'” tersimpan');}
+    else{const i=selOf(),fc=rideColorMode()?rideColorCurrent():cfg(i);fc.cs='cus';fc.cu=c.id;closeSheet();if(rideColorMode())rideColorChanged();else applyLive(i);R();toast('Skin “'+esc(c.n)+'” tersimpan');}
     saveLocal();if(S.pi!=null)plSyncAll();})
    .catch(function(e){if(d.i<0)S.cu.pop();else S.cu[d.i]=old;toast(e&&e.message==='penuh'?'Slot palette WLED penuh ('+cuMax()+').':'Gagal memasang skin ke lampu.');});}
 function cpDel0(i){const c=S.cu[i];fetch('/mizuma/skins/delete?id='+encodeURIComponent(c.id),{method:'POST'}).then(function(r){if(!r.ok)throw new Error('delete');return r.json();}).then(function(d){if(!d.ok)throw new Error('delete');S.cu.splice(i,1);let liveChanged=false;Object.keys(S.fxs).forEach(function(x){const f=S.fxs[x];if(f.cs==='cus'&&f.cu===c.id){if(+x===selOf())liveChanged=true;f.cs='pal';f.pal=0;}});
@@ -1087,11 +1145,11 @@ function seMain(){const x=seX(),e=S.se;
   '<div class="seb dur"><label for="sedur">Durasi (detik)</label><input id="sedur" type="number" inputmode="decimal" min="0.1" max="999" step="0.5" value="'+fd(x.d)+'" onchange="seDur(this)"></div>'+
   '<div class="row cpf"><button class="btn" style="color:var(--bad)" onclick="slotDel('+e.i+','+e.j+')">🗑 Hapus</button><button class="btn p" onclick="seClose()">Selesai</button></div>';}
 function seColView(){const e=S.se,c=e.c,show=isShowId(sideOf(seX(),e.tg).f),nm={L:'Kiri',R:'Kanan'}[e.tg];
-  return'<div class="seh"><button class="ib" aria-label="Kembali" onclick="seColBack()">‹</button><b style="flex:1;margin-left:8px">Warna · '+nm+'</b></div><div id="ieg">'+(show?'':'<div>'+pkHTML(1)+'</div>')+skinRows(c,'seColPal','seColCu',show)+'</div><div class="row cpf"><button class="btn" onclick="seColBack()">Batal</button><button class="btn p" onclick="seColSet()">Pilih warna</button></div>';}
+  return'<div class="seh"><button class="ib" aria-label="Kembali" onclick="seColBack()">‹</button><b style="flex:1;margin-left:8px">Warna · '+nm+'</b></div><div id="ieg"><div>'+pkHTML(1)+'</div>'+skinRows(c,'seColPal','seColCu',show)+'</div><div class="row cpf"><button class="btn" onclick="seColBack()">Batal</button><button class="btn p" onclick="seColSet()">Pilih warna</button></div>';}
 function seR(){const e=S.se;if(!e)return;const sh=$('#sh'),keep={};sh.querySelectorAll('.fsc').forEach(function(a){keep[a.id]=a.scrollTop;});const top=sh.scrollTop;
   openSheet(e.v==='col'?seColView():seMain());$('#sheet').classList.add('sxe');$('#sheet').classList.toggle('sev',e.v==='col');
   if(e.v==='main'){sh.querySelectorAll('.fsc').forEach(function(a){if(keep[a.id]!=null)a.scrollTop=keep[a.id];else{const o=a.querySelector('.fi.on');if(o)a.scrollTop=Math.max(0,o.offsetTop-a.offsetTop-50);}});sh.scrollTop=top;}
-  else if(e.v==='col'&&!isShowId(sideOf(seX(),e.tg).f)){const o=e.c.col;pkBind(o,function(){e.c.cs='one';const ch=$('#iech'),n=$('#iecn');if(ch)ch.style.background=cfgGrad(e.c);if(n)n.textContent=cfgName(e.c);seColorPreview();});}
+  else if(e.v==='col'){const o=e.c.col;pkBind(o,function(){e.c.cs='one';const ch=$('#iech'),n=$('#iecn');if(ch)ch.style.background=cfgGrad(e.c);if(n)n.textContent=cfgName(e.c);seColorPreview();});}
   refreshPalStrips();}
 function seTouch(){S.se.dirty=true;plMark(S.se.i);R();seR();seLive();}
 function seLive(){const e=S.se;if(!e)return;plFlush().then(function(){return mpost('/mizuma/pl/play?list='+e.i+'&slot='+e.j+'&hold=1');}).catch(function(){});}
@@ -1127,7 +1185,11 @@ const IC={dash:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3
  col:'<path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z"/>',rem:'<path d="M3 12h13M11 6l6 6-6 6M20 6v12"/>',set:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>'};
 /* Tab utama: Dashboard · Warna · Welcoming · Riding · Sein-Rem · Pengaturan. Welcoming dan Sein-Rem memakai halaman /led. */
 const TABS=[['dash','Dashboard',"location.href='/app'"],['col','Warna',"goNav('col')"],['wel','Welcoming',"location.href='/led?t=welcoming'"],['rid','Riding',"goNav('fx')"],['rem','Sein-Rem',"location.href='/led?t=sein'"],['set','Pengaturan',"location.href='/pengaturan'"]];
-function goNav(k){S.tb=k;S.q='';S.pi=null;R();$('#scr').scrollTop=0;if(k==='pl')ensureLists();}
+function goNav(k){
+  if(k==='col'){if(S.tb!=='col'&&['fx','semi','auto','pl'].indexOf(S.tb)>=0)S.lastRideMode=S.tb;S.tb='col';}
+  else if(k==='fx')S.tb=['fx','semi','auto','pl'].indexOf(S.lastRideMode)>=0?S.lastRideMode:'fx';
+  else S.tb=k;
+  S.q='';S.pi=null;R();$('#scr').scrollTop=0;if(S.tb==='pl')ensureLists();}
 function navHTML(){const cur=S.tb==='col'?'col':'rid';return TABS.map(function(t){return'<button class="'+(t[0]===cur?'on':'')+'" onclick="'+t[2]+'"><span><svg viewBox="0 0 24 24">'+IC[t[0]]+'</svg></span>'+t[1]+'</button>';}).join('');}
 
 /* ===== render ===== */
@@ -1137,7 +1199,7 @@ function R(){const top=$('#scr').scrollTop;rs();$('#frz').innerHTML=frz();
   $('#nav').innerHTML=navHTML();$('#scr').scrollTop=top;wheel();refreshPalStrips();}
 
 /* ===== keluar halaman: kembalikan lampu ke Riding tersimpan bila masih pratinjau ===== */
-window.addEventListener('pagehide',function(){if(!(S.pv||S.pl.ui))return;try{navigator.sendBeacon('/mizuma/apply?mode=riding&side=both');}catch(e){}});
+window.addEventListener('pagehide',function(){if(!(S.pv||S.pl.ui))return;try{const mode=rideMode();navigator.sendBeacon(mode==='manual'?'/mizuma/apply?mode=riding&side=both':'/mizuma/riding/mode?mode='+(mode==='semi'?'semi-auto':mode));}catch(e){}});
 
 /* ===== init ===== */
 function boot(){
@@ -1145,10 +1207,13 @@ function boot(){
     if(!r[0]){setTimeout(boot,1500);return null;}
     return Promise.all([jfetch('/mizuma/side-swap').then(function(x){return x.json();}).then(function(d){S.sideSwap=!!d.enabled;}).catch(function(){}),
       jfetch('/mizuma/show/reverse').then(function(x){return x.json();}).then(function(d){S.rev=!!d.enabled;}).catch(function(){}),
-      jfetch('/json/state').then(function(x){return x.json();}).then(function(j){if(j&&j.bri)S.bri=j.bri;}).catch(function(){}),loadSkinMeta(),loadSolidColorSlots()]).then(loadSaved);
+      jfetch('/json/state').then(function(x){return x.json();}).then(function(j){if(j&&j.bri)S.bri=j.bri;}).catch(function(){}),loadSkinMeta().then(loadRideColors),loadSolidColorSlots(),
+      fetch('/mizuma/riding/mode').then(function(x){return x.json();}).then(function(d){
+        const m=d.mode==='semi-auto'?'semi':d.mode==='auto'?'auto':d.mode==='playlist'?'pl':'fx';S.lastRideMode=m;S.tb=initialColorTab?'col':m;if(m==='pl')ensureLists();
+      }).catch(function(){})]).then(loadSaved);
   }).then(function(x){if(x===null)return;S.ready=true;pingNow();pollPl();R();});
 }
-if(new URLSearchParams(location.search).get('t')==='warna')S.tb='col';
+if(initialColorTab)S.tb='col';
 R();boot();
 
 </script></body></html>
