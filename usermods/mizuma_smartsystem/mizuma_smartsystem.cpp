@@ -170,7 +170,7 @@ extern void handlePresets();
     effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;
     effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
     JsonArray effectCol=effect.createNestedArray("col");
-    for(uint8_t i=0;i<3;i++){JsonArray c=effectCol.createNestedArray();c.add(255);c.add(255);c.add(255);}
+    for(uint8_t i=0;i<3;i++){JsonArray c=effectCol.createNestedArray();const uint8_t v=i==0?255:0;c.add(v);c.add(v);c.add(v);}
 }
 uint8_t physicalColorSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?SEG_COLOR_RIGHT:SEG_COLOR_LEFT;}
 uint8_t physicalSegForLogicalSide(bool rightSide){return (rightSide != sideSwap)?SEG_FX_RIGHT:SEG_FX_LEFT;}
@@ -183,6 +183,7 @@ void applyRidingColorLayer(bool rightSide){
   seg.setPalette(color.palette?color.pal:0);
   seg.blendMode=0;
   seg.speed=211;seg.intensity=77;seg.custom1=77;seg.custom2=0;seg.custom3=0;
+  seg.check1=false;seg.check2=false;seg.check3=false;
   seg.setColor(0,RGBW32(color.r,color.g,color.b,0));
   seg.setColor(1,0);seg.setColor(2,0);seg.on=true;
 }
@@ -192,6 +193,11 @@ void enforceRidingColorLayers(){
   for(uint8_t side=0;side<2;side++){
     const bool rightSide=side==0;
     Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
+    if(seg.check1||seg.check2||seg.check3){
+      applyRidingColorLayer(rightSide);
+      changed=true;
+      continue;
+    }
     if(seg.mode!=FX_MODE_PALETTE){seg.setMode(FX_MODE_PALETTE,false);changed=true;}
     if(seg.blendMode!=0){seg.blendMode=0;changed=true;}
     if(seg.speed!=211){seg.speed=211;changed=true;}
@@ -211,7 +217,8 @@ void enforceRidingEffectLayers(){
     if(seg.blendMode!=6){seg.blendMode=6;changed=true;}
     if(seg.palette!=0){seg.setPalette(0);changed=true;}
     for(uint8_t color=0;color<3;color++){
-      if(seg.colors[color]!=WHITE){seg.setColor(color,WHITE);changed=true;}
+      const uint32_t target=color==0?WHITE:0;
+      if(seg.colors[color]!=target){seg.setColor(color,target);changed=true;}
     }
   }
   if(changed)strip.trigger();
@@ -259,9 +266,10 @@ bool ensureRidingSegments(){
   for(Segment *seg:{&rightColor,&leftColor}){
     seg->setMode(FX_MODE_PALETTE,true);seg->setPalette(2);seg->blendMode=0;
     seg->speed=211;seg->intensity=77;seg->custom1=77;seg->custom2=0;seg->custom3=0;
+    seg->check1=false;seg->check2=false;seg->check3=false;
   }
   for(Segment *seg:{&rightFx,&leftFx,&wholeFx}){
-    seg->setColor(0,WHITE);seg->setColor(1,WHITE);seg->setColor(2,WHITE);
+    seg->setColor(0,WHITE);seg->setColor(1,0);seg->setColor(2,0);
     seg->setMode(FX_MODE_STATIC,true);seg->setPalette(0);seg->blendMode=6;
   }
   strip.setMainSegmentId(SEG_COLOR_RIGHT);
@@ -276,7 +284,7 @@ void applyRidingLayerMode(RidingMode mode){
   applyRidingColorLayer(true);applyRidingColorLayer(false);
   for(uint8_t id=SEG_FX_RIGHT;id<=SEG_FX_WHOLE;id++){
     Segment &effect=strip.getSegment(id);effect.blendMode=6;effect.setPalette(0);
-    effect.setColor(0,WHITE);effect.setColor(1,WHITE);effect.setColor(2,WHITE);
+    effect.setColor(0,WHITE);effect.setColor(1,0);effect.setColor(2,0);
   }
   strip.getSegment(SEG_COLOR_RIGHT).on=true;
   strip.getSegment(SEG_COLOR_LEFT).on=true;
@@ -401,7 +409,7 @@ void applyShowStage(const MzStage &st,bool logicalRight,bool wholeStrip=false){
   if(seg.mode!=modeId)seg.setMode(modeId,true); // muat default parameter efek WLED
   else if(st.t==0)seg.markForReset();
   seg.blendMode=6;seg.setPalette(0);
-  seg.setColor(0,WHITE);seg.setColor(1,WHITE);seg.setColor(2,WHITE);
+  seg.setColor(0,WHITE);seg.setColor(1,0);seg.setColor(2,0);
   if(st.sx>=0)seg.speed=(uint8_t)constrain(st.sx,0,255);
   if(st.ix>=0)seg.intensity=(uint8_t)constrain(st.ix,0,255);
   if(st.c1>=0)seg.custom1=(uint8_t)constrain(st.c1,0,255);
@@ -827,7 +835,7 @@ void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
     effect["rev"]=((p.rv!=0)!=showReverse);
     effect["sx"]=p.sx;effect["ix"]=p.ix;effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
     JsonArray effectCol=effect.createNestedArray("col");
-    for(uint8_t c=0;c<3;c++){JsonArray a=effectCol.createNestedArray();a.add(255);a.add(255);a.add(255);}
+    for(uint8_t c=0;c<3;c++){JsonArray a=effectCol.createNestedArray();const uint8_t v=c==0?255:0;a.add(v);a.add(v);a.add(v);}
   }
   deserializeState(root);
   for(uint8_t k=0;k<2;k++){

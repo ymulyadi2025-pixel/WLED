@@ -804,7 +804,7 @@ function colorSegsFor(i,keys,overrides){return(keys||sideKeys()).map(function(k)
     const separate=rideColorMode(),c=overrides?overrides[k]:(separate?rideColor(k):cfg(i)),v=cfgCols(c,!separate&&isShowId(i));
     return{id:mapColorSegId(sideName(k)),on:true,fx:65,pal:v.pal,sx:211,ix:77,c1:77,c2:0,c3:0,o1:0,o2:0,o3:0,col:v.col};
   });}
-function segsFor(i,ids,keys){const p=pm(i),white=[[255,255,255],[255,255,255],[255,255,255]];
+function segsFor(i,ids,keys){const p=pm(i),white=[[255,255,255],[0,0,0],[0,0,0]];
   const colors=colorSegsFor(i,keys);
   const effects=ids.map(function(id){return{id:id,on:true,fx:i,pal:0,rev:S.rev,sx:p.sx,ix:p.ix,c1:p.c1,c2:p.c2,c3:p.c3,o1:p.o1,o2:p.o2,o3:p.o3,col:white};});
   return colors.concat(effects);}
@@ -825,14 +825,12 @@ function applyLiveReady(i){
     const o={on:true,seg:segsFor(i,ids,ks)};if(mode==='semi'||mode==='auto')o.seg.push({id:SEG_K,on:false},{id:SEG_L,on:false},{id:SEG_LINK,on:true});if(S.bri>0)o.bri=S.bri;post(o);}
   S.pv=!isSaved(i);updInfo();}
 const applyLiveD=throttleLatest(function(){applyLive(selOf());},120);
-const rideColorSaveD=debounce(function(keys){Promise.all(keys.map(rideColorStore)).catch(function(){toast('Gagal menyimpan warna sisi ke perangkat');});},450);
 const rideColorLiveD=throttleLatest(function(keys){
-  Promise.all(keys.map(function(k){return cuEnsure(rideColor(k));})).then(function(){post({on:true,seg:colorSegsFor(selOf(),keys)});})
-    .catch(function(){toast('Gagal memasang skin warna ke lampu');});
+  Promise.all(keys.map(rideColorStore)).catch(function(){toast('Gagal menerapkan warna sisi ke lampu');});
 },120);
 function rideColorChanged(){
   if(S.fside==='all')S.rideColors.L=JSON.parse(JSON.stringify(rideColor('R')));
-  const keys=rideColorKeys();rideColorLiveD(keys);rideColorSaveD(keys);S.pv=false;updInfo();
+  const keys=rideColorKeys();rideColorLiveD(keys);S.pv=false;updInfo();
 }
 function rideColorQuickOpen(){
   const keys=rideColorKeys(),base=S.fside==='L'?'L':'R',c=JSON.parse(JSON.stringify(rideColor(base))),colors={};
