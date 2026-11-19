@@ -192,11 +192,14 @@ void enforceRidingColorLayers(){
   for(uint8_t side=0;side<2;side++){
     const bool rightSide=side==0;
     Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
-    if(seg.mode!=FX_MODE_PALETTE||seg.blendMode!=0||seg.speed!=211||seg.intensity!=77||
-       seg.custom1!=77||seg.custom2!=0||seg.custom3!=0||!seg.on){
-      applyRidingColorLayer(rightSide);
-      changed=true;
-    }
+    if(seg.mode!=FX_MODE_PALETTE){seg.setMode(FX_MODE_PALETTE,false);changed=true;}
+    if(seg.blendMode!=0){seg.blendMode=0;changed=true;}
+    if(seg.speed!=211){seg.speed=211;changed=true;}
+    if(seg.intensity!=77){seg.intensity=77;changed=true;}
+    if(seg.custom1!=77){seg.custom1=77;changed=true;}
+    if(seg.custom2!=0){seg.custom2=0;changed=true;}
+    if(seg.custom3!=0){seg.custom3=0;changed=true;}
+    if(!seg.on){seg.on=true;changed=true;}
   }
   if(changed)strip.trigger();
 }
