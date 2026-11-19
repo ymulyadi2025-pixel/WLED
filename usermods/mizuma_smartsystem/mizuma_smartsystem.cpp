@@ -186,6 +186,20 @@ void applyRidingColorLayer(bool rightSide){
   seg.setColor(0,RGBW32(color.r,color.g,color.b,0));
   seg.setColor(1,0);seg.setColor(2,0);seg.on=true;
 }
+void enforceRidingColorLayers(){
+  if(!ridingSegmentsReady)return;
+  bool changed=false;
+  for(uint8_t side=0;side<2;side++){
+    const bool rightSide=side==0;
+    Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
+    if(seg.mode!=FX_MODE_PALETTE||seg.blendMode!=0||seg.speed!=211||seg.intensity!=77||
+       seg.custom1!=77||seg.custom2!=0||seg.custom3!=0||!seg.on){
+      applyRidingColorLayer(rightSide);
+      changed=true;
+    }
+  }
+  if(changed)strip.trigger();
+}
 bool busRangeForPin(uint8_t pin,uint16_t &start,uint16_t &stop){
   bool found=false;
   for(size_t i=0;i<BusManager::getNumBusses();i++){
@@ -1249,6 +1263,7 @@ out+="}";req->send(200,"application/json",out);});}
 void loop() override {
   if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(RIDING_MANUAL);
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
+  enforceRidingColorLayers();
   tickPlaylist();
   tickShowEngine();
   if(bootWelcomePending && (uint32_t)(millis()-bootWelcomeAt)>=250U){
