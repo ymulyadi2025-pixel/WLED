@@ -934,7 +934,7 @@ function goTb(k){S.tb=k;S.q='';S.pi=null;if(k!=='col')S.lastRideMode=k;R();$('#s
   const selected=selOf();
   if(k==='semi'&&isShowId(selected)){const f=S.list.find(function(x){return !x.show;});if(f)S.sel=f.i;}
   if(k==='auto'&&!isShowId(selected)){if(S.shows.length)S.sel=SH;}
-  setRidingMode(k==='fx'?'manual':k).then(function(){applyLive(selOf());}).catch(function(){toast('GPIO 5/6 belum siap atau mode gagal diaktifkan');});
+  setRidingMode(k==='fx'?'manual':k).then(function(){applyLive(selOf());}).catch(function(){toast('GPIO 0/1 belum siap atau mode gagal diaktifkan');});
 }
 
 /* ===== Single Effect ===== */

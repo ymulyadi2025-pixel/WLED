@@ -204,7 +204,7 @@ bool busRangeForPin(uint8_t pin,uint16_t &start,uint16_t &stop){
 bool ensureRidingSegments(){
   if(ridingSegmentsReady)return true;
   uint16_t rightStart=0,rightStop=0,leftStart=0,leftStop=0;
-  if(!busRangeForPin(5,rightStart,rightStop)||!busRangeForPin(6,leftStart,leftStop))return false;
+  if(!busRangeForPin(0,rightStart,rightStop)||!busRangeForPin(1,leftStart,leftStop))return false;
   if(rightStart<leftStop&&leftStart<rightStop)return false;
   const uint16_t wholeStop=strip.getLengthTotal();
   if(wholeStop==0||wholeStop>65535)return false;
@@ -720,7 +720,7 @@ void handleRidingMode(AsyncWebServerRequest *req,bool isGet){
   else if(mode=="auto")value=RIDING_AUTO;
   else if(mode=="playlist")value=RIDING_PLAYLIST;
   if(value==255){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid mode\"}");return;}
-  if(!ridingSegmentsReady){req->send(503,"application/json","{\"ok\":false,\"error\":\"GPIO 5/6 LED buses not ready\"}");return;}
+  if(!ridingSegmentsReady){req->send(503,"application/json","{\"ok\":false,\"error\":\"GPIO 0/1 LED buses not ready\"}");return;}
   MzCmd c={};c.type=MZ_CMD_RIDING_MODE;c.value=value;
   if(!enqueueCmd(c)){sendBusy(req);return;}
   req->send(200,"application/json","{\"ok\":true}");
