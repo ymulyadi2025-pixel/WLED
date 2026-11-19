@@ -233,6 +233,7 @@ bool busRangeForPin(uint8_t pin,uint16_t &start,uint16_t &stop){
     bool matches=false;
     for(size_t j=0;j<count&&j<OUTPUT_MAX_PINS;j++)if(pins[j]==pin)matches=true;
     if(!matches)continue;
+    if(!bus->hasRGB())return false;
     if(found)return false;
     const uint32_t end=(uint32_t)bus->getStart()+bus->getLength();
     if(bus->getLength()==0||end>strip.getLengthTotal())return false;
@@ -255,6 +256,7 @@ bool ensureRidingSegments(){
   strip.appendSegment(leftStart,leftStop);
   strip.appendSegment(0,wholeStop);
   if(strip.getSegmentsNum()!=5)return false;
+  for(uint8_t id=0;id<5;id++)strip.getSegment(id).refreshLightCapabilities();
 
   Segment &rightColor=strip.getSegment(SEG_COLOR_RIGHT);
   Segment &leftColor=strip.getSegment(SEG_COLOR_LEFT);
