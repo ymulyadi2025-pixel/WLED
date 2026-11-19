@@ -684,8 +684,8 @@ req->send(200,"application/json",json);}
 /* ===== KONTROL MODE RIDING 5 SEGMENT ===== */
 void handleRideMode(AsyncWebServerRequest *req){
 if(req->method()==HTTP_GET){
-  String j=String("{\"mode\":")+String((int)rideMode)+",\"rev\":")+String((int)rideRev)+",\"cfx\":")+String((int)rideColorFx)+"}";
-  req->send(200,"application/json",j);return;}
+  char jb[96];snprintf(jb,sizeof(jb),"{\"mode\":%u,\"rev\":%u,\"cfx\":%u}",(unsigned)rideMode,(unsigned)rideRev,(unsigned)rideColorFx);
+  req->send(200,"application/json",jb);return;}
 if(!req->hasArg("mode")){req->send(400,"application/json","{\"ok\":false}");return;}
 const String m=req->arg("mode");
 const uint8_t nm=(m=="semi"||m=="semiauto")?1:((m=="auto")?2:0);
@@ -693,7 +693,7 @@ if(nm==rideMode){req->send(200,"application/json","{\"ok\":true}");return;}
 rideMode=nm;queueSave();
 MzCmd c={};c.type=MZ_CMD_APPLY;c.side=mzSideCode("both");strncpy(c.mode,"riding",sizeof(c.mode)-1);
 if(!enqueueCmd(c)){sendBusy(req);req->send(200,"application/json","{\"ok\":false}");return;}
-req->send(200,"application/json",String("{\"ok\":true,\"mode\":")+String((int)rideMode)+"}");}
+{char jb[48];snprintf(jb,sizeof(jb),"{\"ok\":true,\"mode\":%u}",(unsigned)rideMode);req->send(200,"application/json",jb);}}
 void handleRideRev(AsyncWebServerRequest *req){
 if(!req->hasArg("side")){req->send(400,"application/json","{\"ok\":false}");return;}
 const String s=req->arg("side");
@@ -705,7 +705,7 @@ else{req->send(400,"application/json","{\"ok\":false}");return;}
 queueSave();
 MzCmd c={};c.type=MZ_CMD_APPLY;c.side=mzSideCode("both");strncpy(c.mode,"riding",sizeof(c.mode)-1);
 if(!enqueueCmd(c)){sendBusy(req);req->send(200,"application/json","{\"ok\":false}");return;}
-req->send(200,"application/json",String("{\"ok\":true,\"rev\":")+String((int)rideRev)+"}");}
+{char jb[48];snprintf(jb,sizeof(jb),"{\"ok\":true,\"rev\":%u}",(unsigned)rideRev);req->send(200,"application/json",jb);}}
 // Ubah hanya lapisan warna slot Riding (slot 2=kanan, 3=kiri) tanpa menyentuh fx/parameter.
 void handleRideColor(AsyncWebServerRequest *req){
 if(!req->hasArg("side")){req->send(400,"application/json","{\"ok\":false}");return;}
