@@ -157,8 +157,8 @@ extern void handlePresets();
         const RidingColor &ridingColor=ridingColors[logicalRight?0:1];
     JsonObject color=seg.createNestedObject();
     color["id"]=physicalColorSegForLogicalSide(logicalRight);color["on"]=true;
-        color["fx"]=FX_MODE_PALETTE;color["pal"]=useRidingColor?(ridingColor.palette?ridingColor.pal:0):p.pal;color["sx"]=0;color["ix"]=0;
-    color["c1"]=0;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
+        color["fx"]=FX_MODE_PALETTE;color["pal"]=useRidingColor?(ridingColor.palette?ridingColor.pal:0):p.pal;color["sx"]=211;color["ix"]=77;
+    color["c1"]=77;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
     JsonArray colorCol=color.createNestedArray("col");
         JsonArray cc0=colorCol.createNestedArray();cc0.add(useRidingColor?ridingColor.r:p.r);cc0.add(useRidingColor?ridingColor.g:p.g);cc0.add(useRidingColor?ridingColor.b:p.b);
         JsonArray cc1=colorCol.createNestedArray();cc1.add(useRidingColor?0:p.r1);cc1.add(useRidingColor?0:p.g1);cc1.add(useRidingColor?0:p.b1);
@@ -182,7 +182,7 @@ void applyRidingColorLayer(bool rightSide){
   seg.setMode(FX_MODE_PALETTE,true);
   seg.setPalette(color.palette?color.pal:0);
   seg.blendMode=0;
-  seg.speed=0;seg.intensity=0;seg.custom1=0;seg.custom2=0;seg.custom3=0;
+  seg.speed=211;seg.intensity=77;seg.custom1=77;seg.custom2=0;seg.custom3=0;
   seg.setColor(0,RGBW32(color.r,color.g,color.b,0));
   seg.setColor(1,0);seg.setColor(2,0);seg.on=true;
 }
@@ -228,7 +228,7 @@ bool ensureRidingSegments(){
   rightFx.setName("efek kanan");leftFx.setName("efek kiri");wholeFx.setName("efek sambung");
   for(Segment *seg:{&rightColor,&leftColor}){
     seg->setMode(FX_MODE_PALETTE,true);seg->setPalette(2);seg->blendMode=0;
-    seg->speed=0;seg->intensity=0;seg->custom1=0;seg->custom2=0;seg->custom3=0;
+    seg->speed=211;seg->intensity=77;seg->custom1=77;seg->custom2=0;seg->custom3=0;
   }
   for(Segment *seg:{&rightFx,&leftFx,&wholeFx}){
     seg->setColor(0,WHITE);seg->setColor(1,WHITE);seg->setColor(2,WHITE);
@@ -788,7 +788,7 @@ void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
     const PlSide &p=sl.s[k];
     JsonObject color=seg.createNestedObject();
     color["id"]=physicalColorSegForLogicalSide(k==0);color["on"]=true;color["fx"]=FX_MODE_PALETTE;color["pal"]=p.pal;
-    color["sx"]=0;color["ix"]=0;color["c1"]=0;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
+    color["sx"]=211;color["ix"]=77;color["c1"]=77;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
     JsonArray colorCol=color.createNestedArray("col");
     for(uint8_t c=0;c<3;c++){JsonArray a=colorCol.createNestedArray();a.add(p.col[c*3]);a.add(p.col[c*3+1]);a.add(p.col[c*3+2]);}
     JsonObject effect=seg.createNestedObject();

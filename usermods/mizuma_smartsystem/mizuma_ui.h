@@ -708,7 +708,7 @@ const S={tb:'fx',lastRideMode:'fx',fside:'all',sel:0,fs:{L:null,R:null},q:'',fo:
   fx:[],fxd:[],shows:[],showMs:[],list:[],palNames:[],palList:[],palRaw:{},palInfo:{cpal:0,cmax:10,um:[],major:0},palSig:'',
   fav:new Set(),fxs:{},fxsSaved:{},pm:{},cu:[],act:{L:null,R:null},lists:[],
   rideColors:{L:{cs:'pal',pal:2,col:{h:39,s:100,v:100}},R:{cs:'pal',pal:2,col:{h:39,s:100,v:100}}},
-  pi:null,si:-1,se:null,dr:null,sp:0,qc:null,listsLoaded:false,
+  pi:null,si:-1,se:null,dr:null,sp:0,qc:null,rideColorEdit:null,listsLoaded:false,
   pl:{use:-1,run:false,hold:false,list:0,slot:0,el:0,at:0,ui:false},showLive:{L:false,R:false},
   sideSwap:false,rev:false,bri:180,net:true,sv:'ok',volt:null,pv:false,ready:false,popKind:null};
 let legacyCu=[];
@@ -800,9 +800,9 @@ function isSaved(i){if(rideColorMode())return S.pl.use<0&&sideKeys().every(funct
 
 /* ===== lampu: pratinjau langsung ===== */
 function plHold(){if(S.pl.run&&!S.pl.hold){S.pl.hold=true;S.pl.ui=true;mpost('/mizuma/pl/pause?on=1').catch(function(){});}}
-function colorSegsFor(i,keys){return(keys||sideKeys()).map(function(k){
-    const separate=rideColorMode(),c=separate?rideColor(k):cfg(i),v=cfgCols(c,!separate&&isShowId(i));
-    return{id:mapColorSegId(sideName(k)),on:true,fx:65,pal:v.pal,sx:0,ix:0,c1:0,c2:0,c3:0,o1:0,o2:0,o3:0,col:v.col};
+function colorSegsFor(i,keys,overrides){return(keys||sideKeys()).map(function(k){
+    const separate=rideColorMode(),c=overrides?overrides[k]:(separate?rideColor(k):cfg(i)),v=cfgCols(c,!separate&&isShowId(i));
+    return{id:mapColorSegId(sideName(k)),on:true,fx:65,pal:v.pal,sx:211,ix:77,c1:77,c2:0,c3:0,o1:0,o2:0,o3:0,col:v.col};
   });}
 function segsFor(i,ids,keys){const p=pm(i),white=[[255,255,255],[255,255,255],[255,255,255]];
   const colors=colorSegsFor(i,keys);
@@ -833,6 +833,39 @@ const rideColorLiveD=throttleLatest(function(keys){
 function rideColorChanged(){
   if(S.fside==='all')S.rideColors.L=JSON.parse(JSON.stringify(rideColor('R')));
   const keys=rideColorKeys();rideColorLiveD(keys);rideColorSaveD(keys);S.pv=false;updInfo();
+}
+function rideColorQuickOpen(){
+  const keys=rideColorKeys(),base=S.fside==='L'?'L':'R',c=JSON.parse(JSON.stringify(rideColor(base))),colors={};
+  keys.forEach(function(k){colors[k]=JSON.parse(JSON.stringify(S.fside==='all'?c:rideColor(k)));});
+  S.rideColorEdit={keys:keys,colors:colors,revision:0};rideColorQuickRender();
+}
+function rideColorQuickRender(){
+  const e=S.rideColorEdit;if(!e)return;const c=e.colors[e.keys[0]],label=S.fside==='all'?'Kanan & kiri':SDN[S.fside];
+  openSheet('<div style="font-weight:800;margin-bottom:9px">Warna sisi · '+label+'</div><div class="pbody"><div>'+pkHTML(1)+'</div><div class="grow" id="rcqg">'+skinRows(c,'rideColorQuickPal','rideColorQuickCu',false)+'</div></div><div class="row" style="margin-top:12px;flex:none"><button class="btn" onclick="rideColorQuickCancel()">Batal</button><button class="btn p" onclick="rideColorQuickApply()">Terapkan</button></div>',true);
+  pkBind(c.col,function(){c.cs='one';rideColorQuickPreview();});refreshPalStrips();
+}
+function rideColorQuickPreview(){
+  const e=S.rideColorEdit;if(!e)return;const revision=++e.revision;
+  if(S.fside==='all')e.colors.L=JSON.parse(JSON.stringify(e.colors.R));
+  const colors=e.colors,ensure=e.keys.map(function(k){return cuEnsure(colors[k]);});
+  Promise.all(ensure).then(function(){if(S.rideColorEdit!==e||e.revision!==revision)return;return post({seg:colorSegsFor(selOf(),e.keys,colors)});})
+    .catch(function(){toast('Gagal memasang skin warna ke lampu');});
+}
+function rideColorQuickPal(id){
+  const e=S.rideColorEdit;if(!e)return;e.keys.forEach(function(k){e.colors[k].cs='pal';e.colors[k].pal=id;});
+  rideColorQuickRender();rideColorQuickPreview();
+}
+function rideColorQuickCu(id){
+  const e=S.rideColorEdit;if(!e)return;e.keys.forEach(function(k){e.colors[k].cs='cus';e.colors[k].cu=id;});
+  rideColorQuickRender();rideColorQuickPreview();
+}
+function rideColorQuickCancel(){
+  const e=S.rideColorEdit;if(!e)return;S.rideColorEdit=null;closeSheet();
+  post({seg:colorSegsFor(selOf(),e.keys)});
+}
+function rideColorQuickApply(){
+  const e=S.rideColorEdit;if(!e)return;e.keys.forEach(function(k){S.rideColors[k]=JSON.parse(JSON.stringify(e.colors[k]));});
+  S.rideColorEdit=null;closeSheet();rideColorChanged();toast('Warna sisi diterapkan dan disimpan di perangkat');
 }
 function postParam(k,v){post({seg:effectTargetIds().map(function(id){const o={id:id};o[k]=v;return o;})});}
 const postParamD=throttleLatest(postParam,120);
@@ -927,6 +960,7 @@ function sideBlock(){const fx=S.tb==='fx',on=k=>S.fside===k?' on':'',oc=k=>' onc
 function setSide(sd){S.fside=sd;R();}
 function tbs(a){return'<div class="tabbar">'+a.map(function(x){return'<button class="'+(x[3]?'on':'')+'" onclick="'+x[2]+'">'+x[0]+'</button>';}).join('')+'</div>';}
 function frz(){const active=S.tb==='col'?S.lastRideMode:S.tb,t=function(n,k){return[n,'',"goTb('"+k+"')",active===k];};
+  if(S.tb==='col')return active==='pl'?'':sideBlock();
   return tbs([t('Manual','fx'),t('Semi-Auto','semi'),t('Auto','auto'),t('Playlist','pl')])+(active==='pl'?'':sideBlock());}
 function setRidingMode(k){const m=k==='semi'?'semi-auto':k;return mpost('/mizuma/riding/mode?mode='+encodeURIComponent(m)).then(function(r){if(!r.ok)throw new Error('riding mode');return r.json();}).then(function(d){if(!d.ok)throw new Error(d.error||'riding mode');});}
 function goTb(k){S.tb=k;S.q='';S.pi=null;if(k!=='col')S.lastRideMode=k;R();$('#scr').scrollTop=0;
@@ -947,7 +981,7 @@ function fxList(){const sel=selOf(),mode=rideMode();let h='',n=0;
     const on=sel===i,fv=S.fav.has(i),hid=S.q&&f.n.toLowerCase().indexOf(S.q.toLowerCase())<0,ac=isActive(i),sv=ac&&isSaved(i);
     const lab=sv?'✓ Dipakai':(ac?'Simpan':'Pakai');
     let actions='';
-    if(on&&mode==='manual')actions='<button class="fxcolor" aria-label="Ubah warna sisi" onclick="event.stopPropagation();goNav(\'col\')"><i style="background:'+cfgGrad(rideColorCurrent())+'"></i><span>Warna sisi</span></button><button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+(S.fside==='all'?'':' · '+SDN[S.fside])+'</button>';
+    if(on&&mode==='manual')actions='<button class="fxcolor" aria-label="Ubah warna sisi" onclick="event.stopPropagation();rideColorQuickOpen()"><i style="background:'+cfgGrad(rideColorCurrent())+'"></i><span>Warna sisi</span></button><button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+(S.fside==='all'?'':' · '+SDN[S.fside])+'</button>';
     else if(on&&mode==='semi')actions='<button class="fxcolor" onclick="event.stopPropagation();goNav(\'col\')"><i style="background:'+cfgGrad(rideColorCurrent())+'"></i><span>Warna sisi</span></button><button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+'</button>';
     else if(on&&mode==='auto')actions='<button class="rp fxride'+(sv?' on':'')+'" onclick="event.stopPropagation();useFx('+i+')">'+lab+'</button>';
     if(on)actions+='<button class="star'+(fv?' on':'')+'" aria-label="Favorit" onclick="event.stopPropagation();tf('+i+')">'+(fv?'★':'☆')+'</button>';
