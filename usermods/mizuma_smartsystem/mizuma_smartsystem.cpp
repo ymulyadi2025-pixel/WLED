@@ -180,7 +180,7 @@ void applyRidingColorLayer(bool rightSide){
   Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
   const RidingColor &color=ridingColors[logicalIndex];
   seg.setMode(FX_MODE_PALETTE,true);
-  seg.setPalette(color.palette?color.pal:0);
+  seg.setPalette(color.palette?color.pal:2);
   seg.blendMode=0;
   seg.speed=211;seg.intensity=77;seg.custom1=77;seg.custom2=0;seg.custom3=0;
   seg.check1=false;seg.check2=false;seg.check3=false;
@@ -299,7 +299,7 @@ void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,u
   if(side<1||side>2)return;
   const bool rightSide=side==1;
   RidingColor &color=ridingColors[rightSide?0:1];
-  color.palette=palette;color.pal=pal;color.r=r;color.g=g;color.b=b;
+  color.palette=palette;color.pal=palette?pal:2;color.r=r;color.g=g;color.b=b;
   applyRidingColorLayer(rightSide);strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);queueSave();
 }
 void applySingleSlot(uint8_t slotIdx,bool useRidingColor=false){
