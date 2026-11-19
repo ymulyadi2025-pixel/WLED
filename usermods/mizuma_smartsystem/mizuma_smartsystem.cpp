@@ -17,6 +17,9 @@
 //   GET       /mizuma/presets         -> semua 10 slot
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/riding/mode     ?mode=manual|semi-auto|auto|playlist
+//   GET|POST  /mizuma/riding/reverse  per-mode / per-side direction
+//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Semi-auto sides
+//   POST      /mizuma/riding/context  ?active=1|0                   current UI owns direction controls
 //   GET|POST  /mizuma/riding/colors   side=kanan|kiri&palette=0|1&pal&r&g&b (warna sisi tersimpan di config Mizuma)
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
 //   GET|POST  /mizuma/skins           metadata skin custom perangkat (maks 30, termasuk titik warna)
@@ -91,11 +94,14 @@ extern void handlePresets();
     bool usingNativeWelcomePreset = false;
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
     bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
+    bool ridingReverse[3][2] = {}; // arah tambahan per mode Riding dan sisi logis (Kanan, Kiri)
+    bool ridingMirror = false; // mode Semi-auto mencerminkan arah sisi kiri terhadap sisi kanan
     enum RidingMode : uint8_t { RIDING_MANUAL=0, RIDING_SEMI_AUTO=1, RIDING_AUTO=2, RIDING_PLAYLIST=3 };
     static const uint8_t SEG_COLOR_RIGHT=0, SEG_COLOR_LEFT=1, SEG_FX_RIGHT=2, SEG_FX_LEFT=3, SEG_FX_WHOLE=4;
     struct RidingColor { bool palette=true; uint8_t pal=2; uint8_t r=255,g=255,b=255; };
     RidingColor ridingColors[2];             // 0=Kanan, 1=Kiri (logis)
     RidingMode ridingMode = RIDING_MANUAL;
+    bool ridingUiActive = false;
     bool ridingSegmentsReady = false;
 
     /* ===== ANTREAN PERINTAH WEB -> loop() =====
@@ -104,7 +110,7 @@ extern void handlePresets();
        showRunner[], atau memanggil deallocateData() (WLED: reset/dealokasi tidak boleh terjadi saat efek berjalan).
        Aturan: handler hanya memvalidasi argumen lalu menitipkan perintah; processCmdQueue() di loop() adalah
        satu-satunya tempat yang mengeksekusi perubahan. loop() berjalan sebelum strip.service() pada task yang sama. */
-    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR };
+    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR, MZ_CMD_RIDING_DIRECTION, MZ_CMD_RIDING_MIRROR, MZ_CMD_RIDING_CONTEXT };
     struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; uint8_t r,g,b; char mode[10]; };
     static const uint8_t MZ_CMD_QUEUE_LEN = 12;
     QueueHandle_t cmdQueue = nullptr;
@@ -157,7 +163,7 @@ extern void handlePresets();
         const RidingColor &ridingColor=ridingColors[logicalRight?0:1];
     JsonObject color=seg.createNestedObject();
     color["id"]=physicalColorSegForLogicalSide(logicalRight);color["on"]=true;
-        color["fx"]=FX_MODE_PALETTE;color["pal"]=useRidingColor?(ridingColor.palette?ridingColor.pal:0):p.pal;color["sx"]=211;color["ix"]=77;
+        color["fx"]=FX_MODE_PALETTE;color["pal"]=useRidingColor?(ridingColor.palette?ridingColor.pal:2):p.pal;color["sx"]=211;color["ix"]=77;
     color["c1"]=77;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
     JsonArray colorCol=color.createNestedArray("col");
         JsonArray cc0=colorCol.createNestedArray();cc0.add(useRidingColor?ridingColor.r:p.r);cc0.add(useRidingColor?ridingColor.g:p.g);cc0.add(useRidingColor?ridingColor.b:p.b);
@@ -282,7 +288,6 @@ bool ensureRidingSegments(){
 void applyRidingLayerMode(RidingMode mode){
   if(!ensureRidingSegments())return;
   ridingMode=mode;
-  const bool manual=(mode==RIDING_MANUAL||mode==RIDING_PLAYLIST);
   applyRidingColorLayer(true);applyRidingColorLayer(false);
   for(uint8_t id=SEG_FX_RIGHT;id<=SEG_FX_WHOLE;id++){
     Segment &effect=strip.getSegment(id);effect.blendMode=6;effect.setPalette(0);
@@ -290,10 +295,19 @@ void applyRidingLayerMode(RidingMode mode){
   }
   strip.getSegment(SEG_COLOR_RIGHT).on=true;
   strip.getSegment(SEG_COLOR_LEFT).on=true;
-  strip.getSegment(SEG_FX_RIGHT).on=manual;
-  strip.getSegment(SEG_FX_LEFT).on=manual;
-  strip.getSegment(SEG_FX_WHOLE).on=!manual;
+  strip.getSegment(SEG_FX_RIGHT).on=true;
+  strip.getSegment(SEG_FX_LEFT).on=true;
+  strip.getSegment(SEG_FX_WHOLE).on=false;
   strip.trigger();
+}
+static uint8_t ridingModeIndex(RidingMode mode){
+  return mode==RIDING_SEMI_AUTO?1:(mode==RIDING_AUTO?2:0);
+}
+bool ridingSideReverse(RidingMode mode,bool logicalRight){
+  if(mode==RIDING_PLAYLIST)return false;
+  const uint8_t modeIdx=ridingModeIndex(mode);
+  const bool mirrorLeft=mode==RIDING_SEMI_AUTO&&ridingMirror&&!logicalRight&&!ridingReverse[1][0];
+  return ridingReverse[modeIdx][logicalRight?0:1] ^ mirrorLeft;
 }
 void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,uint8_t b){
   if(side<1||side>2)return;
@@ -321,10 +335,11 @@ if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 
 if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
 bool applyModeSide(const String &mode,const String &side,uint16_t transition100ms=0){
 stopPlaylist();
-if(mode=="welcoming"){applyRidingLayerMode(RIDING_MANUAL);return applyWelcomeModeSide(side);}
+if(mode=="welcoming"){ridingUiActive=false;applyRidingLayerMode(RIDING_MANUAL);return applyWelcomeModeSide(side);}
 stopShowRunners("both");
 int base=modeBase(mode);if(base<0)return false;
 if(side!="both"&&side!="kanan"&&side!="kiri")return false;
+ridingUiActive=(base==2);
 if(base==2&&ridingPl>=0&&ridingPl<PL_MAX&&pls[ridingPl].n>0)return startPlaylist(ridingPl,0,false);
 applyRidingLayerMode(RIDING_MANUAL);
 if(side=="both")applyTwoSlots(base,base+1,transition100ms,base==2);
@@ -418,7 +433,9 @@ void applyShowStage(const MzStage &st,bool logicalRight,bool wholeStrip=false){
   if(st.c2>=0)seg.custom2=(uint8_t)constrain(st.c2,0,255);
   if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
   if(st.o>=0)seg.check1=(st.o!=0);
-  const bool stageReverse=(((st.flags&1U)!=0) ^ showReverse ^ showRunner[logicalRight?0:1].reverseOverride); // resep, arah global, dan override sisi
+  const bool globalReverse=ridingUiActive?(ridingMode==RIDING_PLAYLIST&&showReverse):showReverse;
+  const bool sideReverse=ridingUiActive?ridingSideReverse(ridingMode,logicalRight):false;
+  const bool stageReverse=(((st.flags&1U)!=0) ^ globalReverse ^ showRunner[logicalRight?0:1].reverseOverride ^ sideReverse);
   // WLED menyimpan reverse sebagai option bit 1 (REVERSE = 0x0002).
   // Gunakan setter resmi agar stateChanged WLED ikut diperbarui, lalu reset runtime FX.
   if(seg.reverse!=stageReverse){
@@ -481,11 +498,6 @@ bool startShowPreview(int index,const String &side){
   stopPlaylist();
   stopShowRunners(side); // jangan biarkan runner preview sebelumnya hidup pada sisi lain
   if(bri==0){bri=savedBri?savedBri:180;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
-  if(ridingMode==RIDING_AUTO&&side=="both"){
-    startShowRunner(true,(uint8_t)index,false,true);
-    tickShowEngine();
-    return true;
-  }
   if(side=="both"){
     startShowRunner(true,(uint8_t)index);startShowRunner(false,(uint8_t)index);
   }else if(side=="kanan")startShowRunner(true,(uint8_t)index);
@@ -556,26 +568,10 @@ void handleShowStop(AsyncWebServerRequest *req){
   req->send(200,"application/json","{\"ok\":true}");
 }
 uint8_t applyCurrentShowDirection(){
-  // Arah global diterapkan ke kedua segmen aktif pada semua tab.
-  // Pada show Mizuma, flag arah khusus stage digabungkan dengan pilihan global (XOR).
+  // Arah global dan arah per sisi digabungkan pada tiap segmen aktif.
   // Reset runtime memastikan efek yang menyimpan state internal membaca arah baru.
   uint8_t activeSegments=0;
   bool changed=false;
-  if(ridingMode==RIDING_AUTO||ridingMode==RIDING_SEMI_AUTO){
-    Segment &seg=strip.getSegment(SEG_FX_WHOLE);
-    if(seg.isActive()&&seg.on){
-      activeSegments++;
-      bool targetReverse=showReverse;
-      ShowRunner &r=showRunner[0];
-      if(r.wholeStrip&&r.hasCurrentShow&&r.showIndex<MZ_SHOW_COUNT&&r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
-        const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
-        targetReverse=(((st.flags&1U)!=0)^showReverse^r.reverseOverride);
-      }
-      if(seg.reverse!=targetReverse){seg.setOption(1,targetReverse);seg.markForReset();changed=true;}
-    }
-    if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
-    return activeSegments;
-  }
   for(uint8_t logical=0;logical<2;logical++){
     const bool logicalRight=(logical==0);
     const uint8_t segId=physicalSegForLogicalSide(logicalRight);
@@ -584,11 +580,16 @@ uint8_t applyCurrentShowDirection(){
     if(!seg.isActive())continue;
     activeSegments++;
 
-    bool targetReverse=showReverse;
+    const bool globalReverse=ridingUiActive?(ridingMode==RIDING_PLAYLIST&&showReverse):showReverse;
+    const bool sideReverse=ridingUiActive?ridingSideReverse(ridingMode,logicalRight):false;
+    bool targetReverse=globalReverse ^ sideReverse;
+    if(ridingMode==RIDING_PLAYLIST&&plRun.active&&plRun.list<PL_MAX&&plRun.slot<pls[plRun.list].n){
+      targetReverse^=pls[plRun.list].it[plRun.slot].s[logical].rv!=0;
+    }
     ShowRunner &r=showRunner[logical];
     if(r.hasCurrentShow && r.showIndex<MZ_SHOW_COUNT && r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
       const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
-      targetReverse=(((st.flags&1U)!=0) ^ showReverse ^ r.reverseOverride);
+      targetReverse=(((st.flags&1U)!=0) ^ globalReverse ^ r.reverseOverride ^ sideReverse);
     }
     if(seg.reverse!=targetReverse){
       // Bit 1 adalah opsi REVERSE resmi pada Segment WLED.
@@ -602,10 +603,6 @@ uint8_t applyCurrentShowDirection(){
 }
 // Hanya MEMBACA status segmen (aman); perubahan nyata dilakukan applyCurrentShowDirection() di loop().
 uint8_t countActiveSegments(){
-  if(ridingMode==RIDING_AUTO||ridingMode==RIDING_SEMI_AUTO){
-    if(SEG_FX_WHOLE<strip.getSegmentsNum()&&strip.getSegment(SEG_FX_WHOLE).isActive()&&strip.getSegment(SEG_FX_WHOLE).on)return 1;
-    return 0;
-  }
   uint8_t n=0;
   for(uint8_t logical=0;logical<2;logical++){
     const uint8_t segId=physicalSegForLogicalSide(logical==0);
@@ -683,6 +680,42 @@ MzCmd c={};c.type=MZ_CMD_SIDE_SWAP;c.flag=en?1:0;
 if(!enqueueCmd(c)){sendBusy(req);return;}
 String json=String("{\"ok\":true,\"enabled\":")+(en?"true":"false")+"}";
 req->send(200,"application/json",json);}
+void handleRidingReverse(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){
+    String json="{\"ok\":true,\"manual\":{\"kanan\":";
+    json+=ridingReverse[0][0]?"true":"false";json+=",\"kiri\":";json+=ridingReverse[0][1]?"true":"false";
+    json+="},\"semi-auto\":{\"kanan\":";json+=ridingReverse[1][0]?"true":"false";json+=",\"kiri\":";json+=ridingReverse[1][1]?"true":"false";
+    json+="},\"auto\":{\"kanan\":";json+=ridingReverse[2][0]?"true":"false";json+=",\"kiri\":";json+=ridingReverse[2][1]?"true":"false";json+="}}";
+    req->send(200,"application/json",json);return;
+  }
+  if(!req->hasArg("mode")||!req->hasArg("side")||!req->hasArg("enabled")){
+    req->send(400,"application/json","{\"ok\":false,\"error\":\"mode, side, and enabled required\"}");return;
+  }
+  const String mode=req->arg("mode"),side=req->arg("side");
+  uint8_t modeIdx=255;
+  if(mode=="manual")modeIdx=0;else if(mode=="semi-auto")modeIdx=1;else if(mode=="auto")modeIdx=2;
+  const uint8_t sideCode=mzSideCode(side);
+  if(modeIdx==255||(sideCode!=1&&sideCode!=2)){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid mode or side\"}");return;}
+  const bool en=req->arg("enabled")=="1"||req->arg("enabled")=="true";
+  MzCmd c={};c.type=MZ_CMD_RIDING_DIRECTION;c.value=modeIdx;c.side=sideCode;c.flag=en?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidingMirror(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){String json=String("{\"ok\":true,\"enabled\":")+(ridingMirror?"true":"false")+"}";req->send(200,"application/json",json);return;}
+  if(!req->hasArg("enabled")){req->send(400,"application/json","{\"ok\":false,\"error\":\"enabled required\"}");return;}
+  const bool en=req->arg("enabled")=="1"||req->arg("enabled")=="true";
+  MzCmd c={};c.type=MZ_CMD_RIDING_MIRROR;c.flag=en?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+void handleRidingContext(AsyncWebServerRequest *req){
+  if(!req->hasArg("active")){req->send(400,"application/json","{\"ok\":false,\"error\":\"active required\"}");return;}
+  const bool active=req->arg("active")=="1"||req->arg("active")=="true";
+  MzCmd c={};c.type=MZ_CMD_RIDING_CONTEXT;c.flag=active?1:0;
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
 void handleRidingMode(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
     const char *name=ridingMode==RIDING_SEMI_AUTO?"semi-auto":ridingMode==RIDING_AUTO?"auto":ridingMode==RIDING_PLAYLIST?"playlist":"manual";
@@ -739,10 +772,28 @@ void processCmdQueue(){
       case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);applyRidingColorLayer(true);applyRidingColorLayer(false);queueSave();break;
       case MZ_CMD_PL_PLAY:      startPlaylist((int)c.value,(int)(c.flag&0x7F),(c.flag&0x80)!=0);break;
       case MZ_CMD_PL_PAUSE:     execPlPause(c.flag!=0);break;
-      case MZ_CMD_PL_USE:       ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");break;
-      case MZ_CMD_PL_STOP:      applyRidingLayerMode(RIDING_MANUAL);applyModeSide("riding","both");break;
-      case MZ_CMD_RIDING_MODE:  stopPlaylist();stopShowRunners("both");applyRidingLayerMode((RidingMode)c.value);break;
+      case MZ_CMD_PL_USE:       ridingUiActive=true;ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");break;
+      case MZ_CMD_PL_STOP:      ridingUiActive=true;applyRidingLayerMode(RIDING_MANUAL);applyModeSide("riding","both");break;
+      case MZ_CMD_RIDING_MODE:  ridingUiActive=true;stopPlaylist();stopShowRunners("both");applyRidingLayerMode((RidingMode)c.value);break;
       case MZ_CMD_RIDING_COLOR: execRidingColor(c.side,c.flag!=0,c.value,c.r,c.g,c.b);break;
+      case MZ_CMD_RIDING_DIRECTION:
+        if(c.value<3&&(c.side==1||c.side==2)){
+          ridingUiActive=true;
+          ridingReverse[c.value][c.side==1?0:1]=(c.flag!=0);
+          if(ridingMode!=RIDING_PLAYLIST&&ridingModeIndex(ridingMode)==c.value)applyCurrentShowDirection();
+          queueSave();
+        }
+        break;
+      case MZ_CMD_RIDING_MIRROR:
+        ridingUiActive=true;
+        ridingMirror=(c.flag!=0);
+        if(ridingMode==RIDING_SEMI_AUTO)applyCurrentShowDirection();
+        queueSave();
+        break;
+      case MZ_CMD_RIDING_CONTEXT:
+        ridingUiActive=(c.flag!=0);
+        applyCurrentShowDirection();
+        break;
       default: break;
     }
   }
@@ -847,6 +898,7 @@ void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
 }
 bool startPlaylist(int li,int si,bool hold){
   if(li<0||li>=PL_MAX||pls[li].n==0)return false;
+  ridingUiActive=true;
   applyRidingLayerMode(RIDING_PLAYLIST);
   if(si<0||si>=pls[li].n)si=0;
   plRun.active=true;plRun.hold=hold;plRun.list=(uint8_t)li;plRun.slot=(uint8_t)si;plRun.startedAt=millis();
@@ -1234,6 +1286,11 @@ server.on("/mizuma/side-swap",HTTP_GET,[this](AsyncWebServerRequest *req){String
 server.on("/mizuma/side-swap",HTTP_POST,[this](AsyncWebServerRequest *req){handleSideSwap(req);});
 server.on("/mizuma/riding/mode",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingMode(req,true);});
 server.on("/mizuma/riding/mode",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingMode(req,false);});
+server.on("/mizuma/riding/reverse",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingReverse(req,true);});
+server.on("/mizuma/riding/reverse",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingReverse(req,false);});
+server.on("/mizuma/riding/mirror",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingMirror(req,true);});
+server.on("/mizuma/riding/mirror",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingMirror(req,false);});
+server.on("/mizuma/riding/context",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingContext(req);});
 server.on("/mizuma/riding/colors",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingColors(req,true);});
 server.on("/mizuma/riding/colors",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingColors(req,false);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
@@ -1344,6 +1401,9 @@ s["bri"]=pslots[i].bri;}
 top["bri"]=savedBri;
 top["sideSwap"]=sideSwap;
 top["showReverse"]=showReverse;
+JsonArray reverse=top.createNestedArray("ridingReverse");
+for(uint8_t mode=0;mode<3;mode++){JsonArray sides=reverse.createNestedArray();sides.add(ridingReverse[mode][0]);sides.add(ridingReverse[mode][1]);}
+top["ridingMirror"]=ridingMirror;
 top["ridingPl"]=(int)ridingPl;
 JsonObject rc=top.createNestedObject("ridingColors");
 JsonObject rr=rc.createNestedObject("right");rr["palette"]=ridingColors[0].palette;rr["pal"]=ridingColors[0].pal;rr["r"]=ridingColors[0].r;rr["g"]=ridingColors[0].g;rr["b"]=ridingColors[0].b;
@@ -1376,6 +1436,14 @@ pslots[i].bri=s["bri"]|180;}}
 savedBri=top["bri"]|180;
 sideSwap=top["sideSwap"]|false;
 showReverse=top["showReverse"]|false;
+JsonArray reverse=top["ridingReverse"];
+if(!reverse.isNull()){
+  for(uint8_t mode=0;mode<3;mode++){
+    JsonArray sides=reverse[mode];
+    if(!sides.isNull()){ridingReverse[mode][0]=sides[0]|false;ridingReverse[mode][1]=sides[1]|false;}
+  }
+}
+ridingMirror=top["ridingMirror"]|false;
 JsonObject rc=top["ridingColors"];
 if(!rc.isNull()){
   JsonObject rr=rc["right"];if(!rr.isNull()){ridingColors[0].palette=rr["palette"]|true;ridingColors[0].pal=rr["pal"]|2;ridingColors[0].r=rr["r"]|255;ridingColors[0].g=rr["g"]|255;ridingColors[0].b=rr["b"]|255;}
