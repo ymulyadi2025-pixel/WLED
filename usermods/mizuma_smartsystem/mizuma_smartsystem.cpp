@@ -203,6 +203,19 @@ void enforceRidingColorLayers(){
   }
   if(changed)strip.trigger();
 }
+void enforceRidingEffectLayers(){
+  if(!ridingSegmentsReady)return;
+  bool changed=false;
+  for(uint8_t id=SEG_FX_RIGHT;id<=SEG_FX_WHOLE;id++){
+    Segment &seg=strip.getSegment(id);
+    if(seg.blendMode!=6){seg.blendMode=6;changed=true;}
+    if(seg.palette!=0){seg.setPalette(0);changed=true;}
+    for(uint8_t color=0;color<3;color++){
+      if(seg.colors[color]!=WHITE){seg.setColor(color,WHITE);changed=true;}
+    }
+  }
+  if(changed)strip.trigger();
+}
 bool busRangeForPin(uint8_t pin,uint16_t &start,uint16_t &stop){
   bool found=false;
   for(size_t i=0;i<BusManager::getNumBusses();i++){
@@ -1267,6 +1280,7 @@ void loop() override {
   if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(RIDING_MANUAL);
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   enforceRidingColorLayers();
+  enforceRidingEffectLayers();
   tickPlaylist();
   tickShowEngine();
   if(bootWelcomePending && (uint32_t)(millis()-bootWelcomeAt)>=250U){
