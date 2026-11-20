@@ -18,7 +18,7 @@
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/riding/mode     ?mode=manual|semi-auto|auto|playlist
 //   GET|POST  /mizuma/riding/reverse  per-mode / per-side direction
-//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Semi-auto sides
+//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Semi-auto / Auto
 //   POST      /mizuma/riding/context  ?active=1|0                   current UI owns direction controls
 //   GET|POST  /mizuma/riding/colors   side=kanan|kiri&palette=0|1&pal&r&g&b (warna sisi tersimpan di config Mizuma)
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
@@ -95,7 +95,7 @@ extern void handlePresets();
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
     bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
     bool ridingReverse[3][2] = {}; // arah tambahan per mode Riding dan sisi logis (Kanan, Kiri)
-    bool ridingMirror = false; // mode Semi-auto mencerminkan arah sisi kiri terhadap sisi kanan
+    bool ridingMirror = false; // opsi mirror WLED pada segmen efek Riding
     enum RidingMode : uint8_t { RIDING_MANUAL=0, RIDING_SEMI_AUTO=1, RIDING_AUTO=2, RIDING_PLAYLIST=3 };
     static const uint8_t SEG_COLOR_RIGHT=0, SEG_COLOR_LEFT=1, SEG_FX_RIGHT=2, SEG_FX_LEFT=3, SEG_FX_WHOLE=4;
     struct RidingColor { bool palette=true; uint8_t pal=2; uint8_t r=255,g=255,b=255; };
@@ -285,6 +285,20 @@ bool ensureRidingSegments(){
   applyRidingColorLayer(true);applyRidingColorLayer(false);
   return true;
 }
+bool ridingSegmentMirror(RidingMode mode,uint8_t id){
+  return ridingMirror&&((mode==RIDING_SEMI_AUTO&&id==SEG_FX_WHOLE)||
+    (mode==RIDING_AUTO&&(id==SEG_FX_RIGHT||id==SEG_FX_LEFT)));
+}
+void applyRidingMirrorOptions(RidingMode mode){
+  bool changed=false;
+  for(uint8_t id=SEG_FX_RIGHT;id<=SEG_FX_WHOLE;id++){
+    Segment &effect=strip.getSegment(id);
+    const bool mirror=ridingSegmentMirror(mode,id);
+    // WLED's MIRROR segment option is option bit 3; color-only segments are excluded.
+    if(effect.getOption(3)!=mirror){effect.setOption(3,mirror);effect.markForReset();changed=true;}
+  }
+  if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+}
 void applyRidingLayerMode(RidingMode mode){
   if(!ensureRidingSegments())return;
   ridingMode=mode;
@@ -295,9 +309,11 @@ void applyRidingLayerMode(RidingMode mode){
   }
   strip.getSegment(SEG_COLOR_RIGHT).on=true;
   strip.getSegment(SEG_COLOR_LEFT).on=true;
-  strip.getSegment(SEG_FX_RIGHT).on=true;
-  strip.getSegment(SEG_FX_LEFT).on=true;
-  strip.getSegment(SEG_FX_WHOLE).on=false;
+  const bool linkedEffect=mode==RIDING_SEMI_AUTO;
+  strip.getSegment(SEG_FX_RIGHT).on=!linkedEffect;
+  strip.getSegment(SEG_FX_LEFT).on=!linkedEffect;
+  strip.getSegment(SEG_FX_WHOLE).on=linkedEffect;
+  applyRidingMirrorOptions(mode);
   strip.trigger();
 }
 static uint8_t ridingModeIndex(RidingMode mode){
@@ -306,8 +322,11 @@ static uint8_t ridingModeIndex(RidingMode mode){
 bool ridingSideReverse(RidingMode mode,bool logicalRight){
   if(mode==RIDING_PLAYLIST)return false;
   const uint8_t modeIdx=ridingModeIndex(mode);
-  const bool mirrorLeft=mode==RIDING_SEMI_AUTO&&ridingMirror&&!logicalRight&&!ridingReverse[1][0];
-  return ridingReverse[modeIdx][logicalRight?0:1] ^ mirrorLeft;
+  return ridingReverse[modeIdx][logicalRight?0:1];
+}
+bool ridingWholeReverse(){
+  // Fold any previously saved per-side settings into the single linked-segment direction.
+  return ridingReverse[1][0]^ridingReverse[1][1];
 }
 void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,uint8_t b){
   if(side<1||side>2)return;
@@ -427,6 +446,8 @@ void applyShowStage(const MzStage &st,bool logicalRight,bool wholeStrip=false){
   else if(st.t==0)seg.markForReset();
   seg.blendMode=6;seg.setPalette(0);
   seg.setColor(0,WHITE);seg.setColor(1,0);seg.setColor(2,0);
+  const bool mirror=ridingUiActive&&ridingSegmentMirror(ridingMode,segId);
+  if(seg.getOption(3)!=mirror){seg.setOption(3,mirror);seg.markForReset();}
   if(st.sx>=0)seg.speed=(uint8_t)constrain(st.sx,0,255);
   if(st.ix>=0)seg.intensity=(uint8_t)constrain(st.ix,0,255);
   if(st.c1>=0)seg.custom1=(uint8_t)constrain(st.c1,0,255);
@@ -434,7 +455,9 @@ void applyShowStage(const MzStage &st,bool logicalRight,bool wholeStrip=false){
   if(st.c3>=0)seg.custom3=(uint8_t)constrain(st.c3,0,31); // WLED stores Custom 3 in 5 bits
   if(st.o>=0)seg.check1=(st.o!=0);
   const bool globalReverse=ridingUiActive?(ridingMode==RIDING_PLAYLIST&&showReverse):showReverse;
-  const bool sideReverse=ridingUiActive?ridingSideReverse(ridingMode,logicalRight):false;
+  const bool sideReverse=ridingUiActive
+    ?((wholeStrip&&ridingMode==RIDING_SEMI_AUTO)?ridingWholeReverse():ridingSideReverse(ridingMode,logicalRight))
+    :false;
   const bool stageReverse=(((st.flags&1U)!=0) ^ globalReverse ^ showRunner[logicalRight?0:1].reverseOverride ^ sideReverse);
   // WLED menyimpan reverse sebagai option bit 1 (REVERSE = 0x0002).
   // Gunakan setter resmi agar stateChanged WLED ikut diperbarui, lalu reset runtime FX.
@@ -498,7 +521,9 @@ bool startShowPreview(int index,const String &side){
   stopPlaylist();
   stopShowRunners(side); // jangan biarkan runner preview sebelumnya hidup pada sisi lain
   if(bri==0){bri=savedBri?savedBri:180;stateUpdated(CALL_MODE_DIRECT_CHANGE);}
-  if(side=="both"){
+  if(ridingUiActive&&ridingMode==RIDING_SEMI_AUTO&&side=="both"){
+    startShowRunner(true,(uint8_t)index,false,true);
+  }else if(side=="both"){
     startShowRunner(true,(uint8_t)index);startShowRunner(false,(uint8_t)index);
   }else if(side=="kanan")startShowRunner(true,(uint8_t)index);
   else if(side=="kiri")startShowRunner(false,(uint8_t)index);
@@ -570,6 +595,22 @@ void handleShowStop(AsyncWebServerRequest *req){
 uint8_t applyCurrentShowDirection(){
   // Arah global dan arah per sisi digabungkan pada tiap segmen aktif.
   // Reset runtime memastikan efek yang menyimpan state internal membaca arah baru.
+  if(ridingMode==RIDING_SEMI_AUTO){
+    Segment &seg=strip.getSegment(SEG_FX_WHOLE);
+    if(!seg.isActive())return 0;
+    bool targetReverse=ridingWholeReverse();
+    ShowRunner &r=showRunner[0];
+    if(r.hasCurrentShow&&r.showIndex<MZ_SHOW_COUNT&&r.currentStageIndex<MZ_SHOWS[r.showIndex].n){
+      const MzStage &st=MZ_SHOWS[r.showIndex].st[r.currentStageIndex];
+      targetReverse=((st.flags&1U)!=0)^r.reverseOverride^ridingWholeReverse();
+    }
+    if(seg.reverse!=targetReverse){
+      seg.setOption(1,targetReverse);
+      seg.markForReset();
+      strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);
+    }
+    return 1;
+  }
   uint8_t activeSegments=0;
   bool changed=false;
   for(uint8_t logical=0;logical<2;logical++){
@@ -603,6 +644,7 @@ uint8_t applyCurrentShowDirection(){
 }
 // Hanya MEMBACA status segmen (aman); perubahan nyata dilakukan applyCurrentShowDirection() di loop().
 uint8_t countActiveSegments(){
+  if(ridingMode==RIDING_SEMI_AUTO)return strip.getSegment(SEG_FX_WHOLE).isActive()?1:0;
   uint8_t n=0;
   for(uint8_t logical=0;logical<2;logical++){
     const uint8_t segId=physicalSegForLogicalSide(logical==0);
@@ -780,6 +822,7 @@ void processCmdQueue(){
         if(c.value<3&&(c.side==1||c.side==2)){
           ridingUiActive=true;
           ridingReverse[c.value][c.side==1?0:1]=(c.flag!=0);
+          if(c.value==1&&c.side==1)ridingReverse[1][1]=false;
           if(ridingMode!=RIDING_PLAYLIST&&ridingModeIndex(ridingMode)==c.value)applyCurrentShowDirection();
           queueSave();
         }
@@ -787,7 +830,7 @@ void processCmdQueue(){
       case MZ_CMD_RIDING_MIRROR:
         ridingUiActive=true;
         ridingMirror=(c.flag!=0);
-        if(ridingMode==RIDING_SEMI_AUTO)applyCurrentShowDirection();
+        applyRidingMirrorOptions(ridingMode);
         queueSave();
         break;
       case MZ_CMD_RIDING_CONTEXT:

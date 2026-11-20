@@ -631,26 +631,38 @@ nav span{padding:3px 16px;border-radius:16px;display:flex}nav .on span{backgroun
 .ride-card-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
 .ride-card-head b{font-size:14px;flex:1}
 .ride-card-head small{font-size:11px;color:var(--tx2)}
-.ride-side-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:8px 0}
-.ride-side-tab{min-width:0;padding:9px 10px;text-align:left;border:1px solid var(--bd);border-radius:11px;background:var(--s2);color:var(--tx2)}
-.ride-side-tab b,.ride-side-tab small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ride-side-tab b{font-size:12px;color:var(--tx)}
-.ride-side-tab small{font-size:10px;margin-top:3px}
+.ride-side-select-row{display:flex;align-items:center;gap:6px;margin:5px 0 8px}
+.ride-side-tabs{display:flex;align-items:center;gap:5px;flex:1;min-width:0}
+.ride-side-tab{flex:1;min-width:0;height:38px;padding:0 7px;text-align:center;border:1px solid var(--bd);border-radius:9px;background:var(--s2);color:var(--tx2);font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ride-side-tab.on{border-color:var(--ac);background:var(--acd);color:var(--ac)}
+.ride-side-tab small{font-size:10px;color:inherit}
+.ride-apply{min-height:38px;padding:0 10px;flex:none;border-radius:9px;background:var(--ac);color:#0a0a0a;font-size:11px;font-weight:800;white-space:nowrap}
 .ride-side-tab.on{border-color:var(--ac);background:var(--acd)}
 .ride-current{display:flex;align-items:center;gap:9px;min-width:0}
-.ride-thumb{width:42px;height:42px;flex:none;border:1px solid var(--bd2);border-radius:11px}
 .ride-current-copy{flex:1;min-width:0}
 .ride-current-copy b,.ride-current-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ride-current-copy b{font-size:13px}
 .ride-current-copy small{font-size:11px;color:var(--tx2)}
+.ride-current .ride-color-cell{flex-direction:row;align-items:center}
+.ride-current .ride-color-cell .ride-mini-btn{flex:1}
 .ride-mini-btn{min-height:38px;padding:0 10px;border:1px solid var(--bd2);border-radius:10px;background:var(--s2);color:var(--tx);font-size:11px;font-weight:700;white-space:nowrap}
 .ride-mini-btn.active{border-color:var(--ac);color:var(--ac);background:var(--acd)}
 .ride-tool-row{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:8px}
 .ride-colors{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.ride-color-cell{display:flex;align-items:center;gap:5px;min-width:0}
+.ride-color-cell{display:flex;flex-direction:column;align-items:stretch;gap:4px;min-width:0}
 .ride-color{display:flex;align-items:center;gap:7px;flex:1;min-width:0;padding:8px;border:1px solid var(--bd);border-radius:11px;background:var(--s2);text-align:left}
 .ride-color i{width:30px;height:22px;flex:none;border:1px solid rgba(255,255,255,.25);border-radius:6px}
 .ride-color span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;font-weight:700}
+.ride-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(102px,1.05fr);gap:6px;margin-top:9px}
+.ride-toolbar .ride-mini-btn,.ride-toolbar .mirror-btn,.ride-toolbar .ride-apply,.ride-toolbar .rev-side{width:100%;min-width:0;min-height:34px;padding:0 5px;font-size:10px}
+.ride-toolbar .ride-color{min-height:38px;padding:5px}
+.ride-toolbar .ride-color i{width:26px;height:20px}
+.ride-toolbar .ride-color span{font-size:10px}
+.ride-toolbar .ride-shared-reverse{grid-column:span 2}
+.ride-mode-badge{display:inline-flex;align-items:center;justify-content:center;min-width:74px;height:25px;padding:0 7px;border:1px solid var(--bd2);border-radius:7px;background:var(--s2);color:var(--tx3);font-size:9px;font-weight:800;white-space:nowrap}
+.ride-mode-badge.on{border-color:var(--ok);background:rgba(61,220,132,.12);color:var(--ok);box-shadow:0 0 6px rgba(61,220,132,.18)}
+.ride-mode-badge.off{opacity:.55}
+.ride-section-title .ride-mini-btn{min-height:32px;padding:0 9px}
 .ride-section-title{display:flex;align-items:center;gap:8px;margin:14px 2px 7px}
 .ride-section-title b{font-size:14px}
 .ride-section-title small{margin-left:auto;color:var(--tx2);font-size:10px}
@@ -661,11 +673,16 @@ nav span{padding:3px 16px;border-radius:16px;display:flex}nav .on span{backgroun
 .ride-fx-list .fr .no{width:30px;height:30px}
 .ride-fx-list .fr .star{width:28px;min-width:28px;height:28px;min-height:28px;font-size:18px}
 .ride-fx-state{flex:none;color:var(--ok);font-size:10px;font-weight:700}
-.ride-params{margin-top:9px}
-.ride-params .pt{font-size:12px}
-.ride-themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.ride-theme{min-height:62px;display:flex;align-items:flex-end;padding:9px;border:1px solid var(--bd);border-radius:11px;background:var(--s2);font-size:11px;font-weight:700;text-align:left;text-shadow:0 1px 3px #000}
-.ride-theme.on{outline:2px solid var(--ac);outline-offset:1px}
+.ride-fixed-params{width:100%;max-height:24vh;overflow-y:auto;overscroll-behavior:contain}
+.ride-fixed-params .ride-card-head{margin:0 0 6px}
+.ride-fixed-params .pt{font-size:12px}
+.ride-playlist-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ride-playlist-card{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px;min-width:0;min-height:66px;padding:10px;border:1px solid var(--bd);border-radius:11px;background:var(--s2);text-align:left}
+.ride-playlist-card.on{border-color:var(--ac);background:var(--acd)}
+.ride-playlist-card b,.ride-playlist-card small{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ride-playlist-card b{font-size:12px}
+.ride-playlist-card small{color:var(--tx2);font-size:10px}
+.ride-playlist-card.add{align-items:center;border-style:dashed;color:var(--tx2);font-size:11px}
 .ride-slot-list{display:grid;gap:7px;margin-top:9px}
 .ride-slot{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:58px;padding:7px;border:1px solid var(--bd);border-radius:11px;background:var(--s2)}
 .ride-slot.empty{border-style:dashed}
@@ -683,7 +700,7 @@ nav span{padding:3px 16px;border-radius:16px;display:flex}nav .on span{backgroun
 .quick-row input{flex:1;min-width:0}
 .quick-toggle{width:100%;margin-top:4px}
 #foot .apply-hint{margin:0;color:var(--tx2);font-size:10px;text-align:center}
-@media(max-width:420px){.ride-side-tabs,.ride-colors{gap:5px}.ride-slot{grid-template-columns:30px minmax(0,1fr) auto;gap:5px;padding:6px}.ride-slot-actions{gap:2px}.ride-slot-actions .ib{width:30px;height:30px}.ride-mini-btn{padding:0 7px}}
+@media(max-width:420px){.ride-side-tabs,.ride-colors{gap:5px}.ride-slot{grid-template-columns:30px minmax(0,1fr) auto;gap:5px;padding:6px}.ride-slot-actions{gap:2px}.ride-slot-actions .ib{width:30px;height:30px}.ride-mini-btn{padding:0 7px}.ride-apply{padding:0 7px;font-size:10px}.ride-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(90px,1fr);gap:4px}}
 
 </style></head><body>
 <div class="hd"><div class="br"><div class="logo">M</div><div><div class="b1">MIZUMA</div><div class="b2">PERFORMANCE</div></div></div><div class="ri" id="ri"></div><div id="hr"></div></div><div id="ban"></div>
@@ -772,7 +789,7 @@ const S={tb:'fx',lastRideMode:'fx',fside:'all',sel:0,fs:{L:null,R:null},q:'',fo:
   fx:[],fxd:[],shows:[],showMs:[],list:[],palNames:[],palList:[],palRaw:{},palInfo:{cpal:0,cmax:10,um:[],major:0},palSig:'',
   fav:new Set(),fxs:{},fxsSaved:{},pm:{},cu:[],act:{L:null,R:null},lists:[],
   rideColors:{L:{cs:'pal',pal:2,col:{h:39,s:100,v:100}},R:{cs:'pal',pal:2,col:{h:39,s:100,v:100}}},
-  rideReverse:{manual:{R:false,L:false},semi:{R:false,L:false},auto:{R:false,L:false}},semiMirror:false,
+  rideReverse:{manual:{R:false,L:false},semi:{R:false,L:false},auto:{R:false,L:false}},semiMirror:false,modeActive:'manual',
   pi:null,si:-1,se:null,dr:null,sp:0,qc:null,rideColorEdit:null,listsLoaded:false,
   pl:{use:-1,run:false,hold:false,list:0,slot:0,el:0,at:0,ui:false},showLive:{L:false,R:false},
   sideSwap:false,bri:180,net:true,sv:'ok',volt:null,pv:false,ready:false,popKind:null};
@@ -855,15 +872,19 @@ const sideName=k=>k==='R'?'kanan':'kiri';
 const sideArg=()=>S.fside==='all'?'both':sideName(S.fside);
 function segIds(){return sideKeys().map(function(k){return mapSegId(sideName(k));});}
 function rideMode(){const m=S.tb==='col'?S.lastRideMode:S.tb;return m==='fx'?'manual':m;}
-function effectTargetIds(){const mode=rideMode();return mode==='semi'||mode==='auto'?[mapSegId('kanan'),mapSegId('kiri')]:segIds();}
-function reverseValue(mode,k){const base=!!(S.rideReverse[mode]&&S.rideReverse[mode][k]);return base!==(mode==='semi'&&S.semiMirror&&k==='L'&&!S.rideReverse.semi.R);}
-function reverseForId(id){const k=id===mapSegId('kanan')?'R':'L',mode=rideMode();return reverseValue(mode,k);}
+function effectTargetIds(){const mode=rideMode();return mode==='semi'?[SEG_LINK]:mode==='auto'?[mapSegId('kanan'),mapSegId('kiri')]:segIds();}
+function reverseValue(mode,k){const v=S.rideReverse[mode]||{};return mode==='semi'&&k==='R'?!!v.R!==!!v.L:!!v[k];}
+function reverseForId(id){const mode=rideMode();if(mode==='semi'&&id===SEG_LINK)return reverseValue(mode,'R');const k=id===mapSegId('kanan')?'R':'L';return reverseValue(mode,k);}
 function syncReverseControls(){document.querySelectorAll('[data-rev-mode][data-rev-side]').forEach(function(b){b.classList.toggle('on',reverseValue(b.dataset.revMode,b.dataset.revSide));b.setAttribute('aria-pressed',reverseValue(b.dataset.revMode,b.dataset.revSide)?'true':'false');});
   document.querySelectorAll('[data-mirror]').forEach(function(b){b.classList.toggle('on',S.semiMirror);b.setAttribute('aria-pressed',S.semiMirror?'true':'false');});}
-function reverseButton(mode,k){const label=k==='R'?'Kanan':'Kiri';return'<button class="rev-side" data-rev-mode="'+mode+'" data-rev-side="'+k+'" aria-label="Balik arah '+label.toLowerCase()+'" title="Balik arah '+label.toLowerCase()+'" onclick="event.stopPropagation();toggleRideReverse(\''+mode+'\',\''+k+'\')">↶ '+label+'</button>';}
-function reverseControls(mode){if(['manual','semi','auto'].indexOf(mode)<0)return'';return'<div class="rev-pair"><button class="rev-side" data-rev-mode="'+mode+'" data-rev-side="L" aria-label="Balik arah kiri" title="Balik arah kiri" onclick="event.stopPropagation();toggleRideReverse(\''+mode+'\',\'L\')">↶ Kiri</button><button class="rev-side" data-rev-mode="'+mode+'" data-rev-side="R" aria-label="Balik arah kanan" title="Balik arah kanan" onclick="event.stopPropagation();toggleRideReverse(\''+mode+'\',\'R\')">↶ Kanan</button></div>'+(mode==='semi'?'<button class="mirror-btn" data-mirror aria-label="Cerminkan efek" title="Cerminkan efek" onclick="event.stopPropagation();toggleRideMirror()">◧ Mirror</button>':'');}
-function toggleRideReverse(mode,k){if(!S.rideReverse[mode])return;const old=!!S.rideReverse[mode][k],next=!old;S.rideReverse[mode][k]=next;syncReverseControls();
-  mpost('/mizuma/riding/reverse?mode='+(mode==='semi'?'semi-auto':mode)+'&side='+sideName(k)+'&enabled='+(next?'1':'0')).then(function(r){if(!r.ok)throw new Error('reverse');return r.json();}).then(function(d){if(!d.ok)throw new Error('reverse');}).catch(function(){S.rideReverse[mode][k]=old;syncReverseControls();toast('Gagal mengubah arah lampu');});}
+function reverseButton(mode,k){if(mode==='semi')return'<button class="rev-side" data-rev-mode="semi" data-rev-side="R" aria-label="Balik arah efek untuk kedua sisi" title="Balik arah efek untuk kedua sisi" onclick="event.stopPropagation();toggleRideReverse(\'semi\',\'R\')">↶ Balik arah</button>';
+  const label=k==='R'?'Kanan':'Kiri';return'<button class="rev-side" data-rev-mode="'+mode+'" data-rev-side="'+k+'" aria-label="Balik arah '+label.toLowerCase()+'" title="Balik arah '+label.toLowerCase()+'" onclick="event.stopPropagation();toggleRideReverse(\''+mode+'\',\''+k+'\')">↶ '+label+'</button>';}
+function mirrorButton(){return'<button class="mirror-btn'+(S.semiMirror?' on':'')+'" data-mirror aria-pressed="'+(S.semiMirror?'true':'false')+'" onclick="toggleRideMirror()">Mirror</button>';}
+function reverseControls(mode){if(['manual','semi','auto'].indexOf(mode)<0)return'';if(mode==='semi')return'<div class="rev-pair">'+reverseButton('semi','R')+'</div>'+mirrorButton();
+  return'<div class="rev-pair">'+reverseButton(mode,'L')+reverseButton(mode,'R')+'</div>'+(mode==='auto'?mirrorButton():'');}
+function toggleRideReverse(mode,k){if(!S.rideReverse[mode])return;const old=!!S.rideReverse[mode][k],oldL=!!S.rideReverse[mode].L,next=!reverseValue(mode,k);
+  S.rideReverse[mode][k]=next;if(mode==='semi')S.rideReverse[mode].L=false;syncReverseControls();
+  mpost('/mizuma/riding/reverse?mode='+(mode==='semi'?'semi-auto':mode)+'&side='+sideName(k)+'&enabled='+(next?'1':'0')).then(function(r){if(!r.ok)throw new Error('reverse');return r.json();}).then(function(d){if(!d.ok)throw new Error('reverse');}).catch(function(){S.rideReverse[mode][k]=old;if(mode==='semi')S.rideReverse[mode].L=oldL;syncReverseControls();toast('Gagal mengubah arah lampu');});}
 function toggleRideMirror(){const old=S.semiMirror,next=!old;S.semiMirror=next;syncReverseControls();
   mpost('/mizuma/riding/mirror?enabled='+(next?'1':'0')).then(function(r){if(!r.ok)throw new Error('mirror');return r.json();}).then(function(d){if(!d.ok)throw new Error('mirror');}).catch(function(){S.semiMirror=old;syncReverseControls();toast('Gagal mengubah cerminan efek');});}
 function colorTargets(){return sideKeys().map(function(k){return mapColorSegId(sideName(k));});}
@@ -894,10 +915,10 @@ function applyLive(i){
 function applyLiveReady(i){
   const ks=sideKeys(),mode=rideMode(),ids=effectTargetIds(),c=cfg(i);
   plHold();
-  if(isShowId(i)){ks.forEach(function(k){S.showLive[k]=true;});const side=mode==='auto'?'both':sideArg();
+  if(isShowId(i)){ks.forEach(function(k){S.showLive[k]=true;});const side=mode==='auto'||mode==='semi'?'both':sideArg();
     post({on:true,seg:segsFor(i,[],ks)}).then(function(){return mpost('/mizuma/show?index='+(i-SH)+'&side='+side);}).catch(function(){});}
   else{const st=ks.filter(function(k){return S.showLive[k];});if(st.length)stopShowSides(st);ks.forEach(function(k){S.showLive[k]=false;});
-    const o={on:true,seg:segsFor(i,ids,ks)};if(mode==='semi'||mode==='auto')o.seg.push({id:SEG_LINK,on:false});if(S.bri>0)o.bri=S.bri;post(o);}
+    const o={on:true,seg:segsFor(i,ids,ks)};if(mode==='auto')o.seg.push({id:SEG_LINK,on:false});if(S.bri>0)o.bri=S.bri;post(o);}
   S.pv=!isSaved(i);updInfo();}
 const applyLiveD=throttleLatest(function(){applyLive(selOf());},120);
 const rideColorLiveD=throttleLatest(function(keys){
@@ -1033,10 +1054,10 @@ function sideBlock(){const fx=S.tb==='fx',on=k=>S.fside===k?' on':'',oc=k=>' onc
   return'<div class="sbk act" role="group" aria-label="LED kiri dan kanan">'+cell('L','Kiri')+'<div class="sbm">'+(fx?'<button class="chip'+(S.fo?' on':'')+'" onclick="S.fo=!S.fo;R()">★ Favorit</button>':'')+'<button class="sbn A'+on('all')+'"'+oc('all')+'>Semua</button></div>'+cell('R','Kanan')+'</div>';}
 function setSide(sd){S.fside=sd;R();}
 function tbs(a){return'<div class="tabbar">'+a.map(function(x){return'<button class="'+(x[3]?'on':'')+'" onclick="'+x[2]+'">'+x[0]+'</button>';}).join('')+'</div>';}
-function frz(){const active=S.tb==='col'?S.lastRideMode:S.tb,t=function(n,k){return[n,'',"goTb('"+k+"')",active===k];};
+function frz(){const active=S.modeActive==='manual'?'fx':S.modeActive==='playlist'?'pl':S.modeActive,t=function(n,k){return[n,'',"goTb('"+k+"')",active===k];};
   if(S.tb==='col')return active==='pl'?'':sideBlock();
   return tbs([t('Manual','fx'),t('Semi-Auto','semi'),t('Auto','auto'),t('Playlist','pl')]);}
-function setRidingMode(k){const m=k==='semi'?'semi-auto':k;return mpost('/mizuma/riding/mode?mode='+encodeURIComponent(m)).then(function(r){if(!r.ok)throw new Error('riding mode');return r.json();}).then(function(d){if(!d.ok)throw new Error(d.error||'riding mode');});}
+function setRidingMode(k){const m=k==='semi'?'semi-auto':k==='fx'?'manual':k;return mpost('/mizuma/riding/mode?mode='+encodeURIComponent(m)).then(function(r){if(!r.ok)throw new Error('riding mode');return r.json();}).then(function(d){if(!d.ok)throw new Error(d.error||'riding mode');S.modeActive=k==='fx'?'manual':k;syncRideModeBadge();});}
 function goTb(k){S.tb=k;S.q='';S.pi=null;if(k!=='col')S.lastRideMode=k;
   if(k==='fx'&&S.fside==='all')S.fside='R';
   if(k==='semi'||k==='auto')S.fside='all';
@@ -1056,35 +1077,32 @@ function pvl(){
 function fxList(){const sel=selOf(),mode=rideMode();let h='',n=0;
   S.list.forEach(function(f){const i=f.i;if(mode==='semi'&&f.show)return;if(mode==='auto'&&!f.show)return;if(S.fo&&!S.fav.has(i))return;n++;
     const on=sel===i,fv=S.fav.has(i),hid=S.q&&f.n.toLowerCase().indexOf(S.q.toLowerCase())<0;
-    h+='<div class="fr ride-fx'+(on?' on':'')+'" data-n="'+esc(f.n.toLowerCase())+'" style="'+(hid?'display:none':'')+'" onclick="pick('+i+')"><span class="no">'+n+'</span><b>'+esc(f.n)+(f.show?' <em class="cb">✦ Mizuma</em>':'')+'</b><span class="ride-fx-state">'+(on?'Dipilih':'')+'</span><button class="star'+(fv?' on':'')+'" aria-label="Favorit" onclick="event.stopPropagation();tf('+i+')">'+(fv?'★':'☆')+'</button></div>';});
+    const activeMode=mode===S.modeActive;
+    h+='<div class="fr ride-fx'+(on?' on':'')+'" data-n="'+esc(f.n.toLowerCase())+'" style="'+(hid?'display:none':'')+'" onclick="pick('+i+')"><span class="no">'+n+'</span><b>'+esc(f.n)+(f.show?' <em class="cb">✦ Mizuma</em>':'')+'</b>'+(on?'<span class="ride-mode-badge '+(activeMode?'on':'off')+'" data-ride-mode-badge>'+ (activeMode?'Mode Riding':'Mode Riding')+'</span>':'')+'<button class="star'+(fv?' on':'')+'" aria-label="Favorit" onclick="event.stopPropagation();tf('+i+')">'+(fv?'★':'☆')+'</button></div>';});
   if(!S.fx.length)return'<div class="emp">Memuat daftar efek…</div>';
   if(!h)return'<div class="emp">'+(S.fo?'Belum ada efek favorit. Ketuk efek lalu ★ untuk menambah.':'Tidak ada efek.')+'</div>';
   return h;}
-function rideSideSelect(){return'<div class="ride-side-tabs">'+['R','L'].map(function(k){const name=k==='R'?'Kanan':'Kiri',fx=S.fs[k]!=null?S.fs[k]:(S.act[k]?S.act[k].fx:S.sel);return'<button class="ride-side-tab'+(S.fside===k?' on':'')+'" onclick="selectRideSide(\''+k+'\')"><b>'+name+'</b><small>'+esc(fxName(fx))+'</small></button>';}).join('')+'</div>';}
+function rideSideSelect(){return'<div class="ride-side-select-row"><div class="ride-side-tabs">'+['L','R'].map(function(k){const name=k==='R'?'Kanan':'Kiri',fx=S.fs[k]!=null?S.fs[k]:(S.act[k]?S.act[k].fx:S.sel);return'<button class="ride-side-tab'+(S.fside===k?' on':'')+'" onclick="selectRideSide(\''+k+'\')">'+name+' - '+esc(fxName(fx))+'</button>';}).join('')+'</div><button class="ride-apply" onclick="useFx(selOf())">Terapkan ke Riding</button></div>';}
 function selectRideSide(k){S.fside=k;S.sel=selOf();R();}
 function rideColorOpenFor(k){S.fside=k;rideColorQuickOpen();}
-function rideColorButton(k,mode){const c=rideColor(k),name=k==='R'?'Kanan':'Kiri';return'<div class="ride-color-cell"><button class="ride-color" onclick="rideColorOpenFor(\''+k+'\')"><i style="background:'+cfgGrad(c)+'"></i><span>'+name+' · '+esc(ckn(c,false))+'</span></button>'+(mode==='semi'||mode==='auto'?reverseButton(mode,k):'')+'</div>';}
-function autoThemeGrid(){const opts=S.palList.filter(function(x){return x.i!==0;}).slice(0,4);if(!opts.length)return'<div class="emp">Memuat tema warna…</div>';
-  return'<div class="ride-themes">'+opts.map(function(x){const grad=palGrad(x.i)||'var(--s2)',active=['R','L'].every(function(k){const c=rideColor(k);return c.cs==='pal'&&c.pal===x.i;});return'<button class="ride-theme'+(active?' on':'')+'" style="background:'+grad+'" onclick="setAutoTheme('+x.i+')">'+esc(x.n)+'</button>';}).join('')+'</div>';}
-function setAutoTheme(id){['R','L'].forEach(function(k){S.rideColors[k]={cs:'pal',pal:id,col:DC().col};});S.fside='all';rideColorChanged();R();toast('Tema warna diterapkan');}
+function rideColorButton(k,mode,withReverse){const c=rideColor(k),name=k==='R'?'Kanan':'Kiri';return'<div class="ride-color-cell"><button class="ride-color" onclick="rideColorOpenFor(\''+k+'\')"><i style="background:'+cfgGrad(c)+'"></i><span>Pilih Warna '+name+'</span></button>'+(withReverse?reverseButton(mode,k):'')+'</div>';}
+function rideModeControls(mode){const apply='<button class="ride-apply" onclick="useFx(selOf())">Terapkan ke Riding</button>';
+  if(mode==='semi')return'<div class="ride-toolbar">'+rideColorButton('L',mode,false)+rideColorButton('R',mode,false)+apply+'<div class="ride-shared-reverse">'+reverseButton('semi','R')+'</div>'+mirrorButton()+'</div>';
+  return'<div class="ride-toolbar">'+rideColorButton('L',mode,false)+rideColorButton('R',mode,false)+apply+reverseButton('auto','L')+reverseButton('auto','R')+mirrorButton()+'</div>';}
+function syncRideModeBadge(){const f=$('#frz');if(f)f.innerHTML=frz();document.querySelectorAll('[data-ride-mode-badge]').forEach(function(b){const active=S.modeActive===rideMode();b.classList.toggle('on',active);b.classList.toggle('off',!active);b.textContent='Mode Riding';});}
 function vFx(){const mode=rideMode(),i=selOf(),name=fxName(i),isManual=mode==='manual',isSemi=mode==='semi',isAuto=mode==='auto';
-  let h='<div class="ride-page"><div class="ride-intro">'+(isManual?'Pilih sisi, lalu atur efek dan warnanya.':isSemi?'Satu efek untuk kedua sisi; warna dan arah dapat diatur terpisah.':'Pilih animasi dan satu tema warna untuk kedua sisi.')+'</div>';
+  let h='<div class="ride-page"><div class="ride-intro">'+(isManual?'Pilih sisi, lalu atur efek dan warnanya.':isSemi?'Satu efek untuk kedua sisi; warna dan arah dapat diatur terpisah.':'Pilih animasi dan atur warna serta arah tiap sisi.')+'</div>';
   if(isManual)h+=rideSideSelect();
-  h+='<section class="ride-card"><div class="ride-card-head"><b>'+(isManual?'Efek sisi '+(S.fside==='L'?'kiri':'kanan'):isSemi?'Efek untuk kedua sisi':'Animasi')+'</b><small>'+esc(name)+'</small></div>'+
-    '<div class="ride-current"><span class="ride-thumb" style="background:'+cfgGrad(rideColorCurrent())+'"></span><span class="ride-current-copy"><b>'+esc(name)+'</b><small>'+(isManual?'Untuk sisi '+(S.fside==='L'?'kiri':'kanan'):isSemi?'Dipakai pada kedua sisi':'Efek berjalan otomatis')+'</small></span>'+
-    (isManual?'<button class="ride-mini-btn" onclick="rideColorQuickOpen()">Warna</button>':'')+'</div>';
-  if(isManual)h+='<div class="ride-tool-row">'+reverseButton('manual',S.fside==='L'?'L':'R')+'</div>';
-  if(isSemi)h+='<div class="ride-tool-row"><button class="mirror-btn'+(S.semiMirror?' on':'')+'" data-mirror aria-pressed="'+(S.semiMirror?'true':'false')+'" onclick="toggleRideMirror()">◧ Mirror</button></div>';
-  if(isAuto)h+='<div class="ride-tool-row">'+reverseButton('auto','L')+reverseButton('auto','R')+'</div>';
-  h+='<div class="ride-section-title"><b>'+(isSemi?'Pilih satu efek':isAuto?'Pilih animasi':'Pilih efek')+'</b><small>'+(isManual?(S.fside==='L'?'Kiri':'Kanan'):isSemi?'Sama untuk kedua sisi':'')+'</small><button class="ride-mini-btn'+(S.fo?' active':'')+'" onclick="S.fo=!S.fo;R()">★</button></div><div class="ride-fx-list">'+fxList()+'</div></section>';
-  if(!isAuto){h+='<section class="ride-card ride-params"><div class="ride-card-head"><b>Atur gerakan efek</b><small>'+(isManual?'Untuk sisi ini':'Untuk kedua sisi')+'</small></div>'+pbar(i)+'</section>';}
-  if(isSemi)h+='<section class="ride-card"><div class="ride-card-head"><b>Warna tiap sisi</b><small>Tekan warna untuk mengubah</small></div><div class="ride-colors">'+rideColorButton('R','semi')+rideColorButton('L','semi')+'</div></section>';
-  if(isAuto)h+='<section class="ride-card"><div class="ride-card-head"><b>Tema warna</b><small>Sama untuk kedua sisi</small></div>'+autoThemeGrid()+'</section>';
+  h+='<section class="ride-card"><div class="ride-card-head"><b>'+(isManual?'Efek sisi '+(S.fside==='L'?'kiri':'kanan'):isSemi?'Efek untuk kedua sisi':'Animasi')+'</b></div>'+
+    '<div class="ride-current"><span class="ride-current-copy"><b>'+esc(name)+'</b><small>'+(isManual?'Sisi '+(S.fside==='L'?'kiri':'kanan'):isSemi?'Satu efek untuk kedua sisi':'Berjalan pada kedua sisi')+'</small></span>'+
+    (isManual?'<div class="ride-color-cell"><button class="ride-mini-btn" onclick="rideColorQuickOpen()">Pilih Warna/Skin</button>'+reverseButton('manual',S.fside==='L'?'L':'R')+'</div>':'')+'</div>';
+  if(isSemi||isAuto)h+=rideModeControls(mode);
+  h+='<div class="ride-section-title"><b>'+(isSemi?'Pilih satu efek':isAuto?'Pilih animasi':'Pilih efek')+'</b><button class="ride-mini-btn'+(S.fo?' active':'')+'" onclick="S.fo=!S.fo;R()">☆ Filter Efek Favorit</button></div><div class="ride-fx-list">'+fxList()+'</div></section>';
   h+='</div>';return h;}
 function fqx(v){S.q=v;document.querySelectorAll('#scr .fr[data-n]').forEach(function(e){e.style.display=e.dataset.n.indexOf(v.toLowerCase())<0?'none':'';});}
 function pick(i){if(rideMode()==='manual'&&S.fside!=='all'){S.fs[S.fside]=i;S.sel=i;}else{S.sel=i;S.fs={L:null,R:null};}applyLiveD(i);R();}
 function tf(i){S.fav.has(i)?S.fav.delete(i):S.fav.add(i);saveLocal();R();}
-function pbar(i){if(isShowId(i))return'<div class="m" style="width:100%;text-align:center">Show Mizuma · '+fd(showSec(i))+' dtk · diulang terus di Riding. Warna lewat tab Warna kanan/kiri.</div>';
+function pbar(i){if(isShowId(i))return'<div class="m" style="width:100%;text-align:center">Animasi · '+fd(showSec(i))+' detik · diulang terus di Riding.</div>';
   const p=parseFxData(S.fxd[i]||''),v=pm(i);
   if(!p.sl.length&&!p.tg.length)return'<div class="m" style="width:100%;text-align:center">Efek ini tidak punya parameter tambahan.</div>';
   return'<div class="pb"><div class="pg2">'+p.sl.map(function(s){return'<label>'+esc(s.label)+'<input type="range" min="0" max="255" value="'+v[s.key]+'" oninput="prm(\''+s.key+'\',this.value)" onchange="updInfo()"></label>';}).join('')+'</div>'+
@@ -1113,7 +1131,7 @@ function saveCol(){const i=selOf();if(rideColorMode()){
   S.fxsSaved[i]=JSON.stringify(cfg(i));saveLocal();
   if(isActive(i)){persist(i,'Warna '+fxName(i)+' tersimpan');}else{applyLive(i);R();toast('Warna '+fxName(i)+' tersimpan. Ketuk Pakai untuk memasangnya.');}}
 function foot(){const i=selOf();
-  if(['fx','semi','auto'].indexOf(S.tb)>=0)return'<button class="btn p" onclick="useFx(selOf())">Terapkan ke Riding</button><div class="apply-hint">'+(S.tb==='fx'?'Efek disimpan untuk sisi yang dipilih.':S.tb==='semi'?'Satu efek dan warna pilihan akan dipakai di kedua sisi.':'Animasi dan tema warna akan dipakai di kedua sisi.')+'</div>';
+  if(['fx','semi'].indexOf(S.tb)>=0)return'<section class="ride-fixed-params ride-card"><div class="ride-card-head"><b>Atur gerakan efek</b><small>'+(S.tb==='fx'?'Untuk sisi ini':'Untuk kedua sisi')+'</small></div>'+pbar(i)+'</section>';
   if(S.tb==='col'){const d=rideColorMode()?true:(colDirty(i)||!isSaved(i));return'<div class="color-actions"><button class="btn fbtn sk" onclick="cpEdit(-1)">＋ Warna baru</button><button class="btn p fbtn" style="'+(d?'':'opacity:.55')+'" onclick="saveCol()">'+(d?'Simpan warna':'Warna tersimpan ✓')+'</button></div>';}
   return'';}
 function wheel(){if(!$('#scr #pkw')||document.querySelector('#sheet.on'))return;const i=selOf(),separate=rideColorMode(),c=separate?rideColorCurrent():cfg(i);pkBind(c.col,function(){c.cs='one';if(separate)rideColorChanged();else colLive(i);});}
@@ -1195,7 +1213,8 @@ function plFlush(){return plSyncAll();}
 /* status runner dari engine */
 function pollPl(){fetch('/mizuma/pl/state').then(function(r){return r.json();}).then(function(d){const ch=d.use!==S.pl.use||d.run!==S.pl.run||d.hold!==S.pl.hold||d.list!==S.pl.list||d.slot!==S.pl.slot;
   S.pl.use=d.use;S.pl.run=d.run;S.pl.hold=d.hold;S.pl.list=d.list;S.pl.slot=d.slot;S.pl.el=d.el/1000;S.pl.at=Date.now();if(!d.hold&&d.use<0)S.pl.ui=S.pl.ui&&d.run;
-  if(ch&&S.tb==='pl')R();}).catch(function(){});}
+  if(d.use>=0)S.modeActive='playlist';else if(S.modeActive==='playlist')S.modeActive='manual';
+  if(ch){syncRideModeBadge();if(S.tb==='pl')R();}}).catch(function(){});}
 setInterval(function(){if(!document.hidden&&(S.tb==='pl'||S.pl.use>=0))pollPl();},5000);
 function plEl(){const p=S.pl;return p.run&&!p.hold?p.el+(Date.now()-p.at)/1000:p.el;}
 setInterval(function(){if(S.tb!=='pl'||!S.pl.run||S.pl.hold)return;const l=S.lists[S.pl.list],x=l&&l.it[S.pl.slot];if(!x)return;let e=plEl();
@@ -1204,25 +1223,24 @@ setInterval(function(){if(S.tb!=='pl'||!S.pl.run||S.pl.hold)return;const l=S.lis
 
 function plOpen(i){S.pi=i;S.si=-1;R();$('#scr').scrollTop=0;}
 function plBack(){S.pi=null;S.si=-1;R();}
-function plGallery(){const E='event.stopPropagation();',ib=function(f,l,x){return'<button class="ib" '+(x||'')+' onclick="'+E+f+'">'+l+'</button>';};
-  let h='<div class="gal">';
-  S.lists.forEach(function(p,i){const a=S.pl.use===i,run=S.pl.run&&S.pl.list===i&&!S.pl.hold;
-    h+='<div class="tile'+(a?' on':'')+'" data-pl onclick="plOpen('+i+')" role="button" aria-label="Buka playlist '+esc(p.n)+'">'+thumb(p)+(a?'<span class="tbg">● Menyala</span>':'')+'<div class="tn"><b>'+esc(p.n)+'</b><span class="m">'+p.it.length+'/12 slot · '+fd(tot(p))+' dtk</span></div><div class="tb">'+ib('plPlay('+i+')',run?'⏸':'▶','style="color:var(--ac)" aria-label="'+(run?'Jeda':'Putar')+'"')+ib('plStop('+i+')','■','aria-label="Stop"')+ib('delPl('+i+')','🗑','style="color:var(--bad)" aria-label="Hapus playlist"')+'</div></div>';});
-  if(S.lists.length<4)h+='<button class="tile add" onclick="newPl()"><b>＋</b><span class="m">Playlist baru</span><span class="m">'+S.lists.length+'/4</span></button>';
+function plGallery(selected){let h='<div class="ride-playlist-grid">';
+  S.lists.forEach(function(p,i){h+='<button class="ride-playlist-card'+(i===selected?' on':'')+'" onclick="plOpen('+i+')" aria-label="Pilih playlist '+esc(p.n)+'"><b>'+esc(p.n)+'</b><small>'+p.it.length+' dari 12 slot · '+fd(tot(p))+' detik</small></button>';});
+  if(S.lists.length<4)h+='<button class="ride-playlist-card add" onclick="newPl()">＋ Buat playlist</button>';
   return h+'</div>';}
 function plFolder(i){const p=S.lists[i],run=S.pl.run&&S.pl.list===i&&!S.pl.hold,here=S.pl.run&&S.pl.list===i;
-  let h='<div class="ride-page"><div class="ride-intro">Atur urutan, edit, atau hapus slot. Playlist berjalan di perangkat meski ponsel terputus.</div><section class="ride-card"><div class="ride-card-head"><button class="ride-mini-btn" onclick="plBack()">‹ Kembali</button><input class="srch" style="margin:0;flex:1;min-width:0" type="text" maxlength="20" value="'+esc(p.n)+'" oninput="S.lists['+i+'].n=this.value;plMark('+i+')" aria-label="Nama playlist"></div><div class="ride-play-actions"><button class="btn'+(run?' p':'')+'" onclick="plPlay('+i+')">'+(run?'Jeda':'Putar di Riding')+'</button><button class="btn" onclick="plStop('+i+')">Hentikan</button></div><div class="m">'+p.it.length+' dari 12 slot diatur</div><div class="ride-slot-list">';
+  let h='<section class="ride-card"><div class="ride-card-head"><b id="plHeading">'+esc(p.n)+'</b><small>'+p.it.length+' dari 12 slot</small></div><input class="srch" style="margin:0 0 8px;width:100%" type="text" maxlength="20" value="'+esc(p.n)+'" oninput="S.lists['+i+'].n=this.value;$(\'plHeading\').textContent=this.value;plMark('+i+')" aria-label="Nama playlist"><div class="m">Atur urutan dengan tombol panah. Buka slot untuk mengubah pengaturannya.</div><div class="ride-slot-list">';
   for(let k=0;k<12;k++){const x=p.it[k];if(!x){h+='<div class="ride-slot empty"><span class="ride-slot-num">'+(k+1)+'</span><span class="ride-slot-copy"><b>Slot belum diatur</b><small>Pilih efek untuk slot ini</small></span><div class="ride-slot-actions"><button class="ib" aria-label="Tambah slot '+(k+1)+'" onclick="slotAdd('+i+')">＋</button></div></div>';continue;}
     h+='<div class="ride-slot'+(here&&S.pl.slot===k?' on':'')+'"><span class="ride-slot-num">'+(k+1)+'</span><span class="ride-slot-copy"><b>'+slotTitle(x)+'</b><small>'+fd(x.d)+' detik · '+(x.man?'Manual':'Efek')+'</small></span><div class="ride-slot-actions"><button class="ib" aria-label="Geser slot '+(k+1)+' ke atas" '+(k===0?'disabled':'')+' onclick="slotMove('+i+','+k+',-1)">↑</button><button class="ib" aria-label="Geser slot '+(k+1)+' ke bawah" '+(k===p.it.length-1?'disabled':'')+' onclick="slotMove('+i+','+k+',1)">↓</button><button class="ib" aria-label="Edit slot '+(k+1)+'" onclick="seOpen('+i+','+k+')">✎</button><button class="ib" aria-label="Hapus slot '+(k+1)+'" style="color:var(--bad)" onclick="slotDel('+i+','+k+')">×</button></div>'+(here&&S.pl.slot===k?'<i class="pgb" id="pgb" style="width:'+Math.min(100,plEl()/x.d*100)+'%"></i>':'')+'</div>';}
-  return h+'</div></section></div>';}
+  return h+'</div><div class="ride-play-actions"><button class="btn'+(run?' p':'')+'" onclick="plPlay('+i+')">'+(run?'Jeda':'Putar playlist di Riding')+'</button><button class="btn" onclick="plStop('+i+')">Hentikan</button><button class="btn" style="color:var(--bad)" onclick="delPl('+i+')">Hapus playlist</button></div></section>';}
 function slotMove(i,j,d){const to=j+d;if(to<0||to>=S.lists[i].it.length)return;slotReorder(i,j,to);}
-function vPl(){return S.listsLoaded?(S.pi!=null&&S.lists[S.pi]?plFolder(S.pi):'<div class="ride-page"><div class="ride-intro">Buat hingga 4 playlist, masing-masing berisi maksimal 12 slot.</div><section class="ride-card"><div class="ride-card-head"><b>Playlist saya</b><small>'+S.lists.length+' dari 4</small></div>'+plGallery()+'</section></div>'):'<div class="emp">Memuat playlist dari perangkat…</div>';}
+function vPl(){if(!S.listsLoaded)return'<div class="emp">Memuat playlist dari perangkat…</div>';const idx=S.pi!=null&&S.lists[S.pi]?S.pi:(S.lists.length?0:-1);
+  return'<div class="ride-page"><div class="ride-intro">Buat hingga 4 playlist, masing-masing berisi maksimal 12 slot.</div><section class="ride-card"><div class="ride-card-head"><b>Playlist saya</b><small>'+S.lists.length+' dari 4</small></div>'+plGallery(idx)+'</section>'+(idx>=0?plFolder(idx):'<section class="ride-card"><div class="emp">Buat playlist untuk mulai mengatur efek.</div></section>')+'</div>';}
 /* aksi playlist */
 function plUseCall(i){return mpost('/mizuma/pl/use?list='+i).then(function(r){if(!r.ok)throw new Error('pl');});}
 function plPlay(i){const l=S.lists[i];if(!l.it.length)return toast('Playlist kosong');
   if(S.pl.use===i&&S.pl.run){const on=!S.pl.hold;S.pl.hold=on;S.pl.at=Date.now();mpost('/mizuma/pl/pause?on='+(on?1:0)).catch(function(){});if(!on)S.pl.ui=false;R();return;}
-  plFlush().then(function(){return plUseCall(i);}).then(function(){S.pl.use=i;S.pl.run=true;S.pl.hold=false;S.pl.list=i;S.pl.slot=0;S.pl.el=0;S.pl.at=Date.now();S.pl.ui=false;S.pv=false;toast('Playlist “'+esc(l.n)+'” diputar dan dipakai untuk Riding');R();}).catch(function(){toast('Gagal memutar playlist');});}
-function plStop(i){if(S.pl.use===i){mpost('/mizuma/pl/use?list=-1').then(function(){S.pl.use=-1;S.pl.run=false;S.pl.hold=false;S.pl.ui=false;toast('Playlist dihentikan, kembali ke Single Effect');setTimeout(function(){loadSaved().then(R);},400);R();}).catch(function(){});}
+  plFlush().then(function(){return plUseCall(i);}).then(function(){S.pl.use=i;S.pl.run=true;S.pl.hold=false;S.pl.list=i;S.pl.slot=0;S.pl.el=0;S.pl.at=Date.now();S.pl.ui=false;S.pv=false;S.modeActive='playlist';syncRideModeBadge();toast('Playlist “'+esc(l.n)+'” diputar dan dipakai untuk Riding');R();}).catch(function(){toast('Gagal memutar playlist');});}
+function plStop(i){if(S.pl.use===i){mpost('/mizuma/pl/use?list=-1').then(function(){S.pl.use=-1;S.pl.run=false;S.pl.hold=false;S.pl.ui=false;S.modeActive='manual';syncRideModeBadge();toast('Playlist dihentikan, kembali ke Single Effect');setTimeout(function(){loadSaved().then(R);},400);R();}).catch(function(){});}
   else if(S.pl.run&&S.pl.list===i){mpost('/mizuma/pl/stop').then(function(){S.pl.run=false;S.pl.ui=false;R();});}}
 function newPl(){if(S.lists.length>=4)return toast('Maksimal 4 playlist');S.lists.push({n:'Playlist '+(S.lists.length+1),it:[]});S.pi=S.lists.length-1;S.si=-1;plMark(S.pi);R();}
 function delPl(i){confirmDel('Hapus playlist?','“'+esc(S.lists[i].n)+'” beserta '+S.lists[i].it.length+' slot di dalamnya akan dihapus.',function(){delPl0(i);});}
@@ -1336,7 +1354,7 @@ function boot(){
       jfetch('/mizuma/riding/mirror').then(function(x){return x.json();}).then(function(d){S.semiMirror=!!d.enabled;}).catch(function(){}),
       jfetch('/json/state').then(function(x){return x.json();}).then(function(j){if(j&&j.bri)S.bri=j.bri;}).catch(function(){}),loadSkinMeta().then(loadRideColors),loadSolidColorSlots(),
       fetch('/mizuma/riding/mode').then(function(x){return x.json();}).then(function(d){
-        const m=d.mode==='semi-auto'?'semi':d.mode==='auto'?'auto':d.mode==='playlist'?'pl':'fx';S.lastRideMode=m;S.tb=initialColorTab?'col':m;S.fside=m==='fx'?'R':'all';if(m==='pl')ensureLists();
+        const m=d.mode==='semi-auto'?'semi':d.mode==='auto'?'auto':d.mode==='playlist'?'pl':'fx';S.modeActive=m==='pl'?'playlist':m==='fx'?'manual':m;S.lastRideMode=m;S.tb=initialColorTab?'col':m;S.fside=m==='fx'?'R':'all';if(m==='pl')ensureLists();
         return mpost('/mizuma/riding/context?active=1');
       }).catch(function(){})]).then(loadSaved);
   }).then(function(x){if(x===null)return;S.ready=true;pingNow();pollPl();R();});
