@@ -18,19 +18,20 @@
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/riding/mode     ?mode=manual|semi-auto|auto|playlist
 //   GET|POST  /mizuma/riding/reverse  per-mode / per-side direction
-//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Semi-auto / Auto
+//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Semi-auto
 //   POST      /mizuma/riding/context  ?active=1|0                   current UI owns direction controls
-//   GET|POST  /mizuma/riding/colors   side=kanan|kiri&palette=0|1&pal&r&g&b (warna sisi tersimpan di config Mizuma)
+//   GET|POST  /mizuma/riding/colors   mode=manual|semi-auto|auto&side=kanan|kiri&palette=0|1&pal&r&g&b (warna tersimpan per mode)
+//   GET /mizuma/riding/effects -> snapshot efek per mode; POST /mizuma/riding/effect?mode&side&fx&... menyimpan snapshot
 //   GET|POST  /mizuma/bri             ?v=1..255                        brightness permanen
 //   GET|POST  /mizuma/skins           metadata skin custom perangkat (maks 30, termasuk titik warna)
 //   POST      /mizuma/skins/delete?id=<id>
 //   GET|POST  /mizuma/colors          enam slot warna solid custom (disimpan di filesystem perangkat)
 //   --- Playlist Riding (maks 4 playlist x 12 slot; berjalan di engine, tetap jalan saat HP terputus) ---
 //   GET   /mizuma/playlists          -> {use, lists:[{n, c}]}           use = indeks playlist yang dipakai Riding (-1 = Single Effect)
-//   GET   /mizuma/pl/list?i=N        -> {name, it:[{d(0.1dtk), R:{..,rv}, L:{..,rv}}]}
-//   POST  /mizuma/pl/save            body JSON {list,name,it:[...]}     simpan satu playlist
+//   GET   /mizuma/pl/list?i=N        -> {name, it:[{d(0.1dtk), mode, R:{..,rv}, L:{..,rv}}]}
+//   POST  /mizuma/pl/save            body JSON {list,name,it:[{mode,R,L,...}]} simpan snapshot tiap slot
 //   POST  /mizuma/pl/delete?list=N
-//   POST  /mizuma/pl/use?list=N      N=-1 -> kembali ke preset Single Effect (ridingKanan/ridingKiri)
+//   POST  /mizuma/pl/use?list=N      N=-1 -> kembali ke snapshot Single Effect Manual (preset lama menjadi fallback)
 //   POST  /mizuma/pl/play?list=N&slot=J&hold=0|1   putar / pratinjau satu slot
 //   POST  /mizuma/pl/pause?on=1|0    jeda / lanjut        POST /mizuma/pl/stop   hentikan pratinjau, pulihkan Riding
 //   GET   /mizuma/pl/state           -> {use, run, hold, list, slot, el}
@@ -99,7 +100,15 @@ extern void handlePresets();
     enum RidingMode : uint8_t { RIDING_MANUAL=0, RIDING_SEMI_AUTO=1, RIDING_AUTO=2, RIDING_PLAYLIST=3 };
     static const uint8_t SEG_COLOR_RIGHT=0, SEG_COLOR_LEFT=1, SEG_FX_RIGHT=2, SEG_FX_LEFT=3, SEG_FX_WHOLE=4;
     struct RidingColor { bool palette=true; uint8_t pal=2; uint8_t r=255,g=255,b=255; };
-    RidingColor ridingColors[2];             // 0=Kanan, 1=Kiri (logis)
+    // Warna tersimpan terpisah per mode: [0]=Manual, [1]=Semi Auto, [2]=Auto.
+    // Auto memakai satu warna bersama yang direplikasi ke kedua sisi.
+    RidingColor ridingColors[3][2];
+    struct RidingEffectConfig {
+      bool valid=false; bool isShow=false; uint8_t showIndex=0; uint8_t fx=0;
+      uint8_t sx=128,ix=128,c1=128,c2=128,c3=128,o1=0,o2=0,o3=0;
+    };
+    // Snapshot efek per mode: Manual [kanan,kiri], Semi Auto [shared], Auto [Signature shared].
+    RidingEffectConfig ridingEffects[3][2];
     RidingMode ridingMode = RIDING_MANUAL;
     RidingMode savedRidingMode = RIDING_MANUAL;
     bool ridingUiActive = false;
@@ -111,8 +120,8 @@ extern void handlePresets();
        showRunner[], atau memanggil deallocateData() (WLED: reset/dealokasi tidak boleh terjadi saat efek berjalan).
        Aturan: handler hanya memvalidasi argumen lalu menitipkan perintah; processCmdQueue() di loop() adalah
        satu-satunya tempat yang mengeksekusi perubahan. loop() berjalan sebelum strip.service() pada task yang sama. */
-    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR, MZ_CMD_RIDING_DIRECTION, MZ_CMD_RIDING_MIRROR, MZ_CMD_RIDING_CONTEXT };
-    struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; uint8_t r,g,b; char mode[10]; };
+    enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR, MZ_CMD_RIDING_EFFECT, MZ_CMD_RIDING_DIRECTION, MZ_CMD_RIDING_MIRROR, MZ_CMD_RIDING_CONTEXT };
+    struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; uint8_t r,g,b; char mode[10]; uint8_t fx,showIndex,sx,ix,c1,c2,c3,o1,o2,o3; };
     static const uint8_t MZ_CMD_QUEUE_LEN = 12;
     QueueHandle_t cmdQueue = nullptr;
     static uint8_t mzSideCode(const String &s){ if(s=="both")return 0; if(s=="kanan")return 1; if(s=="kiri")return 2; return 255; }
@@ -161,7 +170,7 @@ extern void handlePresets();
     void addSegmentFromSlot(JsonArray seg,uint8_t segId,uint8_t slotIdx,bool useRidingColor=false){
     PresetSlot p=getEffectiveSlot(slotIdx);
     const bool logicalRight=(slotIdx%2)==0;
-        const RidingColor &ridingColor=ridingColors[logicalRight?0:1];
+        const RidingColor &ridingColor=ridingColorFor(ridingMode,logicalRight);
     JsonObject color=seg.createNestedObject();
     color["id"]=physicalColorSegForLogicalSide(logicalRight);color["on"]=true;
         color["fx"]=FX_MODE_PALETTE;color["pal"]=useRidingColor?(ridingColor.palette?ridingColor.pal:2):p.pal;color["sx"]=211;color["ix"]=77;
@@ -185,7 +194,7 @@ void applyRidingColorLayer(bool rightSide){
   if(!ridingSegmentsReady)return;
   const uint8_t logicalIndex=rightSide?0:1;
   Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
-  const RidingColor &color=ridingColors[logicalIndex];
+  const RidingColor &color=ridingColorFor(ridingMode,rightSide);
   seg.setMode(FX_MODE_PALETTE,true);
   seg.setPalette(color.palette?color.pal:2);
   seg.blendMode=0;
@@ -287,8 +296,12 @@ bool ensureRidingSegments(){
   return true;
 }
 bool ridingSegmentMirror(RidingMode mode,uint8_t id){
-  return ridingMirror&&((mode==RIDING_SEMI_AUTO&&id==SEG_FX_WHOLE)||
-    (mode==RIDING_AUTO&&(id==SEG_FX_RIGHT||id==SEG_FX_LEFT)));
+  // Mirror hanya berlaku pada efek linked Semi Auto. Untuk slot playlist, gunakan
+  // snapshot slot (bit 0 PlSlot::pad), bukan setelan Semi Auto yang sedang aktif.
+  if(mode!=RIDING_SEMI_AUTO||id!=SEG_FX_WHOLE)return false;
+  if(plRun.active&&plRun.list<PL_MAX&&plRun.slot<pls[plRun.list].n)
+    return (pls[plRun.list].it[plRun.slot].pad&0x01U)!=0;
+  return ridingMirror;
 }
 void applyRidingMirrorOptions(RidingMode mode){
   bool changed=false;
@@ -320,8 +333,19 @@ void applyRidingLayerMode(RidingMode mode){
 static uint8_t ridingModeIndex(RidingMode mode){
   return mode==RIDING_SEMI_AUTO?1:(mode==RIDING_AUTO?2:0);
 }
+RidingColor &ridingColorFor(RidingMode mode,bool logicalRight){
+  uint8_t mi=(mode==RIDING_PLAYLIST)?ridingModeIndex(savedRidingMode):ridingModeIndex(mode);
+  if(mi>2)mi=0;
+  return ridingColors[mi][mi==2?0:(logicalRight?0:1)];
+}
+const RidingColor &ridingColorFor(RidingMode mode,bool logicalRight) const {
+  uint8_t mi=(mode==RIDING_PLAYLIST)?ridingModeIndex(savedRidingMode):ridingModeIndex(mode);
+  if(mi>2)mi=0;
+  return ridingColors[mi][mi==2?0:(logicalRight?0:1)];
+}
 bool ridingSideReverse(RidingMode mode,bool logicalRight){
-  if(mode==RIDING_PLAYLIST)return false;
+  // Auto memakai arah internal Signature Effect; nilai reverse warisan tidak boleh mengubahnya.
+  if(mode==RIDING_PLAYLIST||mode==RIDING_AUTO)return false;
   const uint8_t modeIdx=ridingModeIndex(mode);
   return ridingReverse[modeIdx][logicalRight?0:1];
 }
@@ -329,12 +353,16 @@ bool ridingWholeReverse(){
   // Fold any previously saved per-side settings into the single linked-segment direction.
   return ridingReverse[1][0]^ridingReverse[1][1];
 }
-void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,uint8_t b){
-  if(side<1||side>2)return;
+void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,uint8_t b,uint8_t modeIdx){
+  if(side<1||side>2||modeIdx>2)return;
   const bool rightSide=side==1;
-  RidingColor &color=ridingColors[rightSide?0:1];
+  RidingColor &color=ridingColors[modeIdx][modeIdx==2?0:(rightSide?0:1)];
   color.palette=palette;color.pal=palette?pal:2;color.r=r;color.g=g;color.b=b;
-  applyRidingColorLayer(rightSide);strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);queueSave();
+  // Auto adalah satu konfigurasi warna bersama, bukan dua warna sisi.
+  if(modeIdx==2)ridingColors[2][1]=ridingColors[2][0];
+  const uint8_t activeIdx=ridingMode==RIDING_PLAYLIST?ridingModeIndex(savedRidingMode):ridingModeIndex(ridingMode);
+  if(!plRun.active&&activeIdx==modeIdx){applyRidingColorLayer(true);applyRidingColorLayer(false);strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
+  queueSave();
 }
 void applySingleSlot(uint8_t slotIdx,bool useRidingColor=false){
 bool rightSide=(slotIdx%2)==0;uint8_t segId=physicalSegForLogicalSide(rightSide);
@@ -503,6 +531,64 @@ void startShowRunner(bool logicalRight,uint8_t showIndex,bool reverseOverride=fa
   r.loop=false;r.active=true;r.hasCurrentShow=true;r.logicalRight=logicalRight;r.showIndex=showIndex;r.stageIndex=0;r.currentStageIndex=255;r.expectedMode=255;r.reverseOverride=reverseOverride;r.wholeStrip=wholeStrip;
   r.startedAt=millis();
 }
+void addStoredRidingEffect(JsonArray seg,uint8_t segId,const RidingEffectConfig &e,bool reverse){
+  JsonObject effect=seg.createNestedObject();effect["id"]=segId;effect["on"]=true;effect["fx"]=e.isShow?0:e.fx;effect["pal"]=0;effect["rev"]=reverse;
+  effect["sx"]=e.sx;effect["ix"]=e.ix;effect["c1"]=e.c1;effect["c2"]=e.c2;effect["c3"]=e.c3;effect["o1"]=e.o1;effect["o2"]=e.o2;effect["o3"]=e.o3;
+  JsonArray colors=effect.createNestedArray("col");for(uint8_t i=0;i<3;i++){JsonArray c=colors.createNestedArray();const uint8_t v=i==0?255:0;c.add(v);c.add(v);c.add(v);}
+}
+void applyStoredRidingMode(RidingMode mode,uint16_t transition100ms=4){
+  if(mode==RIDING_PLAYLIST){applyModeSide("riding","both",transition100ms);return;}
+  const uint8_t mi=ridingModeIndex(mode);
+  // Mode baru yang belum pernah disimpan harus memiliki konfigurasi awal miliknya
+  // sendiri. Jangan jatuh ke preset Manual: Auto wajib Signature Show, sedangkan
+  // Semi Auto wajib efek WLED bersama. Default ini langsung tersimpan di ESP32.
+  if(mode==RIDING_SEMI_AUTO&&(!ridingEffects[mi][0].valid||ridingEffects[mi][0].isShow)){
+    RidingEffectConfig initial;initial.valid=true;initial.isShow=false;initial.fx=0;
+    ridingEffects[mi][0]=initial;ridingEffects[mi][1]=initial;queueSave();
+  }else if(mode==RIDING_AUTO&&(!ridingEffects[mi][0].valid||!ridingEffects[mi][0].isShow)){
+    RidingEffectConfig initial;initial.valid=true;initial.isShow=true;initial.showIndex=0;
+    ridingEffects[mi][0]=initial;ridingEffects[mi][1]=initial;queueSave();
+  }
+  const bool hasRight=ridingEffects[mi][0].valid,hasLeft=ridingEffects[mi][1].valid;
+  if(!hasRight&&!(mode==RIDING_MANUAL&&hasLeft)){applyModeSide("riding","both",transition100ms);return;}
+  stopPlaylist();stopShowRunners("both");ridingUiActive=true;applyRidingLayerMode(mode);
+  StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();root["on"]=true;root["transition"]=transition100ms;if(bri==0)root["bri"]=savedBri;
+  JsonArray seg=root.createNestedArray("seg");
+  if(mode==RIDING_MANUAL){
+    // Setiap sisi pulih dari snapshot baru masing-masing. Sisi yang belum pernah
+    // disimpan tetap memakai preset Riding lama sebagai fallback, bukan efek sisi lain.
+    for(uint8_t k=0;k<2;k++){
+      const bool logicalRight=(k==0);
+      const RidingEffectConfig &saved=ridingEffects[0][k];
+      if(saved.valid){
+        addStoredRidingEffect(seg,physicalSegForLogicalSide(logicalRight),saved,ridingReverse[0][k]);
+      }else{
+        const PresetSlot legacy=getEffectiveSlot(2+k);
+        RidingEffectConfig fallback;fallback.valid=true;fallback.isShow=legacy.isShow;fallback.showIndex=legacy.showIndex;fallback.fx=legacy.fx;
+        fallback.sx=legacy.sx;fallback.ix=legacy.ix;fallback.c1=legacy.c1;fallback.c2=legacy.c2;fallback.c3=legacy.c3;
+        fallback.o1=legacy.o1;fallback.o2=legacy.o2;fallback.o3=legacy.o3;
+        addStoredRidingEffect(seg,physicalSegForLogicalSide(logicalRight),fallback,ridingReverse[0][k]);
+      }
+    }
+  }else if(mode==RIDING_SEMI_AUTO){addStoredRidingEffect(seg,SEG_FX_WHOLE,ridingEffects[1][0],ridingWholeReverse());}
+  else{
+    addStoredRidingEffect(seg,physicalSegForLogicalSide(true),ridingEffects[2][0],false);
+    addStoredRidingEffect(seg,physicalSegForLogicalSide(false),ridingEffects[2][0],false);
+  }
+  deserializeState(root);
+  if(mode==RIDING_MANUAL){
+    for(uint8_t k=0;k<2;k++){
+      const RidingEffectConfig &saved=ridingEffects[0][k];
+      const PresetSlot legacy=getEffectiveSlot(2+k);
+      const bool isShow=saved.valid?saved.isShow:legacy.isShow;
+      const uint8_t showIndex=saved.valid?saved.showIndex:legacy.showIndex;
+      if(isShow&&showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,showIndex);showRunner[k].loop=true;}
+    }
+  }else if(mode==RIDING_SEMI_AUTO){const RidingEffectConfig &e=ridingEffects[1][0];if(e.isShow&&e.showIndex<MZ_SHOW_COUNT){startShowRunner(true,e.showIndex,false,true);showRunner[0].loop=true;}}
+  else{const RidingEffectConfig &e=ridingEffects[2][0];if(e.isShow&&e.showIndex<MZ_SHOW_COUNT){startShowRunner(true,e.showIndex);startShowRunner(false,e.showIndex);showRunner[0].loop=true;showRunner[1].loop=true;}}
+  tickShowEngine();
+}
+
 void stopShowRunners(const String &side){
   if(side=="both"||side=="kanan"){showRunner[0].active=false;showRunner[0].hasCurrentShow=false;showRunner[0].currentStageIndex=255;showRunner[0].expectedMode=255;}
   if(side=="both"||side=="kiri"){showRunner[1].active=false;showRunner[1].hasCurrentShow=false;showRunner[1].currentStageIndex=255;showRunner[1].expectedMode=255;}
@@ -588,7 +674,7 @@ void execShowPalette(uint8_t pal,const String &side){
   for(uint8_t logical=0;logical<2;logical++){
     const bool rightSide=(logical==0);
     if(side!="both" && side!=(rightSide?String("kanan"):String("kiri")))continue;
-    RidingColor &color=ridingColors[logical];
+    RidingColor &color=ridingColorFor(ridingMode,rightSide);
     color.palette=true;color.pal=pal;
     applyRidingColorLayer(rightSide);
   }
@@ -800,13 +886,18 @@ void handleRidingMode(AsyncWebServerRequest *req,bool isGet){
   if(!enqueueCmd(c)){sendBusy(req);return;}
   req->send(200,"application/json","{\"ok\":true}");
 }
+void appendRidingColorJson(String &json,const RidingColor &c){
+  json+="{\"palette\":";json+=c.palette?"true":"false";
+  json+=",\"pal\":"+String(c.pal)+",\"rgb\":["+String(c.r)+","+String(c.g)+","+String(c.b)+"]}";
+}
 void handleRidingColors(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
-    String json="{\"ok\":true,\"right\":{\"palette\":";
-    json+=ridingColors[0].palette?"true":"false";
-    json+=",\"pal\":"+String(ridingColors[0].pal)+",\"rgb\":["+String(ridingColors[0].r)+","+String(ridingColors[0].g)+","+String(ridingColors[0].b)+"]},\"left\":{\"palette\":";
-    json+=ridingColors[1].palette?"true":"false";
-    json+=",\"pal\":"+String(ridingColors[1].pal)+",\"rgb\":["+String(ridingColors[1].r)+","+String(ridingColors[1].g)+","+String(ridingColors[1].b)+"]}}";
+    String json="{\"ok\":true,\"manual\":{\"right\":";
+    appendRidingColorJson(json,ridingColors[0][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[0][1]);
+    json+="},\"semi-auto\":{\"right\":";appendRidingColorJson(json,ridingColors[1][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[1][1]);
+    json+="},\"auto\":{\"right\":";appendRidingColorJson(json,ridingColors[2][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[2][0]);
+    // Alias kanan/kiri dipertahankan untuk UI lama; sekarang menunjuk konfigurasi Manual.
+    json+="},\"right\":";appendRidingColorJson(json,ridingColors[0][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[0][1]);json+="}";
     req->send(200,"application/json",json);return;
   }
   if(!req->hasArg("side")||!req->hasArg("palette")||!req->hasArg("pal")||!req->hasArg("r")||!req->hasArg("g")||!req->hasArg("b")){
@@ -814,10 +905,51 @@ void handleRidingColors(AsyncWebServerRequest *req,bool isGet){
   }
   const uint8_t side=mzSideCode(req->arg("side"));
   if(side<1||side>2){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid side\"}");return;}
-  const String mode=req->arg("palette");
-  if(mode!="0"&&mode!="1"){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette mode\"}");return;}
-  MzCmd c={};c.type=MZ_CMD_RIDING_COLOR;c.side=side;c.flag=(mode=="1");c.value=(uint8_t)constrain(req->arg("pal").toInt(),0,255);
+  const String mode=req->hasArg("mode")?req->arg("mode"):String("manual");
+  const uint8_t modeIdx=mode=="manual"?0:(mode=="semi-auto"?1:(mode=="auto"?2:255));
+  if(modeIdx>2){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid mode\"}");return;}
+  const String palette=req->arg("palette");
+  if(palette!="0"&&palette!="1"){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid palette mode\"}");return;}
+  MzCmd c={};c.type=MZ_CMD_RIDING_COLOR;c.side=side;c.flag=(palette=="1");c.value=(uint8_t)constrain(req->arg("pal").toInt(),0,255);
   c.r=(uint8_t)constrain(req->arg("r").toInt(),0,255);c.g=(uint8_t)constrain(req->arg("g").toInt(),0,255);c.b=(uint8_t)constrain(req->arg("b").toInt(),0,255);
+  strlcpy(c.mode,mode.c_str(),sizeof(c.mode));
+  if(!enqueueCmd(c)){sendBusy(req);return;}
+  req->send(200,"application/json","{\"ok\":true}");
+}
+
+void appendRidingEffectJson(String &json,const RidingEffectConfig &e){
+  json+="{\"valid\":";json+=e.valid?"true":"false";
+  json+=",\"isShow\":";json+=e.isShow?"true":"false";
+  json+=",\"showIndex\":"+String(e.showIndex)+",\"fx\":"+String(e.fx);
+  json+=",\"sx\":"+String(e.sx)+",\"ix\":"+String(e.ix)+",\"c1\":"+String(e.c1)+",\"c2\":"+String(e.c2)+",\"c3\":"+String(e.c3);
+  json+=",\"o1\":"+String(e.o1)+",\"o2\":"+String(e.o2)+",\"o3\":"+String(e.o3)+"}";
+}
+void handleRidingEffects(AsyncWebServerRequest *req,bool isGet){
+  if(isGet){
+    String json="{\"ok\":true,\"manual\":{\"right\":";appendRidingEffectJson(json,ridingEffects[0][0]);json+=",\"left\":";appendRidingEffectJson(json,ridingEffects[0][1]);
+    json+="},\"semi-auto\":{\"shared\":";appendRidingEffectJson(json,ridingEffects[1][0]);
+    json+="},\"auto\":{\"shared\":";appendRidingEffectJson(json,ridingEffects[2][0]);json+="}}";
+    req->send(200,"application/json",json);return;
+  }
+  if(!req->hasArg("mode")||!req->hasArg("side")||!req->hasArg("fx")){req->send(400,"application/json","{\"ok\":false,\"error\":\"mode, side and fx required\"}");return;}
+  const String mode=req->arg("mode"),side=req->arg("side");
+  const uint8_t mi=mode=="manual"?0:(mode=="semi-auto"?1:(mode=="auto"?2:255));
+  const uint8_t si=side=="kanan"?0:(side=="kiri"?1:255);
+  if(mi>2||si>1){req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid mode or side\"}");return;}
+  RidingEffectConfig next;next.valid=true;next.isShow=(req->arg("isShow")=="1"||req->arg("isShow")=="true");
+  next.showIndex=(uint8_t)constrain(req->arg("showIndex").toInt(),0,MZ_SHOW_COUNT-1);
+  next.fx=(uint8_t)constrain(req->arg("fx").toInt(),0,255);
+  next.sx=(uint8_t)constrain(req->arg("sx").toInt(),0,255);next.ix=(uint8_t)constrain(req->arg("ix").toInt(),0,255);
+  next.c1=(uint8_t)constrain(req->arg("c1").toInt(),0,255);next.c2=(uint8_t)constrain(req->arg("c2").toInt(),0,255);next.c3=(uint8_t)constrain(req->arg("c3").toInt(),0,255);
+  next.o1=req->arg("o1").toInt()?1:0;next.o2=req->arg("o2").toInt()?1:0;next.o3=req->arg("o3").toInt()?1:0;
+  if(next.isShow)next.fx=0;
+  if(mi==2&&!next.isShow){req->send(400,"application/json","{\"ok\":false,\"error\":\"auto_requires_signature\"}");return;}
+  if(mi==1&&next.isShow){req->send(400,"application/json","{\"ok\":false,\"error\":\"semi_auto_requires_wled_effect\"}");return;}
+  // Snapshot konfigurasi juga dimasukkan ke antrean loop agar tidak berbenturan
+  // dengan serialisasi config atau proses LED pada task yang berbeda.
+  MzCmd c={};c.type=MZ_CMD_RIDING_EFFECT;c.value=mi;c.side=si;c.flag=next.isShow?1:0;
+  c.fx=next.fx;c.showIndex=next.showIndex;c.sx=next.sx;c.ix=next.ix;
+  c.c1=next.c1;c.c2=next.c2;c.c3=next.c3;c.o1=next.o1;c.o2=next.o2;c.o3=next.o3;
   if(!enqueueCmd(c)){sendBusy(req);return;}
   req->send(200,"application/json","{\"ok\":true}");
 }
@@ -834,13 +966,44 @@ void processCmdQueue(){
       case MZ_CMD_SHOW_PALETTE: execShowPalette(c.value,side);break;
       case MZ_CMD_DIRECTION:    applyCurrentShowDirection();break;
       case MZ_CMD_APPLY:        applyModeSide(String(c.mode),side);break;
-      case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);applyRidingColorLayer(true);applyRidingColorLayer(false);queueSave();break;
+      case MZ_CMD_SIDE_SWAP: {
+        const bool playlistActive=plRun.active;
+        const uint8_t playlistList=plRun.list,playlistSlot=plRun.slot;
+        const bool playlistHold=plRun.hold;
+        stopShowRunners("both");sideSwap=(c.flag!=0);
+        if(playlistActive&&playlistList<PL_MAX&&playlistSlot<pls[playlistList].n){
+          // Re-render slot aktif dengan pemetaan fisik baru tanpa mengubah indeks,
+          // durasi, status pause, atau snapshot playlist.
+          applyPlSlot(playlistList,playlistSlot,playlistHold||pls[playlistList].n==1);
+        }else if(savedRidingMode==RIDING_PLAYLIST){
+          applyRidingLayerMode(RIDING_PLAYLIST);
+          if(ridingPl>=0)applyModeSide("riding","both");
+        }else applyStoredRidingMode(savedRidingMode,4);
+        queueSave();break;
+      }
       case MZ_CMD_PL_PLAY:      startPlaylist((int)c.value,(int)(c.flag&0x7F),(c.flag&0x80)!=0);break;
       case MZ_CMD_PL_PAUSE:     execPlPause(c.flag!=0);break;
-      case MZ_CMD_PL_USE:       ridingUiActive=true;ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;savedRidingMode=(c.flag!=0)?RIDING_MANUAL:RIDING_PLAYLIST;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");break;
-      case MZ_CMD_PL_STOP:      ridingUiActive=true;savedRidingMode=RIDING_MANUAL;applyRidingLayerMode(RIDING_MANUAL);applyModeSide("riding","both");queueSave();break;
-      case MZ_CMD_RIDING_MODE:  ridingUiActive=true;savedRidingMode=(RidingMode)c.value;ridingPl=-1;stopPlaylist();stopShowRunners("both");applyRidingLayerMode(savedRidingMode);queueSave();break;
-      case MZ_CMD_RIDING_COLOR: execRidingColor(c.side,c.flag!=0,c.value,c.r,c.g,c.b);break;
+      case MZ_CMD_PL_USE:
+        ridingUiActive=true;
+        if(c.flag!=0){ridingPl=-1;savedRidingMode=RIDING_MANUAL;queueSave();applyStoredRidingMode(RIDING_MANUAL,4);}
+        else{ridingPl=(int8_t)c.value;savedRidingMode=RIDING_PLAYLIST;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");}
+        break;
+      case MZ_CMD_PL_STOP:
+        ridingUiActive=true;ridingPl=-1;savedRidingMode=RIDING_MANUAL;queueSave();applyStoredRidingMode(RIDING_MANUAL,4);break;
+      case MZ_CMD_RIDING_MODE:
+        ridingUiActive=true;savedRidingMode=(RidingMode)c.value;ridingPl=-1;stopPlaylist();stopShowRunners("both");
+        applyStoredRidingMode(savedRidingMode,4);queueSave();break;
+      case MZ_CMD_RIDING_COLOR: execRidingColor(c.side,c.flag!=0,c.value,c.r,c.g,c.b,(uint8_t)(c.mode[0]=='s'?1:(c.mode[0]=='a'?2:0)));break;
+      case MZ_CMD_RIDING_EFFECT: {
+        if(c.value<=2&&c.side<=1){
+          RidingEffectConfig next;next.valid=true;next.isShow=c.flag!=0;next.fx=c.fx;next.showIndex=c.showIndex;
+          next.sx=c.sx;next.ix=c.ix;next.c1=c.c1;next.c2=c.c2;next.c3=c.c3;next.o1=c.o1;next.o2=c.o2;next.o3=c.o3;
+          ridingEffects[c.value][c.value==0?c.side:0]=next;
+          if(c.value!=0)ridingEffects[c.value][1]=next;
+          queueSave();
+        }
+        break;
+      }
       case MZ_CMD_RIDING_DIRECTION:
         if(c.value<3&&(c.side==1||c.side==2)){
           ridingUiActive=true;
@@ -878,12 +1041,17 @@ req->send(200,"application/json","{\"ok\":true}");}
 
 /* ===== PLAYLIST RIDING =====
    Maks 4 playlist x 12 slot. Jadwal slot berjalan di sini (loop task), bukan di browser, sehingga tetap berputar
-   saat HP terputus. Tiap slot menyimpan konfigurasi LENGKAP untuk kedua sisi (efek atau show Mizuma, palette, 3 warna,
-   parameter, reverse per sisi) + durasi (0.1 dtk). Disimpan di file /mz_pl.bin (bukan di cfg.json agar config tetap kecil). */
+   saat HP terputus. Tiap slot menyimpan mode dan snapshot konfigurasi sesuai Manual/Semi Auto/Auto, termasuk warna, parameter, dan arah yang relevan + durasi (0.1 dtk). Disimpan di file /mz_pl.bin (bukan di cfg.json agar config tetap kecil). */
 static const uint8_t PL_MAX=4, PL_SLOTS=12;
 struct PlSide{uint8_t isShow;uint8_t showIndex;uint8_t fx;uint8_t pal;uint8_t col[9];uint8_t sx,ix,c1,c2,c3,o1,o2,o3,rv;};
-struct PlSlot{uint16_t d;uint8_t pad[2];PlSide s[2];};   // s[0]=Kanan, s[1]=Kiri (logis)
+// mode: 0=Manual (dua efek), 1=Semi Auto (satu efek + dua warna), 2=Auto (Signature Effect + satu warna).
+struct PlSlot{uint16_t d;uint8_t mode;uint8_t pad;PlSide s[2];};   // pad bit 0=Mirror Semi Auto; s[0]=Kanan/shared, s[1]=Kiri (logis)
 struct PlList{char name[21];uint8_t n;PlSlot it[PL_SLOTS];};
+// Layout format lama MZP v3 (tanpa mode) dan v2 (reverse global) untuk migrasi.
+struct PlSlotV3{uint16_t d;uint8_t pad[2];PlSide s[2];};
+struct PlListV3{char name[21];uint8_t n;PlSlotV3 it[PL_SLOTS];};
+static_assert(sizeof(PlSlot)==sizeof(PlSlotV3),"MZP v3 slot layout must remain readable");
+static_assert(sizeof(PlList)==sizeof(PlListV3),"MZP v3 playlist layout must remain readable");
 struct PlSideV2{uint8_t isShow;uint8_t showIndex;uint8_t fx;uint8_t pal;uint8_t col[9];uint8_t sx,ix,c1,c2,c3,o1,o2,o3;};
 struct PlSlotV2{uint16_t d;uint8_t rv;uint8_t pad;PlSideV2 s[2];};
 struct PlListV2{char name[21];uint8_t n;PlSlotV2 it[PL_SLOTS];};
@@ -900,20 +1068,29 @@ bool plSavePending=false;uint32_t plSaveT=0;
 struct PlRun{bool active=false;bool hold=false;uint8_t list=0;uint8_t slot=0;uint32_t startedAt=0;uint32_t heldAt=0;};
 PlRun plRun;
 
-void plSaveFile(){File f=WLED_FS.open(F("/mz_pl.bin"),"w");if(!f)return;const uint8_t h[4]={'M','Z','P',3};f.write(h,4);f.write((const uint8_t*)pls,sizeof(pls));f.close();}
+void plSaveFile(){File f=WLED_FS.open(F("/mz_pl.bin"),"w");if(!f)return;const uint8_t h[4]={'M','Z','P',4};f.write(h,4);f.write((const uint8_t*)pls,sizeof(pls));f.close();}
 void plLoadFile(){
   File f=WLED_FS.open(F("/mz_pl.bin"),"r");if(!f)return;
   uint8_t h[4]={0,0,0,0};
   if(f.read(h,4)==4&&h[0]=='M'&&h[1]=='Z'&&h[2]=='P'){
-    if(h[3]==3&&f.size()==(4+sizeof(pls))){f.read((uint8_t*)pls,sizeof(pls));}
+    if(h[3]==4&&f.size()==(4+sizeof(pls))){f.read((uint8_t*)pls,sizeof(pls));}
+    else if(h[3]==3&&f.size()==(4+sizeof(PlListV3)*PL_MAX)){
+      PlListV3 old[PL_MAX];
+      if(f.read((uint8_t*)old,sizeof(old))==sizeof(old)){
+        for(uint8_t i=0;i<PL_MAX;i++){
+          strlcpy(pls[i].name,old[i].name,sizeof(pls[i].name));pls[i].n=old[i].n;
+          for(uint8_t j=0;j<PL_SLOTS;j++){PlSlot &dst=pls[i].it[j];const PlSlotV3 &src=old[i].it[j];dst.d=src.d;dst.mode=0;dst.pad=0;memcpy(dst.s,src.s,sizeof(dst.s));}
+        }
+        plSavePending=true;plSaveT=millis();
+      }
+    }
     else if(h[3]==2&&f.size()==(4+sizeof(PlListV2)*PL_MAX)){
       PlListV2 old[PL_MAX];
       if(f.read((uint8_t*)old,sizeof(old))==sizeof(old)){
         for(uint8_t i=0;i<PL_MAX;i++){
           strlcpy(pls[i].name,old[i].name,sizeof(pls[i].name));pls[i].n=old[i].n;
           for(uint8_t j=0;j<PL_SLOTS;j++){
-            PlSlot &dst=pls[i].it[j];const PlSlotV2 &src=old[i].it[j];
-            dst.d=src.d;
+            PlSlot &dst=pls[i].it[j];const PlSlotV2 &src=old[i].it[j];dst.d=src.d;dst.mode=0;dst.pad=0;
             for(uint8_t k=0;k<2;k++){
               const PlSideV2 &a=src.s[k];PlSide &b=dst.s[k];
               b.isShow=a.isShow;b.showIndex=a.showIndex;b.fx=a.fx;b.pal=a.pal;memcpy(b.col,a.col,sizeof(b.col));
@@ -926,7 +1103,7 @@ void plLoadFile(){
     }
   }
   f.close();
-  for(uint8_t i=0;i<PL_MAX;i++){pls[i].name[20]=0;if(pls[i].n>PL_SLOTS)pls[i].n=0;}
+  for(uint8_t i=0;i<PL_MAX;i++){pls[i].name[20]=0;if(pls[i].n>PL_SLOTS)pls[i].n=0;for(uint8_t j=0;j<pls[i].n;j++)if(pls[i].it[j].mode>2)pls[i].it[j].mode=0;}
 }
 void plQueueSave(){plSavePending=true;plSaveT=millis();}
 uint32_t plSlotMs(const PlSlot &sl){uint32_t ms=(uint32_t)sl.d*100U;if(ms<100U)ms=100U;return ms;}
@@ -936,29 +1113,47 @@ void stopPlaylist(){plRun.active=false;plRun.hold=false;}
 // Dieksekusi hanya dari task loop().
 void applyPlSlot(uint8_t li,uint8_t si,bool loopShows){
   if(li>=PL_MAX||si>=pls[li].n)return;
-  const PlSlot sl=pls[li].it[si];               // salinan lokal: aman terhadap edit dari task HTTP
+  const PlSlot sl=pls[li].it[si];
+  const RidingMode mode=(RidingMode)constrain((int)sl.mode,0,2);
   stopShowRunners("both");
+  applyRidingLayerMode(mode); // topologi segmen mengikuti mode yang disimpan di slot
   StaticJsonDocument<2048> doc;JsonObject root=doc.to<JsonObject>();
   root["on"]=true;root["transition"]=3;if(bri==0)root["bri"]=savedBri;
   JsonArray seg=root.createNestedArray("seg");
+  // Lapisan warna selalu dua sisi. Pada Auto, warna kanan menjadi satu-satunya warna bersama.
   for(uint8_t k=0;k<2;k++){
-    const PlSide &p=sl.s[k];
+    const PlSide &p=(mode==RIDING_AUTO)?sl.s[0]:sl.s[k];
     JsonObject color=seg.createNestedObject();
     color["id"]=physicalColorSegForLogicalSide(k==0);color["on"]=true;color["fx"]=FX_MODE_PALETTE;color["pal"]=p.pal;
     color["sx"]=211;color["ix"]=77;color["c1"]=77;color["c2"]=0;color["c3"]=0;color["o1"]=0;color["o2"]=0;color["o3"]=0;
     JsonArray colorCol=color.createNestedArray("col");
     for(uint8_t c=0;c<3;c++){JsonArray a=colorCol.createNestedArray();a.add(p.col[c*3]);a.add(p.col[c*3+1]);a.add(p.col[c*3+2]);}
-    JsonObject effect=seg.createNestedObject();
-    effect["id"]=physicalSegForLogicalSide(k==0);effect["on"]=true;
-    effect["fx"]=p.isShow?0:p.fx;effect["pal"]=0;
-    effect["rev"]=((p.rv!=0)!=showReverse);
-    effect["sx"]=p.sx;effect["ix"]=p.ix;effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
+  }
+  auto addEffect=[&](uint8_t segId,const PlSide &p,bool reverse){
+    JsonObject effect=seg.createNestedObject();effect["id"]=segId;effect["on"]=true;
+    effect["fx"]=p.isShow?0:p.fx;effect["pal"]=0;effect["rev"]=reverse;
+    effect["sx"]=p.sx;effect["ix"]=p.ix;effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;
+    effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
     JsonArray effectCol=effect.createNestedArray("col");
     for(uint8_t c=0;c<3;c++){JsonArray a=effectCol.createNestedArray();const uint8_t v=c==0?255:0;a.add(v);a.add(v);a.add(v);}
+  };
+  if(mode==RIDING_MANUAL){
+    addEffect(physicalSegForLogicalSide(true),sl.s[0],sl.s[0].rv!=0);
+    addEffect(physicalSegForLogicalSide(false),sl.s[1],sl.s[1].rv!=0);
+  }else if(mode==RIDING_SEMI_AUTO){
+    addEffect(SEG_FX_WHOLE,sl.s[0],sl.s[0].rv!=0);
+  }else{
+    addEffect(physicalSegForLogicalSide(true),sl.s[0],false);
+    addEffect(physicalSegForLogicalSide(false),sl.s[0],false);
   }
   deserializeState(root);
-  for(uint8_t k=0;k<2;k++){
-    if(sl.s[k].isShow&&sl.s[k].showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,sl.s[k].showIndex,sl.s[k].rv!=0);showRunner[k].loop=loopShows;}
+  if(mode==RIDING_MANUAL){
+    for(uint8_t k=0;k<2;k++)if(sl.s[k].isShow&&sl.s[k].showIndex<MZ_SHOW_COUNT){startShowRunner(k==0,sl.s[k].showIndex,sl.s[k].rv!=0);showRunner[k].loop=loopShows;}
+  }else if(mode==RIDING_SEMI_AUTO){
+    if(sl.s[0].isShow&&sl.s[0].showIndex<MZ_SHOW_COUNT){startShowRunner(true,sl.s[0].showIndex,sl.s[0].rv!=0,true);showRunner[0].loop=loopShows;}
+  }else if(sl.s[0].isShow&&sl.s[0].showIndex<MZ_SHOW_COUNT){
+    startShowRunner(true,sl.s[0].showIndex,false);startShowRunner(false,sl.s[0].showIndex,false);
+    showRunner[0].loop=loopShows;showRunner[1].loop=loopShows;
   }
   tickShowEngine();
 }
@@ -1139,24 +1334,53 @@ void handlePlSave(AsyncWebServerRequest *req){
   const int li=o["list"]|-1;
   if(li<0||li>=PL_MAX){req->send(400,"application/json","{\"ok\":false,\"error\":\"list\"}");return;}
   JsonArray it=o["it"];
-  plBusy=true;
-  PlList &L=pls[li];
-  strlcpy(L.name,(const char*)(o["name"]|"Playlist"),sizeof(L.name));
+  if(it.isNull()||it.size()>PL_SLOTS){req->send(400,"application/json","{\"ok\":false,\"error\":\"slot_limit\"}");return;}
+
+  // Parse into a temporary object first. An invalid slot must never partially overwrite
+  // a playlist that is already saved or currently running.
+  PlList nextList;memset(&nextList,0,sizeof(nextList));
+  strlcpy(nextList.name,(const char*)(o["name"]|"Playlist"),sizeof(nextList.name));
   uint8_t n=0;
-  if(!it.isNull()){
-    for(JsonObject x:it){
-      if(n>=PL_SLOTS)break;
-      PlSlot &sl=L.it[n];memset(&sl,0,sizeof(sl));
-      const int d=x["d"]|50;sl.d=(uint16_t)constrain(d,1,9999);
-      const uint8_t legacyRv=((int)(x["rv"]|0))?1:0;
-      JsonObject r=x["R"];JsonObject l=x["L"];
-      plParseSide(r,sl.s[0]);plParseSide(l,sl.s[1]);
-      if(!r.containsKey("rv"))sl.s[0].rv=legacyRv;
-      if(!l.containsKey("rv"))sl.s[1].rv=legacyRv;
-      n++;
+  for(JsonObject x:it){
+    if(n>=PL_SLOTS)break;
+    const String mode=x["mode"]|"manual";
+    if(mode!="manual"&&mode!="semi-auto"&&mode!="auto"){
+      req->send(400,"application/json","{\"ok\":false,\"error\":\"invalid_slot_mode\"}");return;
     }
+    JsonObject r=x["R"],l=x["L"];
+    if(r.isNull()||l.isNull()){
+      req->send(400,"application/json","{\"ok\":false,\"error\":\"slot_sides_required\"}");return;
+    }
+    PlSlot &sl=nextList.it[n];
+    const int d=x["d"]|50;sl.d=(uint16_t)constrain(d,1,9999);
+    sl.mode=mode=="semi-auto"?1:(mode=="auto"?2:0);
+    sl.pad=(sl.mode==1&&((bool)(x["mirror"]|false)))?0x01U:0U;
+    const uint8_t legacyRv=((int)(x["rv"]|0))?1:0;
+    plParseSide(r,sl.s[0]);plParseSide(l,sl.s[1]);
+    if(!r.containsKey("rv"))sl.s[0].rv=legacyRv;
+    if(!l.containsKey("rv"))sl.s[1].rv=legacyRv;
+
+    if(sl.mode==2){
+      if(!sl.s[0].isShow){
+        req->send(400,"application/json","{\"ok\":false,\"error\":\"auto_requires_signature\"}");return;
+      }
+      // Auto has one Signature Effect and one shared color configuration.
+      sl.s[1]=sl.s[0];
+    }else if(sl.mode==1){
+      if(sl.s[0].isShow){
+        req->send(400,"application/json","{\"ok\":false,\"error\":\"semi_auto_requires_wled_effect\"}");return;
+      }
+      // Semi Auto has one shared WLED effect/direction, but retains two color layers.
+      PlSide &left=sl.s[1];const PlSide &shared=sl.s[0];
+      left.isShow=shared.isShow;left.showIndex=shared.showIndex;left.fx=shared.fx;
+      left.sx=shared.sx;left.ix=shared.ix;left.c1=shared.c1;left.c2=shared.c2;left.c3=shared.c3;
+      left.o1=shared.o1;left.o2=shared.o2;left.o3=shared.o3;left.rv=shared.rv;
+    }
+    n++;
   }
-  L.n=n;
+  nextList.n=n;
+  plBusy=true;
+  pls[li]=nextList;
   plBusy=false;
   if(plRun.active&&plRun.list==li&&plRun.slot>=n)plRun.slot=0;
   plQueueSave();
@@ -1170,7 +1394,7 @@ void handlePlList(AsyncWebServerRequest *req){
   out+="{\"name\":\"";out+=jsonEscape(String(L.name));out+="\",\"it\":[";
   for(uint8_t k=0;k<L.n;k++){
     if(k)out+=',';
-    char b[32];snprintf(b,sizeof(b),"{\"d\":%u,\"R\":",(unsigned)L.it[k].d);out+=b;
+    char b[88];const char *mode=L.it[k].mode==1?"semi-auto":(L.it[k].mode==2?"auto":"manual");snprintf(b,sizeof(b),"{\"d\":%u,\"mode\":\"%s\",\"mirror\":%s,\"R\":",(unsigned)L.it[k].d,mode,(L.it[k].mode==1&&(L.it[k].pad&0x01U))?"true":"false");out+=b;
     plSideJson(out,L.it[k].s[0]);out+=",\"L\":";plSideJson(out,L.it[k].s[1]);out+="}";
   }
   out+="]}";
@@ -1359,6 +1583,8 @@ server.on("/mizuma/riding/mirror",HTTP_POST,[this](AsyncWebServerRequest *req){h
 server.on("/mizuma/riding/context",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingContext(req);});
 server.on("/mizuma/riding/colors",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingColors(req,true);});
 server.on("/mizuma/riding/colors",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingColors(req,false);});
+server.on("/mizuma/riding/effects",HTTP_GET,[this](AsyncWebServerRequest *req){handleRidingEffects(req,true);});
+server.on("/mizuma/riding/effect",HTTP_POST,[this](AsyncWebServerRequest *req){handleRidingEffects(req,false);});
 server.on("/mizuma/bri",HTTP_GET,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/bri",HTTP_POST,[this](AsyncWebServerRequest *req){handleBri(req);});
 server.on("/mizuma/playlists",HTTP_GET,[this](AsyncWebServerRequest *req){handlePlSummary(req);});
@@ -1393,7 +1619,7 @@ server.on("/mizuma/pl/save",HTTP_POST,
   [this](AsyncWebServerRequest *req){handlePlSave(req);},
   nullptr,
   [](AsyncWebServerRequest *req,uint8_t *data,size_t len,size_t index,size_t total){
-    if(total==0||total>9000)return;
+    if(total==0||total>12000)return;
     if(index==0){req->_tempObject=malloc(total+1);if(req->_tempObject)((char*)req->_tempObject)[0]=0;}
     char *b=(char*)req->_tempObject;if(!b)return;
     memcpy(b+index,data,len);
@@ -1439,7 +1665,7 @@ void loop() override {
   }
   if(welcomeFinished){
     ridingMode=savedRidingMode;
-    applyModeSide("riding", "both", 4); // 400 ms crossfade setelah show Mizuma selesai
+    applyStoredRidingMode(savedRidingMode,4); // pulihkan snapshot mode tersimpan; fallback ke preset lama bila belum dimigrasikan
     bootStage = 2;
     bootDone = true;
   }
@@ -1473,9 +1699,12 @@ for(uint8_t mode=0;mode<3;mode++){JsonArray sides=reverse.createNestedArray();si
 top["ridingMirror"]=ridingMirror;
 top["ridingMode"]=(uint8_t)savedRidingMode;
 top["ridingPl"]=(int)ridingPl;
+JsonArray re=top.createNestedArray("ridingEffects");for(uint8_t m=0;m<3;m++){JsonArray sides=re.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingEffectConfig &e=ridingEffects[m][k];JsonObject o=sides.createNestedObject();o["valid"]=e.valid;o["isShow"]=e.isShow;o["showIndex"]=e.showIndex;o["fx"]=e.fx;o["sx"]=e.sx;o["ix"]=e.ix;o["c1"]=e.c1;o["c2"]=e.c2;o["c3"]=e.c3;o["o1"]=e.o1;o["o2"]=e.o2;o["o3"]=e.o3;}}
 JsonObject rc=top.createNestedObject("ridingColors");
-JsonObject rr=rc.createNestedObject("right");rr["palette"]=ridingColors[0].palette;rr["pal"]=ridingColors[0].pal;rr["r"]=ridingColors[0].r;rr["g"]=ridingColors[0].g;rr["b"]=ridingColors[0].b;
-JsonObject rl=rc.createNestedObject("left");rl["palette"]=ridingColors[1].palette;rl["pal"]=ridingColors[1].pal;rl["r"]=ridingColors[1].r;rl["g"]=ridingColors[1].g;rl["b"]=ridingColors[1].b;}
+JsonObject rr=rc.createNestedObject("right");rr["palette"]=ridingColors[0][0].palette;rr["pal"]=ridingColors[0][0].pal;rr["r"]=ridingColors[0][0].r;rr["g"]=ridingColors[0][0].g;rr["b"]=ridingColors[0][0].b;
+JsonObject rl=rc.createNestedObject("left");rl["palette"]=ridingColors[0][1].palette;rl["pal"]=ridingColors[0][1].pal;rl["r"]=ridingColors[0][1].r;rl["g"]=ridingColors[0][1].g;rl["b"]=ridingColors[0][1].b;
+JsonArray rmc=top.createNestedArray("ridingModeColors");
+for(uint8_t m=0;m<3;m++){JsonArray sides=rmc.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingColor &c=ridingColors[m][k];JsonObject co=sides.createNestedObject();co["palette"]=c.palette;co["pal"]=c.pal;co["r"]=c.r;co["g"]=c.g;co["b"]=c.b;}}}
 
 bool readFromConfig(JsonObject &root) override {
 JsonObject top=root["Mizuma"];if(top.isNull())return false;
@@ -1514,15 +1743,44 @@ if(!reverse.isNull()){
 ridingMirror=top["ridingMirror"]|false;
 savedRidingMode=(RidingMode)constrain((int)(top["ridingMode"]|RIDING_MANUAL),(int)RIDING_MANUAL,(int)RIDING_PLAYLIST);
 ridingMode=savedRidingMode;
+JsonArray re=top["ridingEffects"];
+if(!re.isNull()){for(uint8_t m=0;m<3;m++){JsonArray sides=re[m];for(uint8_t k=0;k<2;k++){JsonObject o=sides[k];if(o.isNull())continue;RidingEffectConfig &e=ridingEffects[m][k];e.valid=o["valid"]|false;e.isShow=o["isShow"]|false;e.showIndex=(uint8_t)constrain((int)(o["showIndex"]|0),0,MZ_SHOW_COUNT-1);e.fx=o["fx"]|0;e.sx=o["sx"]|128;e.ix=o["ix"]|128;e.c1=o["c1"]|128;e.c2=o["c2"]|128;e.c3=o["c3"]|128;e.o1=o["o1"]|0;e.o2=o["o2"]|0;e.o3=o["o3"]|0;}}}
+if(ridingEffects[1][0].valid)ridingEffects[1][1]=ridingEffects[1][0];if(ridingEffects[2][0].valid)ridingEffects[2][1]=ridingEffects[2][0];
 JsonObject rc=top["ridingColors"];
 if(!rc.isNull()){
-  JsonObject rr=rc["right"];if(!rr.isNull()){ridingColors[0].palette=rr["palette"]|true;ridingColors[0].pal=rr["pal"]|2;ridingColors[0].r=rr["r"]|255;ridingColors[0].g=rr["g"]|255;ridingColors[0].b=rr["b"]|255;}
-  JsonObject rl=rc["left"];if(!rl.isNull()){ridingColors[1].palette=rl["palette"]|true;ridingColors[1].pal=rl["pal"]|2;ridingColors[1].r=rl["r"]|255;ridingColors[1].g=rl["g"]|255;ridingColors[1].b=rl["b"]|255;}
+  JsonObject rr=rc["right"];if(!rr.isNull()){ridingColors[0][0].palette=rr["palette"]|true;ridingColors[0][0].pal=rr["pal"]|2;ridingColors[0][0].r=rr["r"]|255;ridingColors[0][0].g=rr["g"]|255;ridingColors[0][0].b=rr["b"]|255;}
+  JsonObject rl=rc["left"];if(!rl.isNull()){ridingColors[0][1].palette=rl["palette"]|true;ridingColors[0][1].pal=rl["pal"]|2;ridingColors[0][1].r=rl["r"]|255;ridingColors[0][1].g=rl["g"]|255;ridingColors[0][1].b=rl["b"]|255;}
 }
+bool migratedLegacyConfig=false;
+JsonArray rmc=top["ridingModeColors"];
+if(!rmc.isNull()){for(uint8_t m=0;m<3;m++){JsonArray sides=rmc[m];for(uint8_t k=0;k<2;k++){JsonObject co=sides[k];if(co.isNull())continue;RidingColor &c=ridingColors[m][k];c.palette=co["palette"]|true;c.pal=co["pal"]|2;c.r=co["r"]|255;c.g=co["g"]|255;c.b=co["b"]|255;}}}
+else{
+  // Migrasi warna lama yang sebelumnya dipakai bersama oleh semua mode.
+  ridingColors[1][0]=ridingColors[0][0];ridingColors[1][1]=ridingColors[0][1];
+  ridingColors[2][0]=ridingColors[0][0];ridingColors[2][1]=ridingColors[0][1];
+  migratedLegacyConfig=true;
+}
+ridingColors[2][1]=ridingColors[2][0];
 const bool hasRidingMode=top.containsKey("ridingMode");
 ridingPl=(int8_t)((int)(top["ridingPl"]|-1));
-if(!hasRidingMode&&ridingPl>=0)savedRidingMode=RIDING_PLAYLIST;
+if(!hasRidingMode&&ridingPl>=0){savedRidingMode=RIDING_PLAYLIST;migratedLegacyConfig=true;}
 ridingMode=savedRidingMode;
+bool migratedLegacyEffects=false;
+// Konversi preset Riding versi lama ke snapshot Manual tanpa mengubah preset asal.
+for(uint8_t side=0;side<2;side++){
+  const PresetSlot &src=pslots[2+side];RidingEffectConfig &dst=ridingEffects[0][side];
+  if(!dst.valid&&src.valid){dst.valid=true;dst.isShow=src.isShow;dst.showIndex=src.showIndex;dst.fx=src.fx;
+    dst.sx=src.sx;dst.ix=src.ix;dst.c1=src.c1;dst.c2=src.c2;dst.c3=src.c3;dst.o1=src.o1;dst.o2=src.o2;dst.o3=src.o3;migratedLegacyEffects=true;}
+}
+// Jika mode lama yang aktif Semi Auto atau Auto, bawa efek aktifnya juga ke mode terkait.
+const PresetSlot &activeLegacy=pslots[2];
+if(activeLegacy.valid&&savedRidingMode==RIDING_SEMI_AUTO&&!activeLegacy.isShow&&!ridingEffects[1][0].valid){
+  RidingEffectConfig &dst=ridingEffects[1][0];dst.valid=true;dst.isShow=false;dst.fx=activeLegacy.fx;dst.sx=activeLegacy.sx;dst.ix=activeLegacy.ix;dst.c1=activeLegacy.c1;dst.c2=activeLegacy.c2;dst.c3=activeLegacy.c3;dst.o1=activeLegacy.o1;dst.o2=activeLegacy.o2;dst.o3=activeLegacy.o3;ridingEffects[1][1]=dst;migratedLegacyEffects=true;
+}else if(activeLegacy.valid&&savedRidingMode==RIDING_AUTO&&activeLegacy.isShow&&!ridingEffects[2][0].valid){
+  RidingEffectConfig &dst=ridingEffects[2][0];dst.valid=true;dst.isShow=true;dst.showIndex=activeLegacy.showIndex;dst.sx=activeLegacy.sx;dst.ix=activeLegacy.ix;dst.c1=activeLegacy.c1;dst.c2=activeLegacy.c2;dst.c3=activeLegacy.c3;dst.o1=activeLegacy.o1;dst.o2=activeLegacy.o2;dst.o3=activeLegacy.o3;ridingEffects[2][1]=dst;migratedLegacyEffects=true;
+}
+if(migratedLegacyEffects)migratedLegacyConfig=true;
+if(migratedLegacyConfig)queueSave();
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}
