@@ -659,6 +659,17 @@ nav span{padding:3px 16px;border-radius:16px;display:flex}nav .on span{backgroun
 .ride-toolbar .ride-color i{width:26px;height:20px}
 .ride-toolbar .ride-color span{font-size:10px}
 .ride-toolbar .ride-shared-reverse{grid-column:span 2}
+.ride-semi-head{gap:4px;white-space:nowrap}
+.ride-semi-head b{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+.ride-semi-head .rev-side,.ride-semi-head .mirror-btn,.ride-semi-head .ride-mini-btn{min-height:30px;padding:0 5px;font-size:9px}
+.ride-semi-current{gap:5px}
+.ride-semi-actions{display:flex;align-items:center;gap:4px;flex:none}
+.ride-semi-actions .ride-color-cell{display:block;flex:none}
+.ride-color.compact{width:52px;min-height:32px;padding:3px 4px;gap:3px}
+.ride-color.compact i{width:17px;height:17px}
+.ride-color.compact span{font-size:9px;text-align:center}
+.ride-semi-actions .ride-apply{min-width:88px;min-height:32px;padding:0 5px;font-size:9px}
+.ride-current .ride-color-cell .ride-mini-btn{flex:none}
 .ride-mode-badge{display:inline-flex;align-items:center;justify-content:center;min-width:74px;height:25px;padding:0 7px;border:1px solid var(--bd2);border-radius:7px;background:var(--s2);color:var(--tx3);font-size:9px;font-weight:800;white-space:nowrap}
 .ride-mode-badge.on{border-color:var(--ok);background:rgba(61,220,132,.12);color:var(--ok);box-shadow:0 0 6px rgba(61,220,132,.18)}
 .ride-mode-badge.off{opacity:.55}
@@ -700,7 +711,7 @@ nav span{padding:3px 16px;border-radius:16px;display:flex}nav .on span{backgroun
 .quick-row input{flex:1;min-width:0}
 .quick-toggle{width:100%;margin-top:4px}
 #foot .apply-hint{margin:0;color:var(--tx2);font-size:10px;text-align:center}
-@media(max-width:420px){.ride-side-tabs,.ride-colors{gap:5px}.ride-slot{grid-template-columns:30px minmax(0,1fr) auto;gap:5px;padding:6px}.ride-slot-actions{gap:2px}.ride-slot-actions .ib{width:30px;height:30px}.ride-mini-btn{padding:0 7px}.ride-apply{padding:0 7px;font-size:10px}.ride-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(90px,1fr);gap:4px}}
+@media(max-width:420px){.ride-side-tabs,.ride-colors{gap:5px}.ride-slot{grid-template-columns:30px minmax(0,1fr) auto;gap:5px;padding:6px}.ride-slot-actions{gap:2px}.ride-slot-actions .ib{width:30px;height:30px}.ride-mini-btn{padding:0 7px}.ride-apply{padding:0 7px;font-size:10px}.ride-toolbar{grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(90px,1fr);gap:4px}.ride-semi-head{gap:3px}.ride-semi-head .rev-side{font-size:8px;padding:0 3px}.ride-semi-current{gap:3px}.ride-semi-actions{gap:3px}.ride-color.compact{width:47px;padding:2px}.ride-semi-actions .ride-apply{min-width:84px;padding:0 3px;font-size:8px}}
 
 </style></head><body>
 <div class="hd"><div class="br"><div class="logo">M</div><div><div class="b1">MIZUMA</div><div class="b2">PERFORMANCE</div></div></div><div class="ri" id="ri"></div><div id="hr"></div></div><div id="ban"></div>
@@ -785,7 +796,7 @@ const SDN={all:'Semua',L:'Kiri',R:'Kanan'};
 const DC=()=>({cs:'one',col:{h:39,s:100,v:100}});
 
 /* ===== state ===== */
-const S={tb:'fx',lastRideMode:'fx',fside:'all',sel:0,fs:{L:null,R:null},q:'',fo:false,
+const S={tb:'fx',lastRideMode:'fx',fside:'all',sel:0,fs:{L:null,R:null},modeSel:{semi:null,auto:null},q:'',fo:false,
   fx:[],fxd:[],shows:[],showMs:[],list:[],palNames:[],palList:[],palRaw:{},palInfo:{cpal:0,cmax:10,um:[],major:0},palSig:'',
   fav:new Set(),fxs:{},fxsSaved:{},pm:{},cu:[],act:{L:null,R:null},lists:[],
   rideColors:{L:{cs:'pal',pal:2,col:{h:39,s:100,v:100}},R:{cs:'pal',pal:2,col:{h:39,s:100,v:100}}},
@@ -794,9 +805,9 @@ const S={tb:'fx',lastRideMode:'fx',fside:'all',sel:0,fs:{L:null,R:null},q:'',fo:
   pl:{use:-1,run:false,hold:false,list:0,slot:0,el:0,at:0,ui:false},showLive:{L:false,R:false},
   sideSwap:false,bri:180,net:true,sv:'ok',volt:null,pv:false,ready:false,popKind:null};
 let legacyCu=[];
-function loadLocal(){try{const d=JSON.parse(localStorage.getItem('mzRid4')||'null');if(d){S.fav=new Set(d.fav||[]);S.fxs=d.fxs||{};S.pm=d.pm||{};legacyCu=Array.isArray(d.cu)?d.cu:[];}}catch(e){}
+function loadLocal(){try{const d=JSON.parse(localStorage.getItem('mzRid4')||'null');if(d){S.fav=new Set(d.fav||[]);S.fxs=d.fxs||{};S.pm=d.pm||{};if(d.fs)S.fs={L:d.fs.L==null?null:+d.fs.L,R:d.fs.R==null?null:+d.fs.R};if(d.modeSel)S.modeSel={semi:d.modeSel.semi==null?null:+d.modeSel.semi,auto:d.modeSel.auto==null?null:+d.modeSel.auto};legacyCu=Array.isArray(d.cu)?d.cu:[];}}catch(e){}
   Object.keys(S.fxs).forEach(function(k){S.fxsSaved[k]=JSON.stringify(S.fxs[k]);});}
-function saveLocal(){try{localStorage.setItem('mzRid4',JSON.stringify({fav:[...S.fav],fxs:S.fxs,pm:S.pm}));}catch(e){}}
+function saveLocal(){try{localStorage.setItem('mzRid4',JSON.stringify({fav:[...S.fav],fxs:S.fxs,pm:S.pm,fs:S.fs,modeSel:S.modeSel}));}catch(e){}}
 loadLocal();
 
 /* ===== data efek ===== */
@@ -888,7 +899,12 @@ function toggleRideReverse(mode,k){if(!S.rideReverse[mode])return;const old=!!S.
 function toggleRideMirror(){const old=S.semiMirror,next=!old;S.semiMirror=next;syncReverseControls();
   mpost('/mizuma/riding/mirror?enabled='+(next?'1':'0')).then(function(r){if(!r.ok)throw new Error('mirror');return r.json();}).then(function(d){if(!d.ok)throw new Error('mirror');}).catch(function(){S.semiMirror=old;syncReverseControls();toast('Gagal mengubah cerminan efek');});}
 function colorTargets(){return sideKeys().map(function(k){return mapColorSegId(sideName(k));});}
-function selOf(){if(rideMode()!=='manual'||S.fside==='all')return S.sel;const f=S.fs[S.fside];if(f!=null)return f;const a=S.act[S.fside];return a?a.fx:S.sel;}
+function manualSel(k){return S.fs[k]!=null?S.fs[k]:fxDefId();}
+function selOf(){const mode=rideMode();if(mode==='manual')return manualSel(S.fside==='L'?'L':'R');
+  if(mode==='semi')return S.modeSel.semi!=null&&!isShowId(S.modeSel.semi)?S.modeSel.semi:fxDefId();
+  if(mode==='auto')return S.modeSel.auto!=null&&isShowId(S.modeSel.auto)?S.modeSel.auto:(S.shows.length?SH:fxDefId());
+  return S.sel;}
+function rememberModeFx(i){const mode=rideMode();if(mode==='manual'&&S.fside!=='all')S.fs[S.fside]=i;else if(mode==='semi')S.modeSel.semi=i;else if(mode==='auto')S.modeSel.auto=i;S.sel=i;saveLocal();}
 const snap=i=>JSON.stringify({fx:i,c:cfg(i),p:isShowId(i)?0:pm(i)});
 function isActive(i){return S.pl.use<0&&sideKeys().every(function(k){return S.act[k]&&S.act[k].fx===i;});}
 function isSaved(i){if(rideColorMode())return S.pl.use<0&&sideKeys().every(function(k){return S.act[k]&&S.act[k].fx===i;});
@@ -931,16 +947,17 @@ function rideColorChanged(){
 function rideColorQuickOpen(){
   const keys=rideColorKeys(),base=S.fside==='L'?'L':'R',c=JSON.parse(JSON.stringify(rideColor(base))),colors={};
   keys.forEach(function(k){colors[k]=JSON.parse(JSON.stringify(S.fside==='all'?c:rideColor(k)));});
-  S.rideColorEdit={keys:keys,colors:colors,revision:0};activeColorTab='wheel';rideColorQuickRender();
+  S.rideColorEdit={keys:keys,colors:colors,revision:0,label:keys.length===2?'Kanan & kiri':SDN[keys[0]]};activeColorTab='wheel';rideColorQuickRender();
 }
 function rideColorQuickRender(){
-  const e=S.rideColorEdit;if(!e)return;const c=e.colors[e.keys[0]],label=S.fside==='all'?'Kanan & kiri':SDN[S.fside];
+  const e=S.rideColorEdit;if(!e)return;const c=e.colors[e.keys[0]],label=e.label,scroll=Array.from(document.querySelectorAll('#sheet.on .color-pane')).map(function(p){return p.scrollTop;});
   openSheet('<div style="font-weight:800;margin-bottom:8px">Warna sisi · '+label+'</div><div class="color-holder">'+colorEditorHTML(c,'rideColorQuickPal','rideColorQuickCu',false)+'</div><div class="row" style="margin-top:10px;flex:none"><button class="btn" onclick="rideColorQuickCancel()">Batal</button><button class="btn p" onclick="rideColorQuickApply()">Terapkan</button></div>',true);
+  Array.from(document.querySelectorAll('#sheet.on .color-pane')).forEach(function(p,i){if(scroll[i]!=null)p.scrollTop=scroll[i];});
   pkBind(c.col,function(){c.cs='one';rideColorQuickPreview();});refreshPalStrips();
 }
 function rideColorQuickPreview(){
   const e=S.rideColorEdit;if(!e)return;const revision=++e.revision;
-  if(S.fside==='all')e.colors.L=JSON.parse(JSON.stringify(e.colors.R));
+  if(e.keys.length===2)e.colors.L=JSON.parse(JSON.stringify(e.colors.R));
   const colors=e.colors,ensure=e.keys.map(function(k){return cuEnsure(colors[k]);});
   Promise.all(ensure).then(function(){if(S.rideColorEdit!==e||e.revision!==revision)return;return post({seg:colorSegsFor(selOf(),e.keys,colors)});})
     .catch(function(){toast('Gagal menerapkan warna');});
@@ -958,8 +975,9 @@ function rideColorQuickCancel(){
   post({seg:colorSegsFor(selOf(),e.keys)});
 }
 function rideColorQuickApply(){
-  const e=S.rideColorEdit;if(!e)return;e.keys.forEach(function(k){S.rideColors[k]=JSON.parse(JSON.stringify(e.colors[k]));});
-  S.rideColorEdit=null;closeSheet();rideColorChanged();toast('Warna sisi diterapkan dan disimpan di perangkat');
+  const e=S.rideColorEdit;if(!e)return;const keys=e.keys.slice();keys.forEach(function(k){S.rideColors[k]=JSON.parse(JSON.stringify(e.colors[k]));});
+  S.rideColorEdit=null;closeSheet();Promise.all(keys.map(rideColorStore)).then(function(){S.pv=false;updInfo();R();toast('Warna sisi diterapkan dan disimpan di perangkat');})
+    .catch(function(){toast('Gagal menyimpan warna sisi ke perangkat');});
 }
 function postParam(k,v){post({seg:effectTargetIds().map(function(id){const o={id:id};o[k]=v;return o;})});}
 const postParamD=throttleLatest(postParam,120);
@@ -975,7 +993,7 @@ function persist(i,msg){const mode=rideMode(),ks=(mode==='semi'||mode==='auto')?
    .then(function(){applyLive(i);const s=snap(i);ks.forEach(function(k){S.act[k]={fx:i,s:s};S.showLive[k]=isShowId(i);});S.fxsSaved[i]=JSON.stringify(cfg(i));saveLocal();
      S.pl.use=-1;S.pl.run=false;S.pl.hold=false;S.pl.ui=false;S.pv=false;S.sv='ok';S.net=true;rs();toast(msg);R();})
    .catch(function(){S.sv='fail';rs();toast('Gagal menyimpan. Mizuma terputus.');});}
-function useFx(i){if(rideMode()==='manual'&&S.fside!=='all')S.fs[S.fside]=i;S.sel=i;persist(i,fxName(i)+(rideMode()==='manual'&&S.fside!=='all'?' di LED '+SDN[S.fside].toLowerCase():'')+' dipakai untuk Riding');}
+function useFx(i){rememberModeFx(i);persist(i,fxName(i)+(rideMode()==='manual'&&S.fside!=='all'?' di LED '+SDN[S.fside].toLowerCase():'')+' dipakai untuk Riding');}
 function restoreSaved(){const mode=rideMode();S.pv=false;S.pl.ui=false;mpost('/mizuma/apply?mode=riding&side=both').then(function(){return setRidingMode(mode);}).then(loadSaved).then(function(){applyLive(selOf());}).catch(function(){toast('Gagal membatalkan pratinjau');});toast('Pratinjau dibatalkan');setTimeout(pollPl,500);R();}
 
 /* ===== muat data ===== */
@@ -995,7 +1013,10 @@ function applyPresetState(d){['R','L'].forEach(function(k){const st=d&&d['riding
   }else S.fxs[fx]=cfgFromPreset(st);S.fxsSaved[fx]=JSON.stringify(S.fxs[fx]);
   if(!st.isShow)S.pm[fx]={sx:st.sx,ix:st.ix,c1:st.c1,c2:st.c2,c3:st.c3,o1:st.o1?1:0,o2:st.o2?1:0,o3:st.o3?1:0};
   S.act[k]={fx:fx,s:snap(fx)};S.showLive[k]=!!st.isShow;});
-  if(S.act.R)S.sel=S.act.R.fx;else if(S.act.L)S.sel=S.act.L.fx;else{const f=S.list[0];S.sel=f?f.i:0;}}
+  if(S.modeActive==='manual'){if(S.act.R)S.fs.R=S.act.R.fx;if(S.act.L)S.fs.L=S.act.L.fx;}
+  else if(S.modeActive==='semi'){const a=S.act.R||S.act.L;if(a&&!isShowId(a.fx))S.modeSel.semi=a.fx;}
+  else if(S.modeActive==='auto'){const a=S.act.R||S.act.L;if(a&&isShowId(a.fx))S.modeSel.auto=a.fx;}
+  S.sel=selOf();saveLocal();}
 function loadSaved(){return fetch('/mizuma/presets').then(function(r){return r.json();}).then(applyPresetState).catch(function(){});}
 function loadFxData(){return Promise.all([jfetch('/json/eff').then(function(r){return r.json();}),jfetch('/json/fxdata').then(function(r){return r.json();}),
     fetch('/mizuma/shows').then(function(r){return r.json();}).catch(function(){return[];}),fetch('/mizuma/show-durations').then(function(r){return r.json();}).catch(function(){return[];})])
@@ -1063,8 +1084,9 @@ function goTb(k){S.tb=k;S.q='';S.pi=null;if(k!=='col')S.lastRideMode=k;
   if(k==='semi'||k==='auto')S.fside='all';
   if(k==='pl'){R();$('#scr').scrollTop=0;ensureLists();return;}
   const selected=selOf();
-  if(k==='semi'&&isShowId(selected)){const f=S.list.find(function(x){return !x.show;});if(f)S.sel=f.i;}
-  if(k==='auto'&&!isShowId(selected)){if(S.shows.length)S.sel=SH;}
+  if(k==='semi'&&isShowId(selected)){const f=S.list.find(function(x){return !x.show;});if(f)S.modeSel.semi=f.i;}
+  if(k==='auto'&&!isShowId(selected)){if(S.shows.length)S.modeSel.auto=SH;}
+  saveLocal();
   R();$('#scr').scrollTop=0;
   setRidingMode(k==='fx'?'manual':k).then(function(){applyLive(selOf());}).catch(function(){toast('GPIO 0/1 belum siap atau mode gagal diaktifkan');});
 }
@@ -1082,25 +1104,32 @@ function fxList(){const sel=selOf(),mode=rideMode();let h='',n=0;
   if(!S.fx.length)return'<div class="emp">Memuat daftar efek…</div>';
   if(!h)return'<div class="emp">'+(S.fo?'Belum ada efek favorit. Ketuk efek lalu ★ untuk menambah.':'Tidak ada efek.')+'</div>';
   return h;}
-function rideSideSelect(){return'<div class="ride-side-select-row"><div class="ride-side-tabs">'+['L','R'].map(function(k){const name=k==='R'?'Kanan':'Kiri',fx=S.fs[k]!=null?S.fs[k]:(S.act[k]?S.act[k].fx:S.sel);return'<button class="ride-side-tab'+(S.fside===k?' on':'')+'" onclick="selectRideSide(\''+k+'\')">'+name+' - '+esc(fxName(fx))+'</button>';}).join('')+'</div><button class="ride-apply" onclick="useFx(selOf())">Terapkan ke Riding</button></div>';}
+function rideSideSelect(){return'<div class="ride-side-select-row"><div class="ride-side-tabs">'+['L','R'].map(function(k){const name=k==='R'?'Kanan':'Kiri',fx=manualSel(k);return'<button class="ride-side-tab'+(S.fside===k?' on':'')+'" onclick="selectRideSide(\''+k+'\')">'+name+' - '+esc(fxName(fx))+'</button>';}).join('')+'</div><button class="ride-apply" onclick="useFx(selOf())">Terapkan ke Riding</button></div>';}
 function selectRideSide(k){S.fside=k;S.sel=selOf();R();}
-function rideColorOpenFor(k){S.fside=k;rideColorQuickOpen();}
-function rideColorButton(k,mode,withReverse){const c=rideColor(k),name=k==='R'?'Kanan':'Kiri';return'<div class="ride-color-cell"><button class="ride-color" onclick="rideColorOpenFor(\''+k+'\')"><i style="background:'+cfgGrad(c)+'"></i><span>Pilih Warna '+name+'</span></button>'+(withReverse?reverseButton(mode,k):'')+'</div>';}
+function rideColorOpenFor(k){const mode=rideMode();S.fside=k;rideColorQuickOpen();if(mode!=='manual')S.fside='all';}
+function rideColorButton(k,mode,withReverse,compact){const c=rideColor(k),name=k==='R'?'Kanan':'Kiri';return'<div class="ride-color-cell"><button class="ride-color'+(compact?' compact':'')+'" aria-label="Pilih warna '+name.toLowerCase()+'" onclick="rideColorOpenFor(\''+k+'\')"><i style="background:'+cfgGrad(c)+'"></i><span>'+(compact?name:'Pilih Warna '+name)+'</span></button>'+(withReverse?reverseButton(mode,k):'')+'</div>';}
 function rideModeControls(mode){const apply='<button class="ride-apply" onclick="useFx(selOf())">Terapkan ke Riding</button>';
-  if(mode==='semi')return'<div class="ride-toolbar">'+rideColorButton('L',mode,false)+rideColorButton('R',mode,false)+apply+'<div class="ride-shared-reverse">'+reverseButton('semi','R')+'</div>'+mirrorButton()+'</div>';
+  if(mode==='semi')return'<div class="ride-toolbar">'+rideColorButton('L',mode,false,true)+rideColorButton('R',mode,false,true)+apply+'<div class="ride-shared-reverse">'+reverseButton('semi','R')+'</div>'+mirrorButton()+'</div>';
   return'<div class="ride-toolbar">'+rideColorButton('L',mode,false)+rideColorButton('R',mode,false)+apply+reverseButton('auto','L')+reverseButton('auto','R')+mirrorButton()+'</div>';}
+function favoriteFilter(compact){return'<button class="ride-mini-btn'+(S.fo?' active':'')+'" aria-label="Filter Efek Favorit" title="Filter Efek Favorit" onclick="S.fo=!S.fo;R()">'+(compact?'☆':'☆ Filter Efek Favorit')+'</button>';}
 function syncRideModeBadge(){const f=$('#frz');if(f)f.innerHTML=frz();document.querySelectorAll('[data-ride-mode-badge]').forEach(function(b){const active=S.modeActive===rideMode();b.classList.toggle('on',active);b.classList.toggle('off',!active);b.textContent='Mode Riding';});}
 function vFx(){const mode=rideMode(),i=selOf(),name=fxName(i),isManual=mode==='manual',isSemi=mode==='semi',isAuto=mode==='auto';
   let h='<div class="ride-page"><div class="ride-intro">'+(isManual?'Pilih sisi, lalu atur efek dan warnanya.':isSemi?'Satu efek untuk kedua sisi; warna dan arah dapat diatur terpisah.':'Pilih animasi dan atur warna serta arah tiap sisi.')+'</div>';
   if(isManual)h+=rideSideSelect();
-  h+='<section class="ride-card"><div class="ride-card-head"><b>'+(isManual?'Efek sisi '+(S.fside==='L'?'kiri':'kanan'):isSemi?'Efek untuk kedua sisi':'Animasi')+'</b></div>'+
-    '<div class="ride-current"><span class="ride-current-copy"><b>'+esc(name)+'</b><small>'+(isManual?'Sisi '+(S.fside==='L'?'kiri':'kanan'):isSemi?'Satu efek untuk kedua sisi':'Berjalan pada kedua sisi')+'</small></span>'+
-    (isManual?'<div class="ride-color-cell"><button class="ride-mini-btn" onclick="rideColorQuickOpen()">Pilih Warna/Skin</button>'+reverseButton('manual',S.fside==='L'?'L':'R')+'</div>':'')+'</div>';
-  if(isSemi||isAuto)h+=rideModeControls(mode);
-  h+='<div class="ride-section-title"><b>'+(isSemi?'Pilih satu efek':isAuto?'Pilih animasi':'Pilih efek')+'</b><button class="ride-mini-btn'+(S.fo?' active':'')+'" onclick="S.fo=!S.fo;R()">☆ Filter Efek Favorit</button></div><div class="ride-fx-list">'+fxList()+'</div></section>';
+  h+='<section class="ride-card">';
+  if(isManual){
+    h+='<div class="ride-current"><span class="ride-current-copy"><b>'+esc(name)+'</b></span><div class="ride-color-cell"><button class="ride-mini-btn" onclick="rideColorQuickOpen()">Pilih Warna/Skin</button>'+reverseButton('manual',S.fside==='L'?'L':'R')+favoriteFilter(true)+'</div></div>';
+  }else if(isSemi){
+    h+='<div class="ride-card-head ride-semi-head"><b>Efek untuk kedua sisi</b>'+reverseButton('semi','R')+mirrorButton()+favoriteFilter(true)+'</div>';
+    h+='<div class="ride-current ride-semi-current"><span class="ride-current-copy"><b>'+esc(name)+'</b><small>Satu efek untuk kedua sisi</small></span><div class="ride-semi-actions">'+rideColorButton('L','semi',false,true)+rideColorButton('R','semi',false,true)+'<button class="ride-apply" onclick="useFx(selOf())">Terapkan ke Riding</button></div></div>';
+  }else{
+    h+='<div class="ride-card-head"><b>Animasi</b></div><div class="ride-current"><span class="ride-current-copy"><b>'+esc(name)+'</b><small>Berjalan pada kedua sisi</small></span></div>'+rideModeControls(mode);
+  }
+  if(isAuto)h+='<div class="ride-section-title"><b>Pilih animasi</b>'+favoriteFilter(false)+'</div>';
+  h+='<div class="ride-fx-list">'+fxList()+'</div></section>';
   h+='</div>';return h;}
 function fqx(v){S.q=v;document.querySelectorAll('#scr .fr[data-n]').forEach(function(e){e.style.display=e.dataset.n.indexOf(v.toLowerCase())<0?'none':'';});}
-function pick(i){if(rideMode()==='manual'&&S.fside!=='all'){S.fs[S.fside]=i;S.sel=i;}else{S.sel=i;S.fs={L:null,R:null};}applyLiveD(i);R();}
+function pick(i){rememberModeFx(i);applyLiveD(i);R();}
 function tf(i){S.fav.has(i)?S.fav.delete(i):S.fav.add(i);saveLocal();R();}
 function pbar(i){if(isShowId(i))return'<div class="m" style="width:100%;text-align:center">Animasi · '+fd(showSec(i))+' detik · diulang terus di Riding.</div>';
   const p=parseFxData(S.fxd[i]||''),v=pm(i);
@@ -1148,7 +1177,7 @@ function qcR(){const d=S.qc,c=d.c;
   openSheet('<div style="font-weight:800;margin-bottom:8px">Ubah warna · '+esc(fxName(d.i))+'</div><div class="color-holder">'+colorEditorHTML(c,'qcPal','qcCu',d.show,'qcg')+'</div><div class="row" style="margin-top:10px;flex:none"><button class="btn" onclick="qcCancel()">Batal</button><button class="btn p" onclick="qcApply()">Simpan warna</button></div>',true);
   pkBind(c.col,function(){c.cs='one';qcPreview();});refreshPalStrips();}
 function qcCancel(){const d=S.qc;if(!d)return;S.fxs[d.i]=d.orig;S.qc=null;closeSheet();applyLive(d.i);R();}
-function qcApply(){const d=S.qc;if(!d)return;S.fxs[d.i]=d.c;if(S.fside==='all')S.sel=d.i;else S.fs[S.fside]=d.i;S.qc=null;closeSheet();saveCol();}
+function qcApply(){const d=S.qc;if(!d)return;S.fxs[d.i]=d.c;rememberModeFx(d.i);S.qc=null;closeSheet();saveCol();}
 
 /* ===== editor warna buatan ===== */
 function cpEdit(i){if(i<0&&S.cu.length>=cuMax()){toast('Maksimal '+cuMax()+' warna buatan. Hapus salah satu untuk menambah.');return;}
@@ -1336,10 +1365,13 @@ function goNav(k){
 function navHTML(){const cur=S.tb==='col'?'col':'rid';return TABS.map(function(t){return'<button class="'+(t[0]===cur?'on':'')+'" onclick="'+t[2]+'"><span><svg viewBox="0 0 24 24">'+IC[t[0]]+'</svg></span>'+t[1]+'</button>';}).join('');}
 
 /* ===== render ===== */
-function R(){const top=$('#scr').scrollTop;rs();$('#frz').innerHTML=frz();
+function R(){const sc=$('#scr'),top=sc.scrollTop,lists=Array.from(sc.querySelectorAll('.ride-fx-list')).map(function(e){return e.scrollTop;}),panes=Array.from(sc.querySelectorAll('.color-pane')).map(function(e){return e.scrollTop;});rs();$('#frz').innerHTML=frz();
   $('#scr').innerHTML=S.tb==='col'?vCol():S.tb==='pl'?vPl():vFx();
   const f=(S.tb==='pl')?'':foot();$('#foot').innerHTML=f;$('#foot').style.display=f?'flex':'none';
-  $('#nav').innerHTML=navHTML();$('#scr').scrollTop=top;wheel();refreshPalStrips();syncReverseControls();}
+  $('#nav').innerHTML=navHTML();$('#scr').scrollTop=top;
+  Array.from(sc.querySelectorAll('.ride-fx-list')).forEach(function(e,i){if(lists[i]!=null)e.scrollTop=lists[i];});
+  Array.from(sc.querySelectorAll('.color-pane')).forEach(function(e,i){if(panes[i]!=null)e.scrollTop=panes[i];});
+  wheel();refreshPalStrips();syncReverseControls();}
 
 /* ===== keluar halaman: kembalikan lampu ke Riding tersimpan bila masih pratinjau ===== */
 window.addEventListener('pagehide',function(){try{if(S.pv||S.pl.ui){const mode=rideMode();navigator.sendBeacon(mode==='manual'?'/mizuma/apply?mode=riding&side=both':'/mizuma/riding/mode?mode='+(mode==='semi'?'semi-auto':mode));}

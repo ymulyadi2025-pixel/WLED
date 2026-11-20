@@ -101,6 +101,7 @@ extern void handlePresets();
     struct RidingColor { bool palette=true; uint8_t pal=2; uint8_t r=255,g=255,b=255; };
     RidingColor ridingColors[2];             // 0=Kanan, 1=Kiri (logis)
     RidingMode ridingMode = RIDING_MANUAL;
+    RidingMode savedRidingMode = RIDING_MANUAL;
     bool ridingUiActive = false;
     bool ridingSegmentsReady = false;
 
@@ -349,6 +350,19 @@ JsonArray seg=root.createNestedArray("seg");
 addSegmentFromSlot(seg,physicalSegForLogicalSide(true),rightSlot,useRidingColor);
 addSegmentFromSlot(seg,physicalSegForLogicalSide(false),leftSlot,useRidingColor);
 deserializeState(root);}
+void applyWholeSlot(uint8_t slotIdx,uint16_t transition100ms=0){
+  PresetSlot p=getEffectiveSlot(slotIdx);
+  StaticJsonDocument<1024> doc;JsonObject root=doc.to<JsonObject>();
+  root["on"]=true;root["transition"]=transition100ms;if(bri==0)root["bri"]=savedBri;
+  JsonArray seg=root.createNestedArray("seg");JsonObject effect=seg.createNestedObject();
+  effect["id"]=SEG_FX_WHOLE;effect["on"]=true;effect["fx"]=p.fx;effect["pal"]=0;
+  effect["rev"]=ridingWholeReverse();effect["sx"]=p.sx;effect["ix"]=p.ix;
+  effect["c1"]=p.c1;effect["c2"]=p.c2;effect["c3"]=p.c3;
+  effect["o1"]=p.o1;effect["o2"]=p.o2;effect["o3"]=p.o3;
+  JsonArray colors=effect.createNestedArray("col");
+  for(uint8_t i=0;i<3;i++){JsonArray color=colors.createNestedArray();const uint8_t value=i==0?255:0;color.add(value);color.add(value);color.add(value);}
+  deserializeState(root);
+}
 int modeBase(const String &mode){
 if(mode=="welcoming")return 0;if(mode=="riding")return 2;if(mode=="sein")return 4;
 if(mode=="rem")return 6;if(mode=="hazard")return 8;return -1;}
@@ -359,8 +373,16 @@ stopShowRunners("both");
 int base=modeBase(mode);if(base<0)return false;
 if(side!="both"&&side!="kanan"&&side!="kiri")return false;
 ridingUiActive=(base==2);
-if(base==2&&ridingPl>=0&&ridingPl<PL_MAX&&pls[ridingPl].n>0)return startPlaylist(ridingPl,0,false);
-applyRidingLayerMode(RIDING_MANUAL);
+if(base==2&&ridingMode==RIDING_PLAYLIST&&ridingPl>=0&&ridingPl<PL_MAX&&pls[ridingPl].n>0)return startPlaylist(ridingPl,0,false);
+if(base==2&&ridingMode==RIDING_PLAYLIST){ridingMode=RIDING_MANUAL;savedRidingMode=RIDING_MANUAL;queueSave();}
+applyRidingLayerMode(base==2?ridingMode:RIDING_MANUAL);
+if(base==2&&ridingMode==RIDING_SEMI_AUTO){
+  const uint8_t slot=pslots[base].valid?base:base+1;
+  applyWholeSlot(slot,transition100ms);
+  PresetSlot p=getEffectiveSlot(slot);
+  if(p.isShow&&p.showIndex<MZ_SHOW_COUNT){startShowRunner(true,p.showIndex,false,true);showRunner[0].loop=true;tickShowEngine();}
+  return true;
+}
 if(side=="both")applyTwoSlots(base,base+1,transition100ms,base==2);
 else if(side=="kanan")applySingleSlot(base,base==2);
 else applySingleSlot(base+1,base==2);
@@ -760,7 +782,8 @@ void handleRidingContext(AsyncWebServerRequest *req){
 }
 void handleRidingMode(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
-    const char *name=ridingMode==RIDING_SEMI_AUTO?"semi-auto":ridingMode==RIDING_AUTO?"auto":ridingMode==RIDING_PLAYLIST?"playlist":"manual";
+    const RidingMode reportedMode=savedRidingMode;
+    const char *name=reportedMode==RIDING_SEMI_AUTO?"semi-auto":reportedMode==RIDING_AUTO?"auto":reportedMode==RIDING_PLAYLIST?"playlist":"manual";
     String json=String("{\"ok\":true,\"ready\":")+(ridingSegmentsReady?"true":"false")+",\"mode\":\""+name+"\"}";
     req->send(200,"application/json",json);return;
   }
@@ -814,9 +837,9 @@ void processCmdQueue(){
       case MZ_CMD_SIDE_SWAP:    stopShowRunners("both");sideSwap=(c.flag!=0);applyRidingColorLayer(true);applyRidingColorLayer(false);queueSave();break;
       case MZ_CMD_PL_PLAY:      startPlaylist((int)c.value,(int)(c.flag&0x7F),(c.flag&0x80)!=0);break;
       case MZ_CMD_PL_PAUSE:     execPlPause(c.flag!=0);break;
-      case MZ_CMD_PL_USE:       ridingUiActive=true;ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");break;
-      case MZ_CMD_PL_STOP:      ridingUiActive=true;applyRidingLayerMode(RIDING_MANUAL);applyModeSide("riding","both");break;
-      case MZ_CMD_RIDING_MODE:  ridingUiActive=true;stopPlaylist();stopShowRunners("both");applyRidingLayerMode((RidingMode)c.value);break;
+      case MZ_CMD_PL_USE:       ridingUiActive=true;ridingPl=(c.flag!=0)?(int8_t)-1:(int8_t)c.value;savedRidingMode=(c.flag!=0)?RIDING_MANUAL:RIDING_PLAYLIST;queueSave();applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");break;
+      case MZ_CMD_PL_STOP:      ridingUiActive=true;savedRidingMode=RIDING_MANUAL;applyRidingLayerMode(RIDING_MANUAL);applyModeSide("riding","both");queueSave();break;
+      case MZ_CMD_RIDING_MODE:  ridingUiActive=true;savedRidingMode=(RidingMode)c.value;ridingPl=-1;stopPlaylist();stopShowRunners("both");applyRidingLayerMode(savedRidingMode);queueSave();break;
       case MZ_CMD_RIDING_COLOR: execRidingColor(c.side,c.flag!=0,c.value,c.r,c.g,c.b);break;
       case MZ_CMD_RIDING_DIRECTION:
         if(c.value<3&&(c.side==1||c.side==2)){
@@ -1387,7 +1410,7 @@ out+=buf;}
 out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
-  if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(RIDING_MANUAL);
+  if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(savedRidingMode);
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   enforceRidingColorLayers();
   enforceRidingEffectLayers();
@@ -1415,6 +1438,7 @@ void loop() override {
                            :((uint32_t)(millis()-bootT)>=NATIVE_WELCOME_FALLBACK_MS);
   }
   if(welcomeFinished){
+    ridingMode=savedRidingMode;
     applyModeSide("riding", "both", 4); // 400 ms crossfade setelah show Mizuma selesai
     bootStage = 2;
     bootDone = true;
@@ -1447,6 +1471,7 @@ top["showReverse"]=showReverse;
 JsonArray reverse=top.createNestedArray("ridingReverse");
 for(uint8_t mode=0;mode<3;mode++){JsonArray sides=reverse.createNestedArray();sides.add(ridingReverse[mode][0]);sides.add(ridingReverse[mode][1]);}
 top["ridingMirror"]=ridingMirror;
+top["ridingMode"]=(uint8_t)savedRidingMode;
 top["ridingPl"]=(int)ridingPl;
 JsonObject rc=top.createNestedObject("ridingColors");
 JsonObject rr=rc.createNestedObject("right");rr["palette"]=ridingColors[0].palette;rr["pal"]=ridingColors[0].pal;rr["r"]=ridingColors[0].r;rr["g"]=ridingColors[0].g;rr["b"]=ridingColors[0].b;
@@ -1487,12 +1512,17 @@ if(!reverse.isNull()){
   }
 }
 ridingMirror=top["ridingMirror"]|false;
+savedRidingMode=(RidingMode)constrain((int)(top["ridingMode"]|RIDING_MANUAL),(int)RIDING_MANUAL,(int)RIDING_PLAYLIST);
+ridingMode=savedRidingMode;
 JsonObject rc=top["ridingColors"];
 if(!rc.isNull()){
   JsonObject rr=rc["right"];if(!rr.isNull()){ridingColors[0].palette=rr["palette"]|true;ridingColors[0].pal=rr["pal"]|2;ridingColors[0].r=rr["r"]|255;ridingColors[0].g=rr["g"]|255;ridingColors[0].b=rr["b"]|255;}
   JsonObject rl=rc["left"];if(!rl.isNull()){ridingColors[1].palette=rl["palette"]|true;ridingColors[1].pal=rl["pal"]|2;ridingColors[1].r=rl["r"]|255;ridingColors[1].g=rl["g"]|255;ridingColors[1].b=rl["b"]|255;}
 }
+const bool hasRidingMode=top.containsKey("ridingMode");
 ridingPl=(int8_t)((int)(top["ridingPl"]|-1));
+if(!hasRidingMode&&ridingPl>=0)savedRidingMode=RIDING_PLAYLIST;
+ridingMode=savedRidingMode;
 return true;}
 
 uint16_t getId() override {return USERMOD_ID_MIZUMA_SYSTEM;}
