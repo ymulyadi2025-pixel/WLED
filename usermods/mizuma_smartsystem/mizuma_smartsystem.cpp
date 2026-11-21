@@ -1636,6 +1636,21 @@ out+=buf;}
 out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
+   // Diagnostik tertunda untuk memastikan pesan muncul setelah USB Serial siap.
+  static bool diagnosticPrinted = false;
+
+  if (!diagnosticPrinted && millis() >= 5000) {
+    diagnosticPrinted = true;
+
+    DEBUG_PRINTF_P(
+      PSTR("[Mizuma] Efek WLED: %u/%u\n"),
+      (unsigned)showFxResolved,
+      (unsigned)MZ_FXN_COUNT
+    );
+
+    DEBUG_PRINTLN(F("[Mizuma] Usermod loop aktif"));
+  }
+  
   if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(savedRidingMode);
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   enforceRidingColorLayers();
