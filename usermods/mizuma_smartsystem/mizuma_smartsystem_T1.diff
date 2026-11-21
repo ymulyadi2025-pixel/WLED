@@ -1,0 +1,248 @@
+24a25,27
+> //   POST /mizuma/comp/preview  mode&mirror&join&(kanan_|kiri_)show,idx,fx,sx,ix,c1..c3,o1..o3,rev,pm,pn,r,g,b -> pratinjau tanpa menyimpan (kembali otomatis 20 dtk tanpa sinyal)
+> //   POST /mizuma/comp/play     parameter sama; simpan atomik komposisi mode itu dan jadikan mode Riding aktif
+> //   POST /mizuma/comp/end      akhiri pratinjau, lampu kembali ke mode Riding tersimpan
+111a115,130
+>     // Sambung kiri-kanan (khusus Semi Auto): satu warna/skin membentang di seluruh strip.
+>     bool ridingColorJoin = false;
+>     // Rentang indeks LED tiap bus, diisi ensureRidingSegments(); dipakai melebarkan dan memulihkan segmen warna.
+>     uint16_t ridingRightStart=0,ridingRightStop=0,ridingLeftStart=0,ridingLeftStop=0,ridingWholeStop=0;
+>     // ===== DRAFT / PRATINJAU COMPOSER =====
+>     // Pratinjau meminjam array Riding di RAM (tidak pernah disimpan). Cadangan draftBk* = data tersimpan.
+>     // Selama draftActive, penyimpanan config dan GET /mizuma/riding/* membaca cadangan, bukan draft.
+>     struct CompSide { uint8_t flags; /* bit0 show, bit1 reverse, bit2 palette */ uint8_t showIndex,fx,sx,ix,c1,c2,c3,o /* bit0..2 = o1..o3 */,pal,r,g,b; };
+>     static const uint32_t MZ_DRAFT_TIMEOUT_MS = 20000; // tanpa sinyal dari UI selama 20 dtk -> lampu kembali ke data tersimpan
+>     bool draftActive=false;
+>     volatile uint32_t draftBeatAt=0;
+>     RidingEffectConfig draftBkEffects[3][2];
+>     RidingColor draftBkColors[3][2];
+>     bool draftBkReverse[3][2]={};
+>     bool draftBkMirror=false;
+>     bool draftBkJoin=false;
+123,124c142,143
+<     enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR, MZ_CMD_RIDING_EFFECT, MZ_CMD_RIDING_DIRECTION, MZ_CMD_RIDING_MIRROR, MZ_CMD_RIDING_CONTEXT };
+<     struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; uint8_t r,g,b; char mode[10]; uint8_t fx,showIndex,sx,ix,c1,c2,c3,o1,o2,o3; };
+---
+>     enum MzCmdType : uint8_t { MZ_CMD_NONE=0, MZ_CMD_SHOW_START, MZ_CMD_SHOW_STOP, MZ_CMD_SHOW_PALETTE, MZ_CMD_DIRECTION, MZ_CMD_APPLY, MZ_CMD_SIDE_SWAP, MZ_CMD_PL_PLAY, MZ_CMD_PL_PAUSE, MZ_CMD_PL_USE, MZ_CMD_PL_STOP, MZ_CMD_RIDING_MODE, MZ_CMD_RIDING_COLOR, MZ_CMD_RIDING_EFFECT, MZ_CMD_RIDING_DIRECTION, MZ_CMD_RIDING_MIRROR, MZ_CMD_RIDING_CONTEXT, MZ_CMD_COMP_PREVIEW, MZ_CMD_COMP_PLAY, MZ_CMD_COMP_END };
+>     struct MzCmd { uint8_t type; uint8_t side; uint8_t value; uint8_t flag; uint8_t r,g,b; char mode[10]; uint8_t fx,showIndex,sx,ix,c1,c2,c3,o1,o2,o3; CompSide cs[2]; uint8_t mirror; uint8_t join; };
+192a212,228
+> // Sambung kiri-kanan aktif hanya saat mode Semi Auto sedang dirender (bukan playlist, bukan mode lain).
+> bool ridingJoinActive(){return ridingColorJoin&&ridingMode==RIDING_SEMI_AUTO;}
+> // Bus GPIO 0 = segmen warna "kanan" (id 0), bus GPIO 1 = segmen warna "kiri" (id 1). Jika bus GPIO 1 dikonfigurasi reversed
+> // di pengaturan LED dan GPIO 0 berindeks lebih dulu, seluruh strip menjadi satu garis kontinu: ujung luar GPIO 0 -> tengah -> ujung luar GPIO 1.
+> // Arah alami (indeks naik) = dari sisi GPIO 0 ke sisi GPIO 1. Agar palet terbaca kiri ke kanan, balik bila GPIO 0 berindeks lebih dulu, dan balik lagi jika sideSwap aktif.
+> bool ridingJoinReverse(){return (ridingRightStart<ridingLeftStart)!=sideSwap;}
+> // Geometri dan arah yang seharusnya untuk segmen warna fisik segId pada keadaan sekarang. joinOff=true: segmen harus mati.
+> void colorSegTarget(uint8_t segId,bool &joinOff,uint16_t &start,uint16_t &stop,bool &reverse){
+>   joinOff=false;reverse=false;
+>   if(ridingJoinActive()){
+>     if(segId==SEG_COLOR_RIGHT){start=0;stop=ridingWholeStop;reverse=ridingJoinReverse();}
+>     else{joinOff=true;start=ridingLeftStart;stop=ridingLeftStop;}
+>     return;
+>   }
+>   if(segId==SEG_COLOR_RIGHT){start=ridingRightStart;stop=ridingRightStop;}
+>   else{start=ridingLeftStart;stop=ridingLeftStop;}
+> }
+195,197c231,239
+<   const uint8_t logicalIndex=rightSide?0:1;
+<   Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
+<   const RidingColor &color=ridingColorFor(ridingMode,rightSide);
+---
+>   const uint8_t segId=physicalColorSegForLogicalSide(rightSide);
+>   Segment &seg=strip.getSegment(segId);
+>   bool joinOff=false,wantReverse=false;uint16_t wantStart=0,wantStop=0;
+>   colorSegTarget(segId,joinOff,wantStart,wantStop,wantReverse);
+>   if(seg.start!=wantStart||seg.stop!=wantStop){seg.setGeometry(wantStart,wantStop);seg.markForReset();}
+>   if(seg.reverse!=wantReverse){seg.setOption(1,wantReverse);seg.markForReset();}
+>   if(joinOff){seg.on=false;return;}
+>   // Sambung aktif: satu warna bersama (slot kanan Semi Auto) untuk seluruh strip.
+>   const RidingColor &color=ridingJoinActive()?ridingColors[1][0]:ridingColorFor(ridingMode,rightSide);
+211c253,262
+<     Segment &seg=strip.getSegment(physicalColorSegForLogicalSide(rightSide));
+---
+>     const uint8_t segId=physicalColorSegForLogicalSide(rightSide);
+>     Segment &seg=strip.getSegment(segId);
+>     bool joinOff=false,wantReverse=false;uint16_t wantStart=0,wantStop=0;
+>     colorSegTarget(segId,joinOff,wantStart,wantStop,wantReverse);
+>     if(joinOff){if(seg.on){seg.on=false;changed=true;}continue;}
+>     if(seg.start!=wantStart||seg.stop!=wantStop||seg.reverse!=wantReverse){
+>       applyRidingColorLayer(rightSide);
+>       changed=true;
+>       continue;
+>     }
+266a318
+>   ridingRightStart=rightStart;ridingRightStop=rightStop;ridingLeftStart=leftStart;ridingLeftStop=leftStop;ridingWholeStop=wholeStop;
+836,838c888,890
+<     json+=ridingReverse[0][0]?"true":"false";json+=",\"kiri\":";json+=ridingReverse[0][1]?"true":"false";
+<     json+="},\"semi-auto\":{\"kanan\":";json+=ridingReverse[1][0]?"true":"false";json+=",\"kiri\":";json+=ridingReverse[1][1]?"true":"false";
+<     json+="},\"auto\":{\"kanan\":";json+=ridingReverse[2][0]?"true":"false";json+=",\"kiri\":";json+=ridingReverse[2][1]?"true":"false";json+="}}";
+---
+>     json+=(draftActive?draftBkReverse:ridingReverse)[0][0]?"true":"false";json+=",\"kiri\":";json+=(draftActive?draftBkReverse:ridingReverse)[0][1]?"true":"false";
+>     json+="},\"semi-auto\":{\"kanan\":";json+=(draftActive?draftBkReverse:ridingReverse)[1][0]?"true":"false";json+=",\"kiri\":";json+=(draftActive?draftBkReverse:ridingReverse)[1][1]?"true":"false";
+>     json+="},\"auto\":{\"kanan\":";json+=(draftActive?draftBkReverse:ridingReverse)[2][0]?"true":"false";json+=",\"kiri\":";json+=(draftActive?draftBkReverse:ridingReverse)[2][1]?"true":"false";json+="}}";
+855c907
+<   if(isGet){String json=String("{\"ok\":true,\"enabled\":")+(ridingMirror?"true":"false")+"}";req->send(200,"application/json",json);return;}
+---
+>   if(isGet){String json=String("{\"ok\":true,\"enabled\":")+((draftActive?draftBkMirror:ridingMirror)?"true":"false")+"}";req->send(200,"application/json",json);return;}
+896,898c948,950
+<     appendRidingColorJson(json,ridingColors[0][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[0][1]);
+<     json+="},\"semi-auto\":{\"right\":";appendRidingColorJson(json,ridingColors[1][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[1][1]);
+<     json+="},\"auto\":{\"right\":";appendRidingColorJson(json,ridingColors[2][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[2][0]);
+---
+>     appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][1]);
+>     json+="},\"semi-auto\":{\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[1][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[1][1]);
+>     json+="},\"auto\":{\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[2][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[2][0]);
+900c952
+<     json+="},\"right\":";appendRidingColorJson(json,ridingColors[0][0]);json+=",\"left\":";appendRidingColorJson(json,ridingColors[0][1]);json+="}";
+---
+>     json+="},\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][1]);json+="}";
+929,931c981,983
+<     String json="{\"ok\":true,\"manual\":{\"right\":";appendRidingEffectJson(json,ridingEffects[0][0]);json+=",\"left\":";appendRidingEffectJson(json,ridingEffects[0][1]);
+<     json+="},\"semi-auto\":{\"shared\":";appendRidingEffectJson(json,ridingEffects[1][0]);
+<     json+="},\"auto\":{\"shared\":";appendRidingEffectJson(json,ridingEffects[2][0]);json+="}}";
+---
+>     String json="{\"ok\":true,\"manual\":{\"right\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[0][0]);json+=",\"left\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[0][1]);
+>     json+="},\"semi-auto\":{\"shared\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[1][0]);
+>     json+="},\"auto\":{\"shared\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[2][0]);json+="}}";
+956a1009,1097
+> // ===== COMPOSER: PRATINJAU / PLAY / DRAFT =====
+> // Pratinjau tidak menambah jalur render baru: draft ditulis ke array Riding di RAM lalu dirender oleh
+> // applyStoredRidingMode() yang sama dengan mode tersimpan. Data tersimpan dicadangkan di draftBk* dan dipulihkan saat draft berakhir.
+> void compRestoreBackups(){
+>   for(uint8_t m=0;m<3;m++)for(uint8_t k=0;k<2;k++){
+>     ridingEffects[m][k]=draftBkEffects[m][k];ridingColors[m][k]=draftBkColors[m][k];ridingReverse[m][k]=draftBkReverse[m][k];
+>   }
+>   ridingMirror=draftBkMirror;ridingColorJoin=draftBkJoin;draftActive=false;
+> }
+> void compDraftBegin(){
+>   if(draftActive)return;
+>   for(uint8_t m=0;m<3;m++)for(uint8_t k=0;k<2;k++){
+>     draftBkEffects[m][k]=ridingEffects[m][k];draftBkColors[m][k]=ridingColors[m][k];draftBkReverse[m][k]=ridingReverse[m][k];
+>   }
+>   draftBkMirror=ridingMirror;draftBkJoin=ridingColorJoin;draftActive=true;
+> }
+> // reapply=true: lampu dikembalikan ke mode Riding tersimpan (playlist dimulai dari slot pertama).
+> void compDraftEnd(bool reapply){
+>   if(!draftActive)return;
+>   compRestoreBackups();
+>   if(!reapply)return;
+>   if(savedRidingMode==RIDING_PLAYLIST&&ridingPl>=0){ridingUiActive=true;applyRidingLayerMode(RIDING_PLAYLIST);applyModeSide("riding","both");}
+>   else applyStoredRidingMode(savedRidingMode,4);
+> }
+> // Menulis satu komposisi ke array Riding untuk mode c.value (0 Manual, 1 Semi Auto, 2 Auto).
+> void compLoadDraft(const MzCmd &c){
+>   const uint8_t m=c.value;if(m>2)return;
+>   for(uint8_t k=0;k<2;k++){
+>     const CompSide &s=c.cs[k];
+>     if(m==0||k==0){
+>       RidingEffectConfig e;e.valid=true;e.isShow=(s.flags&1U)!=0;e.showIndex=s.showIndex;e.fx=e.isShow?0:s.fx;
+>       e.sx=s.sx;e.ix=s.ix;e.c1=s.c1;e.c2=s.c2;e.c3=s.c3;e.o1=s.o&1U;e.o2=(s.o>>1)&1U;e.o3=(s.o>>2)&1U;
+>       if(m==0)ridingEffects[0][k]=e;else{ridingEffects[m][0]=e;ridingEffects[m][1]=e;}
+>     }
+>     if(m==0||m==1||k==0){
+>       RidingColor col;col.palette=(s.flags&4U)!=0;col.pal=col.palette?s.pal:2;col.r=s.r;col.g=s.g;col.b=s.b;
+>       ridingColors[m][m==2?0:k]=col;
+>     }
+>     // Semi Auto memakai satu arah bersama (slot kanan); Auto memakai arah internal Signature Show.
+>     if(m==0)ridingReverse[0][k]=(s.flags&2U)!=0;
+>     else if(m==1)ridingReverse[1][k]=(k==0)&&((s.flags&2U)!=0);
+>   }
+>   if(m==1){ridingMirror=(c.mirror!=0);ridingColorJoin=(c.join!=0);} // mirror global hanya berlaku di Semi Auto (mirror per sisi: tahap berikutnya)
+> }
+> static bool compFlag(AsyncWebServerRequest *req,const String &k){return req->hasArg(k)&&(req->arg(k)=="1"||req->arg(k)=="true");}
+> static uint8_t compU8(AsyncWebServerRequest *req,const String &k,uint8_t def){return req->hasArg(k)?(uint8_t)constrain(req->arg(k).toInt(),0,255):def;}
+> // Parameter: mode=manual|semi-auto|auto, mirror, join (Semi Auto), lalu per sisi dengan awalan kanan_ / kiri_:
+> // show, idx, fx, sx, ix, c1..c3, o1..o3, rev, pm (palette 0|1), pn, r, g, b.
+> // Manual: kedua sisi wajib. Semi Auto: efek dari kanan_, warna dari kedua sisi. Auto: show dan warna dari kanan_.
+> bool compParse(AsyncWebServerRequest *req,MzCmd &c,const char *&err){
+>   const String mode=req->hasArg("mode")?req->arg("mode"):String("");
+>   const uint8_t mi=(mode=="manual")?0:((mode=="semi-auto")?1:((mode=="auto")?2:255));
+>   if(mi>2){err="mode";return false;}
+>   c.value=mi;c.mirror=compFlag(req,"mirror")?1:0;c.join=(mi==1&&compFlag(req,"join"))?1:0;
+>   const char *pre[2]={"kanan_","kiri_"};
+>   for(uint8_t k=0;k<2;k++){
+>     const String p=pre[k];CompSide &s=c.cs[k];
+>     const bool needEffect=(mi==0)||(k==0);
+>     const bool needColor=(mi!=2)||(k==0);
+>     const bool show=compFlag(req,p+"show");
+>     if(needEffect){
+>       if(!show&&!req->hasArg(p+"fx")){err="effect";return false;}
+>       if(mi==1&&show){err="semi_needs_fx";return false;}
+>       if(mi==2&&!show){err="auto_needs_show";return false;}
+>     }
+>     if(needColor&&(!req->hasArg(p+"r")||!req->hasArg(p+"g")||!req->hasArg(p+"b"))){err="color";return false;}
+>     s.flags=(show?1:0)|(compFlag(req,p+"rev")?2:0)|(compFlag(req,p+"pm")?4:0);
+>     s.showIndex=compU8(req,p+"idx",0);
+>     if(show&&s.showIndex>=MZ_SHOW_COUNT){err="show_index";return false;}
+>     s.fx=show?0:compU8(req,p+"fx",0);
+>     s.sx=compU8(req,p+"sx",128);s.ix=compU8(req,p+"ix",128);
+>     s.c1=compU8(req,p+"c1",128);s.c2=compU8(req,p+"c2",128);s.c3=compU8(req,p+"c3",128);
+>     s.o=(compFlag(req,p+"o1")?1:0)|(compFlag(req,p+"o2")?2:0)|(compFlag(req,p+"o3")?4:0);
+>     s.pal=compU8(req,p+"pn",2);s.r=compU8(req,p+"r",255);s.g=compU8(req,p+"g",255);s.b=compU8(req,p+"b",255);
+>   }
+>   return true;
+> }
+> void compEnqueue(AsyncWebServerRequest *req,uint8_t type,bool withBody){
+>   if(!ridingSegmentsReady){sendBusy(req);return;}
+>   MzCmd c={};c.type=type;const char *err="";
+>   if(withBody&&!compParse(req,c,err)){req->send(400,"application/json",String("{\"ok\":false,\"error\":\"")+err+"\"}");return;}
+>   if(withBody&&type==MZ_CMD_COMP_PREVIEW)draftBeatAt=millis();
+>   if(!enqueueCmd(c)){sendBusy(req);return;}
+>   req->send(200,"application/json",type==MZ_CMD_COMP_PREVIEW?"{\"ok\":true,\"timeoutMs\":20000}":"{\"ok\":true}");
+> }
+> void handleCompPreview(AsyncWebServerRequest *req){compEnqueue(req,MZ_CMD_COMP_PREVIEW,true);}
+> void handleCompPlay(AsyncWebServerRequest *req){compEnqueue(req,MZ_CMD_COMP_PLAY,true);}
+> void handleCompEnd(AsyncWebServerRequest *req){compEnqueue(req,MZ_CMD_COMP_END,false);}
+> 
+961a1103,1107
+>     // Draft Composer berakhir bila perintah lain mengambil alih lampu. CONTEXT active=0 (halaman ditutup) mengembalikan lampu ke data tersimpan.
+>     if(draftActive){
+>       if(c.type==MZ_CMD_RIDING_CONTEXT){if(c.flag==0)compDraftEnd(true);}
+>       else if(c.type!=MZ_CMD_COMP_PREVIEW&&c.type!=MZ_CMD_COMP_PLAY&&c.type!=MZ_CMD_COMP_END)compDraftEnd(false);
+>     }
+1025a1172,1186
+>       case MZ_CMD_COMP_PREVIEW:
+>         compDraftBegin();compLoadDraft(c);draftBeatAt=millis();
+>         applyStoredRidingMode((RidingMode)c.value,2);
+>         break;
+>       case MZ_CMD_COMP_PLAY:
+>         // Simpan atomik: pulihkan data tersimpan (membuang draft mode lain), tulis komposisi mode ini, jadikan mode Riding aktif.
+>         if(draftActive)compRestoreBackups();
+>         compLoadDraft(c);
+>         ridingUiActive=true;savedRidingMode=(RidingMode)c.value;ridingPl=-1;
+>         applyStoredRidingMode(savedRidingMode,4);
+>         queueSave();
+>         break;
+>       case MZ_CMD_COMP_END:
+>         compDraftEnd(true);
+>         break;
+1529a1691
+>   if(draftActive)draftBeatAt=millis(); // polling status = sinyal hidup dari UI selama pratinjau
+1587a1750,1752
+> server.on("/mizuma/comp/preview",HTTP_POST,[this](AsyncWebServerRequest *req){handleCompPreview(req);});
+> server.on("/mizuma/comp/play",HTTP_POST,[this](AsyncWebServerRequest *req){handleCompPlay(req);});
+> server.on("/mizuma/comp/end",HTTP_POST,[this](AsyncWebServerRequest *req){handleCompEnd(req);});
+1640a1806
+>   if(draftActive&&(uint32_t)(millis()-draftBeatAt)>MZ_DRAFT_TIMEOUT_MS)compDraftEnd(true); // pratinjau ditinggalkan: lampu kembali ke data tersimpan
+1698,1699c1864,1865
+< for(uint8_t mode=0;mode<3;mode++){JsonArray sides=reverse.createNestedArray();sides.add(ridingReverse[mode][0]);sides.add(ridingReverse[mode][1]);}
+< top["ridingMirror"]=ridingMirror;
+---
+> for(uint8_t mode=0;mode<3;mode++){JsonArray sides=reverse.createNestedArray();sides.add((draftActive?draftBkReverse:ridingReverse)[mode][0]);sides.add((draftActive?draftBkReverse:ridingReverse)[mode][1]);}
+> top["ridingMirror"]=draftActive?draftBkMirror:ridingMirror;top["ridingColorJoin"]=draftActive?draftBkJoin:ridingColorJoin;
+1702c1868
+< JsonArray re=top.createNestedArray("ridingEffects");for(uint8_t m=0;m<3;m++){JsonArray sides=re.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingEffectConfig &e=ridingEffects[m][k];JsonObject o=sides.createNestedObject();o["valid"]=e.valid;o["isShow"]=e.isShow;o["showIndex"]=e.showIndex;o["fx"]=e.fx;o["sx"]=e.sx;o["ix"]=e.ix;o["c1"]=e.c1;o["c2"]=e.c2;o["c3"]=e.c3;o["o1"]=e.o1;o["o2"]=e.o2;o["o3"]=e.o3;}}
+---
+> JsonArray re=top.createNestedArray("ridingEffects");for(uint8_t m=0;m<3;m++){JsonArray sides=re.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingEffectConfig &e=(draftActive?draftBkEffects:ridingEffects)[m][k];JsonObject o=sides.createNestedObject();o["valid"]=e.valid;o["isShow"]=e.isShow;o["showIndex"]=e.showIndex;o["fx"]=e.fx;o["sx"]=e.sx;o["ix"]=e.ix;o["c1"]=e.c1;o["c2"]=e.c2;o["c3"]=e.c3;o["o1"]=e.o1;o["o2"]=e.o2;o["o3"]=e.o3;}}
+1704,1705c1870,1871
+< JsonObject rr=rc.createNestedObject("right");rr["palette"]=ridingColors[0][0].palette;rr["pal"]=ridingColors[0][0].pal;rr["r"]=ridingColors[0][0].r;rr["g"]=ridingColors[0][0].g;rr["b"]=ridingColors[0][0].b;
+< JsonObject rl=rc.createNestedObject("left");rl["palette"]=ridingColors[0][1].palette;rl["pal"]=ridingColors[0][1].pal;rl["r"]=ridingColors[0][1].r;rl["g"]=ridingColors[0][1].g;rl["b"]=ridingColors[0][1].b;
+---
+> JsonObject rr=rc.createNestedObject("right");rr["palette"]=(draftActive?draftBkColors:ridingColors)[0][0].palette;rr["pal"]=(draftActive?draftBkColors:ridingColors)[0][0].pal;rr["r"]=(draftActive?draftBkColors:ridingColors)[0][0].r;rr["g"]=(draftActive?draftBkColors:ridingColors)[0][0].g;rr["b"]=(draftActive?draftBkColors:ridingColors)[0][0].b;
+> JsonObject rl=rc.createNestedObject("left");rl["palette"]=(draftActive?draftBkColors:ridingColors)[0][1].palette;rl["pal"]=(draftActive?draftBkColors:ridingColors)[0][1].pal;rl["r"]=(draftActive?draftBkColors:ridingColors)[0][1].r;rl["g"]=(draftActive?draftBkColors:ridingColors)[0][1].g;rl["b"]=(draftActive?draftBkColors:ridingColors)[0][1].b;
+1707c1873
+< for(uint8_t m=0;m<3;m++){JsonArray sides=rmc.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingColor &c=ridingColors[m][k];JsonObject co=sides.createNestedObject();co["palette"]=c.palette;co["pal"]=c.pal;co["r"]=c.r;co["g"]=c.g;co["b"]=c.b;}}}
+---
+> for(uint8_t m=0;m<3;m++){JsonArray sides=rmc.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingColor &c=(draftActive?draftBkColors:ridingColors)[m][k];JsonObject co=sides.createNestedObject();co["palette"]=c.palette;co["pal"]=c.pal;co["r"]=c.r;co["g"]=c.g;co["b"]=c.b;}}}
+1743a1910
+> ridingColorJoin=top["ridingColorJoin"]|false;
