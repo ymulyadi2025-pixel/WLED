@@ -1050,8 +1050,20 @@ void compLoadDraft(const MzCmd &c){
   }
   if(m==1){ridingMirror=(c.mirror!=0);ridingColorJoin=(c.join!=0);} // mirror global hanya berlaku di Semi Auto (mirror per sisi: tahap berikutnya)
 }
-static bool compFlag(AsyncWebServerRequest *req,const String &k){return req->hasArg(k)&&(req->arg(k)=="1"||req->arg(k)=="true");}
-static uint8_t compU8(AsyncWebServerRequest *req,const String &k,uint8_t def){return req->hasArg(k)?(uint8_t)constrain(req->arg(k).toInt(),0,255):def;}
+static bool compHasArg(AsyncWebServerRequest *req, const String &key) {
+  return req && req->hasArg(key.c_str());
+}
+
+static bool compFlag(AsyncWebServerRequest *req, const String &k) {
+  if (!compHasArg(req, k)) return false;
+  const String value = req->arg(k.c_str());
+  return value == "1" || value == "true";
+}
+
+static uint8_t compU8(AsyncWebServerRequest *req, const String &k, uint8_t def) {
+  if (!compHasArg(req, k)) return def;
+  return (uint8_t)constrain(req->arg(k.c_str()).toInt(), 0, 255);
+}
 // Parameter: mode=manual|semi-auto|auto, mirror, join (Semi Auto), lalu per sisi dengan awalan kanan_ / kiri_:
 // show, idx, fx, sx, ix, c1..c3, o1..o3, rev, pm (palette 0|1), pn, r, g, b.
 // Manual: kedua sisi wajib. Semi Auto: efek dari kanan_, warna dari kedua sisi. Auto: show dan warna dari kanan_.
@@ -1067,11 +1079,11 @@ bool compParse(AsyncWebServerRequest *req,MzCmd &c,const char *&err){
     const bool needColor=(mi!=2)||(k==0);
     const bool show=compFlag(req,p+"show");
     if(needEffect){
-      if(!show&&!req->hasArg(p+"fx")){err="effect";return false;}
+      if(!show&&!compHasArg(req,p+"fx")){err="effect";return false;}
       if(mi==1&&show){err="semi_needs_fx";return false;}
       if(mi==2&&!show){err="auto_needs_show";return false;}
     }
-    if(needColor&&(!req->hasArg(p+"r")||!req->hasArg(p+"g")||!req->hasArg(p+"b"))){err="color";return false;}
+    if(needColor&&(!compHasArg(req,p+"r")||!compHasArg(req,p+"g")||!compHasArg(req,p+"b"))){err="color";return false;}
     s.flags=(show?1:0)|(compFlag(req,p+"rev")?2:0)|(compFlag(req,p+"pm")?4:0);
     s.showIndex=compU8(req,p+"idx",0);
     if(show&&s.showIndex>=MZ_SHOW_COUNT){err="show_index";return false;}
