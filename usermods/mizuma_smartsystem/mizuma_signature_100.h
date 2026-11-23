@@ -625,7 +625,7 @@ static void renderAlgorithm(uint8_t id) {
       // === JDM LEGEND (71-79) ===
       case 71U: { uint8_t drift = mz_sin8((uint8_t)(u + ph + mz_sin8((uint8_t)(u * 2U + slow)) / 4U)); level = drift; mix = drift; break; }
       case 72U: { uint8_t wm = (uint8_t)((u + ph * 3U) & 255U); uint8_t streak = (wm < 20U) ? 255U : ((wm < 40U) ? 180U : 40U); level = streak; mix = wm; break; }
-      case 73U: { uint8_t hash = hash8(x, (uint8_t)(slow + ph / 4U), id); uint8_t flash = (hash > 220U) ? 255U : ((hash > 180U) ? 120U : 20U); level = flash; mix = hash; break; }
+      case 73U: { uint8_t flashHash = hash8(x, (uint8_t)(slow + ph / 4U), id); uint8_t flash = (flashHash > 220U) ? 255U : ((flashHash > 180U) ? 120U : 20U); level = flash; mix = flashHash; break; }
       case 74U: { uint8_t touge = mz_sin8((uint8_t)(u * 2U + ph)); uint8_t corner = (uint8_t)(180U + (touge >> 2U)); level = corner; mix = touge; break; }
       case 75U: { uint8_t kp = (uint8_t)((u / 8U + ph / 12U) & 15U); uint8_t pulse = ((kp == 1U || kp == 4U || kp == 7U || kp == 10U) ? 255U : ((kp == 2U || kp == 5U) ? 90U : 0U)); level = pulse; mix = kp; break; }
       case 76U: { uint8_t rs = mz_sin8((uint8_t)(ph / 3U)); uint8_t glow = discGlow(p, (uint8_t)(180U + (rs >> 2U))); level = glow; mix = rs; break; }

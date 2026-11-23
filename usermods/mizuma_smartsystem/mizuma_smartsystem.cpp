@@ -18,7 +18,7 @@
 //   GET|POST  /mizuma/side-swap       (GET: status)  ?enabled=1|0
 //   GET|POST  /mizuma/riding/mode     ?mode=manual|semi-auto|auto|playlist
 //   GET|POST  /mizuma/riding/reverse  per-mode / per-side direction
-//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Semi-auto
+//   GET|POST  /mizuma/riding/mirror   ?enabled=1|0                  mirror Manual (dua sisi) / Semi-auto
 //   POST      /mizuma/riding/context  ?active=1|0                   current UI owns direction controls
 //   GET|POST  /mizuma/riding/colors   mode=manual|semi-auto|auto&side=kanan|kiri&palette=0|1&pal&r&g&b (warna tersimpan per mode)
 //   GET /mizuma/riding/effects -> snapshot efek per mode; POST /mizuma/riding/effect?mode&side&fx&... menyimpan snapshot
@@ -99,6 +99,7 @@ extern void handlePresets();
     bool sideSwap = false; // true: pemetaan logis Kanan/Kiri ke segmen fisik ditukar
     bool showReverse = false; // arah gerak global semua tab; stage Mizuma tetap mempertahankan flip resep via XOR
     bool ridingReverse[3][2] = {}; // arah tambahan per mode Riding dan sisi logis (Kanan, Kiri)
+    bool ridingManualMirror[2] = {}; // mirror efek Manual per sisi logis (Kanan, Kiri)
     bool ridingMirror = false; // opsi mirror WLED pada segmen efek Riding
     enum RidingMode : uint8_t { RIDING_MANUAL=0, RIDING_SEMI_AUTO=1, RIDING_AUTO=2, RIDING_PLAYLIST=3 };
     static const uint8_t SEG_COLOR_RIGHT=0, SEG_COLOR_LEFT=1, SEG_FX_RIGHT=2, SEG_FX_LEFT=3, SEG_FX_WHOLE=4;
@@ -119,13 +120,14 @@ extern void handlePresets();
     // ===== DRAFT / PRATINJAU COMPOSER =====
     // Pratinjau meminjam array Riding di RAM (tidak pernah disimpan). Cadangan draftBk* = data tersimpan.
     // Selama draftActive, penyimpanan config dan GET /mizuma/riding/* membaca cadangan, bukan draft.
-    struct CompSide { uint8_t flags; /* bit0 show, bit1 reverse, bit2 palette */ uint8_t showIndex,fx,sx,ix,c1,c2,c3,o /* bit0..2 = o1..o3 */,pal,r,g,b; };
+    struct CompSide { uint8_t flags; /* bit0 show, bit1 reverse, bit2 palette, bit3 mirror */ uint8_t showIndex,fx,sx,ix,c1,c2,c3,o /* bit0..2 = o1..o3 */,pal,r,g,b; };
     static const uint32_t MZ_DRAFT_TIMEOUT_MS = 20000; // tanpa sinyal dari UI selama 20 dtk -> lampu kembali ke data tersimpan
     bool draftActive=false;
     volatile uint32_t draftBeatAt=0;
     RidingEffectConfig draftBkEffects[3][2];
     RidingColor draftBkColors[3][2];
     bool draftBkReverse[3][2]={};
+    bool draftBkManualMirror[2]={};
     bool draftBkMirror=false;
     bool draftBkJoin=false;
     RidingMode ridingMode = RIDING_MANUAL;
@@ -215,16 +217,29 @@ bool ridingJoinActive(){return ridingColorJoin&&ridingMode==RIDING_SEMI_AUTO;}
 // di pengaturan LED dan GPIO 0 berindeks lebih dulu, seluruh strip menjadi satu garis kontinu: ujung luar GPIO 0 -> tengah -> ujung luar GPIO 1.
 // Arah alami (indeks naik) = dari sisi GPIO 0 ke sisi GPIO 1. Agar palet terbaca kiri ke kanan, balik bila GPIO 0 berindeks lebih dulu, dan balik lagi jika sideSwap aktif.
 bool ridingJoinReverse(){return (ridingRightStart<ridingLeftStart)!=sideSwap;}
+static uint8_t ridingModeIndex(RidingMode mode){
+  return mode==RIDING_SEMI_AUTO?1:(mode==RIDING_AUTO?2:0);
+}
+bool ridingSideReverse(RidingMode mode,bool logicalRight){
+  if(mode==RIDING_PLAYLIST||mode==RIDING_AUTO)return false;
+  const uint8_t modeIdx=ridingModeIndex(mode);
+  return ridingReverse[modeIdx][logicalRight?0:1];
+}
+bool ridingWholeReverse(){return ridingReverse[1][0]^ridingReverse[1][1];}
 // Geometri dan arah yang seharusnya untuk segmen warna fisik segId pada keadaan sekarang. joinOff=true: segmen harus mati.
 void colorSegTarget(uint8_t segId,bool &joinOff,uint16_t &start,uint16_t &stop,bool &reverse){
   joinOff=false;reverse=false;
   if(ridingJoinActive()){
-    if(segId==SEG_COLOR_RIGHT){start=0;stop=ridingWholeStop;reverse=ridingJoinReverse();}
+    if(segId==SEG_COLOR_RIGHT){start=0;stop=ridingWholeStop;reverse=ridingJoinReverse()^(ridingUiActive&&ridingWholeReverse());}
     else{joinOff=true;start=ridingLeftStart;stop=ridingLeftStop;}
     return;
   }
+  const bool logicalRight=segId==physicalColorSegForLogicalSide(true);
   if(segId==SEG_COLOR_RIGHT){start=ridingRightStart;stop=ridingRightStop;}
   else{start=ridingLeftStart;stop=ridingLeftStop;}
+  if(ridingUiActive){
+    reverse=ridingMode==RIDING_SEMI_AUTO?ridingWholeReverse():ridingSideReverse(ridingMode,logicalRight);
+  }
 }
 void applyRidingColorLayer(bool rightSide){
   if(!ridingSegmentsReady)return;
@@ -348,8 +363,19 @@ bool ensureRidingSegments(){
   return true;
 }
 bool ridingSegmentMirror(RidingMode mode,uint8_t id){
-  // Mirror hanya berlaku pada efek linked Semi Auto. Untuk slot playlist, gunakan
-  // snapshot slot (bit 0 PlSlot::pad), bukan setelan Semi Auto yang sedang aktif.
+  if(mode==RIDING_MANUAL){
+    if(id==SEG_FX_RIGHT||id==SEG_FX_LEFT){
+      const bool logicalRight=id==physicalSegForLogicalSide(true);
+      return ridingManualMirror[logicalRight?0:1];
+    }
+    if(id==SEG_COLOR_RIGHT||id==SEG_COLOR_LEFT){
+      const bool logicalRight=id==physicalColorSegForLogicalSide(true);
+      return ridingManualMirror[logicalRight?0:1];
+    }
+    return false;
+  }
+  if(mode==RIDING_SEMI_AUTO&&(id==SEG_COLOR_RIGHT||id==SEG_COLOR_LEFT))return ridingMirror;
+  // Untuk slot playlist, gunakan snapshot slot (bit 0 PlSlot::pad), bukan setelan aktif.
   if(mode!=RIDING_SEMI_AUTO||id!=SEG_FX_WHOLE)return false;
   if(plRun.active&&plRun.list<PL_MAX&&plRun.slot<pls[plRun.list].n)
     return (pls[plRun.list].it[plRun.slot].pad&0x01U)!=0;
@@ -357,10 +383,10 @@ bool ridingSegmentMirror(RidingMode mode,uint8_t id){
 }
 void applyRidingMirrorOptions(RidingMode mode){
   bool changed=false;
-  for(uint8_t id=SEG_FX_RIGHT;id<=SEG_FX_WHOLE;id++){
+  for(uint8_t id=SEG_COLOR_RIGHT;id<=SEG_FX_WHOLE;id++){
     Segment &effect=strip.getSegment(id);
     const bool mirror=ridingSegmentMirror(mode,id);
-    // WLED's MIRROR segment option is option bit 3; color-only segments are excluded.
+    // WLED's MIRROR segment option is option bit 3; pair each color layer with its effect side.
     if(effect.getOption(3)!=mirror){effect.setOption(3,mirror);effect.markForReset();changed=true;}
   }
   if(changed){strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);}
@@ -382,9 +408,6 @@ void applyRidingLayerMode(RidingMode mode){
   applyRidingMirrorOptions(mode);
   strip.trigger();
 }
-static uint8_t ridingModeIndex(RidingMode mode){
-  return mode==RIDING_SEMI_AUTO?1:(mode==RIDING_AUTO?2:0);
-}
 RidingColor &ridingColorFor(RidingMode mode,bool logicalRight){
   uint8_t mi=(mode==RIDING_PLAYLIST)?ridingModeIndex(savedRidingMode):ridingModeIndex(mode);
   if(mi>2)mi=0;
@@ -394,16 +417,6 @@ const RidingColor &ridingColorFor(RidingMode mode,bool logicalRight) const {
   uint8_t mi=(mode==RIDING_PLAYLIST)?ridingModeIndex(savedRidingMode):ridingModeIndex(mode);
   if(mi>2)mi=0;
   return ridingColors[mi][mi==2?0:(logicalRight?0:1)];
-}
-bool ridingSideReverse(RidingMode mode,bool logicalRight){
-  // Auto memakai arah internal Signature Effect; nilai reverse warisan tidak boleh mengubahnya.
-  if(mode==RIDING_PLAYLIST||mode==RIDING_AUTO)return false;
-  const uint8_t modeIdx=ridingModeIndex(mode);
-  return ridingReverse[modeIdx][logicalRight?0:1];
-}
-bool ridingWholeReverse(){
-  // Fold any previously saved per-side settings into the single linked-segment direction.
-  return ridingReverse[1][0]^ridingReverse[1][1];
 }
 void execRidingColor(uint8_t side,bool palette,uint8_t pal,uint8_t r,uint8_t g,uint8_t b,uint8_t modeIdx){
   if(side<1||side>2||modeIdx>2)return;
@@ -628,6 +641,7 @@ void applyStoredRidingMode(RidingMode mode,uint16_t transition100ms=4){
     addStoredRidingEffect(seg,physicalSegForLogicalSide(false),ridingEffects[2][0],false);
   }
   deserializeState(root);
+  applyRidingMirrorOptions(mode);
   if(mode==RIDING_MANUAL){
     for(uint8_t k=0;k<2;k++){
       const RidingEffectConfig &saved=ridingEffects[0][k];
@@ -946,7 +960,7 @@ void handleRidingColors(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
     String json="{\"ok\":true,\"manual\":{\"right\":";
     appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][1]);
-    json+="},\"semi-auto\":{\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[1][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[1][1]);
+    json+="},\"semi-auto\":{\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[1][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[1][1]);json+=",\"join\":";json+=(draftActive?draftBkJoin:ridingColorJoin)?"true":"false";
     json+="},\"auto\":{\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[2][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[2][0]);
     // Alias kanan/kiri dipertahankan untuk UI lama; sekarang menunjuk konfigurasi Manual.
     json+="},\"right\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][0]);json+=",\"left\":";appendRidingColorJson(json,(draftActive?draftBkColors:ridingColors)[0][1]);json+="}";
@@ -969,16 +983,17 @@ void handleRidingColors(AsyncWebServerRequest *req,bool isGet){
   req->send(200,"application/json","{\"ok\":true}");
 }
 
-void appendRidingEffectJson(String &json,const RidingEffectConfig &e){
+void appendRidingEffectJson(String &json,const RidingEffectConfig &e,bool mirror=false){
   json+="{\"valid\":";json+=e.valid?"true":"false";
   json+=",\"isShow\":";json+=e.isShow?"true":"false";
   json+=",\"showIndex\":"+String(e.showIndex)+",\"fx\":"+String(e.fx);
   json+=",\"sx\":"+String(e.sx)+",\"ix\":"+String(e.ix)+",\"c1\":"+String(e.c1)+",\"c2\":"+String(e.c2)+",\"c3\":"+String(e.c3);
-  json+=",\"o1\":"+String(e.o1)+",\"o2\":"+String(e.o2)+",\"o3\":"+String(e.o3)+"}";
+  json+=",\"o1\":"+String(e.o1)+",\"o2\":"+String(e.o2)+",\"o3\":"+String(e.o3)+",\"mirror\":";json+=mirror?"true":"false";json+="}";
 }
 void handleRidingEffects(AsyncWebServerRequest *req,bool isGet){
   if(isGet){
-    String json="{\"ok\":true,\"manual\":{\"right\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[0][0]);json+=",\"left\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[0][1]);
+    const bool *manualMirror=draftActive?draftBkManualMirror:ridingManualMirror;
+    String json="{\"ok\":true,\"manual\":{\"right\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[0][0],manualMirror[0]);json+=",\"left\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[0][1],manualMirror[1]);
     json+="},\"semi-auto\":{\"shared\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[1][0]);
     json+="},\"auto\":{\"shared\":";appendRidingEffectJson(json,(draftActive?draftBkEffects:ridingEffects)[2][0]);json+="}}";
     req->send(200,"application/json",json);return;
@@ -1013,6 +1028,7 @@ void compRestoreBackups(){
   for(uint8_t m=0;m<3;m++)for(uint8_t k=0;k<2;k++){
     ridingEffects[m][k]=draftBkEffects[m][k];ridingColors[m][k]=draftBkColors[m][k];ridingReverse[m][k]=draftBkReverse[m][k];
   }
+  for(uint8_t k=0;k<2;k++)ridingManualMirror[k]=draftBkManualMirror[k];
   ridingMirror=draftBkMirror;ridingColorJoin=draftBkJoin;draftActive=false;
 }
 void compDraftBegin(){
@@ -1020,6 +1036,7 @@ void compDraftBegin(){
   for(uint8_t m=0;m<3;m++)for(uint8_t k=0;k<2;k++){
     draftBkEffects[m][k]=ridingEffects[m][k];draftBkColors[m][k]=ridingColors[m][k];draftBkReverse[m][k]=ridingReverse[m][k];
   }
+  for(uint8_t k=0;k<2;k++)draftBkManualMirror[k]=ridingManualMirror[k];
   draftBkMirror=ridingMirror;draftBkJoin=ridingColorJoin;draftActive=true;
 }
 // reapply=true: lampu dikembalikan ke mode Riding tersimpan (playlist dimulai dari slot pertama).
@@ -1047,8 +1064,10 @@ void compLoadDraft(const MzCmd &c){
     // Semi Auto memakai satu arah bersama (slot kanan); Auto memakai arah internal Signature Show.
     if(m==0)ridingReverse[0][k]=(s.flags&2U)!=0;
     else if(m==1)ridingReverse[1][k]=(k==0)&&((s.flags&2U)!=0);
+    if(m==0)ridingManualMirror[k]=(s.flags&8U)!=0;
   }
-  if(m==1){ridingMirror=(c.mirror!=0);ridingColorJoin=(c.join!=0);} // mirror global hanya berlaku di Semi Auto (mirror per sisi: tahap berikutnya)
+  if(m==1)ridingMirror=(c.mirror!=0);
+  if(m==1)ridingColorJoin=(c.join!=0);
 }
 static bool compHasArg(AsyncWebServerRequest *req, const String &key) {
   return req && req->hasArg(key.c_str());
@@ -1065,7 +1084,7 @@ static uint8_t compU8(AsyncWebServerRequest *req, const String &k, uint8_t def) 
   return (uint8_t)constrain(req->arg(k.c_str()).toInt(), 0, 255);
 }
 // Parameter: mode=manual|semi-auto|auto, mirror, join (Semi Auto), lalu per sisi dengan awalan kanan_ / kiri_:
-// show, idx, fx, sx, ix, c1..c3, o1..o3, rev, pm (palette 0|1), pn, r, g, b.
+// show, idx, fx, sx, ix, c1..c3, o1..o3, rev, mirror (Manual), pm (palette 0|1), pn, r, g, b.
 // Manual: kedua sisi wajib. Semi Auto: efek dari kanan_, warna dari kedua sisi. Auto: show dan warna dari kanan_.
 bool compParse(AsyncWebServerRequest *req,MzCmd &c,const char *&err){
   const String mode=req->hasArg("mode")?req->arg("mode"):String("");
@@ -1084,7 +1103,7 @@ bool compParse(AsyncWebServerRequest *req,MzCmd &c,const char *&err){
       if(mi==2&&!show){err="auto_needs_show";return false;}
     }
     if(needColor&&(!compHasArg(req,p+"r")||!compHasArg(req,p+"g")||!compHasArg(req,p+"b"))){err="color";return false;}
-    s.flags=(show?1:0)|(compFlag(req,p+"rev")?2:0)|(compFlag(req,p+"pm")?4:0);
+    s.flags=(show?1:0)|(compFlag(req,p+"rev")?2:0)|(compFlag(req,p+"pm")?4:0)|(compFlag(req,p+"mirror")?8:0);
     s.showIndex=compU8(req,p+"idx",0);
     if(show&&s.showIndex>=MZ_SHOW_COUNT){err="show_index";return false;}
     s.fx=show?0:compU8(req,p+"fx",0);
@@ -1167,7 +1186,10 @@ void processCmdQueue(){
           ridingUiActive=true;
           ridingReverse[c.value][c.side==1?0:1]=(c.flag!=0);
           if(c.value==1&&c.side==1)ridingReverse[1][1]=false;
-          if(ridingMode!=RIDING_PLAYLIST&&ridingModeIndex(ridingMode)==c.value)applyCurrentShowDirection();
+          if(ridingMode!=RIDING_PLAYLIST&&ridingModeIndex(ridingMode)==c.value){
+            applyCurrentShowDirection();
+            applyRidingColorLayer(true);applyRidingColorLayer(false);strip.trigger();stateUpdated(CALL_MODE_DIRECT_CHANGE);
+          }
           queueSave();
         }
         break;
@@ -1648,21 +1670,6 @@ void startWelcomeSequence(){
   usingNativeWelcomePreset = false;
 
   if (bootPreset > 0) {
-   // Diagnostik tertunda untuk memastikan pesan muncul setelah USB Serial siap.
-  static bool diagnosticPrinted = false;
-
-  if (!diagnosticPrinted && millis() >= 5000) {
-    diagnosticPrinted = true;
-
-    DEBUG_PRINTF_P(
-      PSTR("[Mizuma] Efek WLED: %u/%u\n"),
-      (unsigned)showFxResolved,
-      (unsigned)MZ_FXN_COUNT
-    );
-
-    DEBUG_PRINTLN(F("[Mizuma] Usermod loop aktif"));
-  }
-  
     String nativeName;
     const bool presetReadable = getPresetName(bootPreset, nativeName);
 
@@ -1828,6 +1835,13 @@ out+=buf;}
 out+="}";req->send(200,"application/json",out);});}
 
 void loop() override {
+  // Diagnostik tertunda (dari pengguna): dicetak sekali setelah USB Serial siap, maka harus di loop(), bukan di startWelcomeSequence() yang hanya jalan saat boot.
+  static bool diagnosticPrinted = false;
+  if (!diagnosticPrinted && millis() >= 5000) {
+    diagnosticPrinted = true;
+    DEBUG_PRINTF_P(PSTR("[Mizuma] Efek WLED: %u/%u\n"), (unsigned)showFxResolved, (unsigned)MZ_FXN_COUNT);
+    DEBUG_PRINTLN(F("[Mizuma] Usermod loop aktif"));
+  }
   if(!ridingSegmentsReady && ensureRidingSegments())applyRidingLayerMode(savedRidingMode);
   processCmdQueue(); // satu-satunya tempat perubahan Segment dari web dijalankan (task yang sama dengan strip.service())
   if(draftActive&&(uint32_t)(millis()-draftBeatAt)>MZ_DRAFT_TIMEOUT_MS)compDraftEnd(true); // pratinjau ditinggalkan: lampu kembali ke data tersimpan
@@ -1890,6 +1904,8 @@ top["showReverse"]=showReverse;
 JsonArray reverse=top.createNestedArray("ridingReverse");
 for(uint8_t mode=0;mode<3;mode++){JsonArray sides=reverse.createNestedArray();sides.add((draftActive?draftBkReverse:ridingReverse)[mode][0]);sides.add((draftActive?draftBkReverse:ridingReverse)[mode][1]);}
 top["ridingMirror"]=draftActive?draftBkMirror:ridingMirror;top["ridingColorJoin"]=draftActive?draftBkJoin:ridingColorJoin;
+JsonArray manualMirror=top.createNestedArray("ridingManualMirror");
+for(uint8_t k=0;k<2;k++)manualMirror.add((draftActive?draftBkManualMirror:ridingManualMirror)[k]);
 top["ridingMode"]=(uint8_t)savedRidingMode;
 top["ridingPl"]=(int)ridingPl;
 JsonArray re=top.createNestedArray("ridingEffects");for(uint8_t m=0;m<3;m++){JsonArray sides=re.createNestedArray();for(uint8_t k=0;k<2;k++){const RidingEffectConfig &e=(draftActive?draftBkEffects:ridingEffects)[m][k];JsonObject o=sides.createNestedObject();o["valid"]=e.valid;o["isShow"]=e.isShow;o["showIndex"]=e.showIndex;o["fx"]=e.fx;o["sx"]=e.sx;o["ix"]=e.ix;o["c1"]=e.c1;o["c2"]=e.c2;o["c3"]=e.c3;o["o1"]=e.o1;o["o2"]=e.o2;o["o3"]=e.o3;}}
@@ -1934,6 +1950,13 @@ if(!reverse.isNull()){
   }
 }
 ridingMirror=top["ridingMirror"]|false;
+JsonArray manualMirror=top["ridingManualMirror"];
+if(!manualMirror.isNull()){ridingManualMirror[0]=manualMirror[0]|false;ridingManualMirror[1]=manualMirror[1]|false;}
+else{
+  JsonArray legacyMirror=top["ridingMirrorSide"];
+  if(!legacyMirror.isNull()){ridingManualMirror[0]=legacyMirror[0]|false;ridingManualMirror[1]=legacyMirror[1]|false;}
+  else ridingManualMirror[0]=ridingManualMirror[1]=ridingMirror;
+}
 ridingColorJoin=top["ridingColorJoin"]|false;
 savedRidingMode=(RidingMode)constrain((int)(top["ridingMode"]|RIDING_MANUAL),(int)RIDING_MANUAL,(int)RIDING_PLAYLIST);
 ridingMode=savedRidingMode;
